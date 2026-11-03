@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Download pinned browser dependencies and generate the complete deployable frontend."""
+"""固定したブラウザー依存を取得し、配布可能なフロントエンドを生成します。"""
 
 import fnmatch
 import hashlib
