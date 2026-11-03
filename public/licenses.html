@@ -1,0 +1,22 @@
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ライセンス</title>
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/layout.css">
+<main class="home-wrap">
+  <h1>ライセンス</h1>
+  <p>この FE モック本体は GNU General Public License version 3 or later（GPL-3.0-or-later）です。ライセンス本文は <a href="LICENSE">LICENSE</a> を確認してください。</p>
+  <p>同梱部品ごとの版・取得元・ライセンスは <a href="vendor/MANIFEST.md">vendor/MANIFEST.md</a> と下の一覧を確認してください。個別ライセンスファイルがある場合は、その条件が適用されます。</p>
+  <p>ffmpeg ソースの入手先：<a href="vendor/ffmpeg/SOURCE.md">vendor/ffmpeg/SOURCE.md</a>（確認済みの版・URLが揃うまで配布先は未確定です）。</p>
+  <p>ソースリポジトリ URL：未設定（公開先決定後に追記）。FE と BE は別リポジトリで、BE のコードはこの配布物に含みません。</p>
+  <h2>同梱コンポーネント</h2>
+  <ul id="license-list"><li>台帳を読み込んでいます…</li></ul>
+</main>
+<script>
+fetch('vendor/MANIFEST.json').then(r => r.ok ? r.json() : Promise.reject()).then(m => {
+  document.querySelector('#license-list').innerHTML = (m.packages || []).map(p =>
+    `<li><b>${p.name}</b> ${p.version || ''} — ${p.license || '記載なし'} (<a href="${p.source}" rel="noreferrer">${p.source}</a>)</li>`).join('');
+}).catch(() => { document.querySelector('#license-list').innerHTML = '<li><a href="vendor/MANIFEST.md">MANIFEST.md</a>を確認してください。</li>'; });
+</script>

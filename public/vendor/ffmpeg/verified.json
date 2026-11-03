@@ -1,0 +1,51 @@
+{
+ "_comment": "tests/verify_ffmpeg.mjs が実ブラウザ（Chromium）で作る。ffmpeg.wasm で実際に変換できた形式だけを書く。Media.capabilities() が読む。手で編集しない。",
+ "ffmpeg": "ffmpeg 5.1.4（@ffmpeg/core 0.12.10・シングルスレッド）",
+ "license": "GPL（--enable-gpl：x264/x265/libvpx/lame/vorbis/opus ほか）",
+ "verifiedAt": "2026-10-27",
+ "inputs": {
+  "audio": [
+   "aac",
+   "ac3",
+   "aiff",
+   "amr",
+   "au",
+   "caf",
+   "flac",
+   "m4a",
+   "mka",
+   "mp2",
+   "mp3",
+   "ogg",
+   "opus",
+   "wav",
+   "wma"
+  ],
+  "video": [
+   "3gp",
+   "avi",
+   "flv",
+   "mkv",
+   "mov",
+   "mp4",
+   "mpg",
+   "ogv",
+   "webm",
+   "wmv"
+  ]
+ },
+ "outputs": [
+  "wav",
+  "mp3",
+  "flac",
+  "m4a",
+  "ogg",
+  "opus",
+  "aac"
+ ],
+ "notes": [
+  "全入力形式（上の一覧）×全出力形式を変換し、外部の ffmpeg で復号して長さが一致することを確認した（25入力×7出力＝175件中174件。残りの1件は amr(8kHz)→ogg のビットレート指定で、サンプルレートを指定すれば成功）",
+  "opus は圧縮レベル（compression_level）を3以下にしないと止まる",
+  "変換は1件ごとに新しいインスタンスで行うと安定する"
+ ]
+}

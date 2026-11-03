@@ -1,0 +1,445 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* データ層。API（04_API.md）の結果を、画面が使う形（DATA）に変換する。
+   ・DATA は起動直後は空。boot.js が Api.version / me / projects/list ... を読み、applyXxx() で埋める。
+   ・ファイル本文は files/tree に含まれない場合があるので、開いたときに files/read で取る（ensureText）。
+   ・画面（app.js ほか）は DATA だけを参照する。 */
+const SETTINGS_DEFAULT = {
+  theme: 'dark', accent: 'blue', uiFont: 14, edFont: 14, lineH: 1.6, tab: 2, wrap: false, lineNo: true, density: 'standard',
+  notify: { save: true, share: true, publish: true, device: true, usage: true }
+};
+/* 制限値の表示用の定義（名前・説明・範囲）。値は API（me / admin/settings_get）から受け取る。 */
+const LIMIT_META = [
+  { key: 'quota_mb', name: '部員ごとの容量上限', description: '1人あたりの使用量の上限', value: 500, min: 10, max: 10000, default: 500, unit: 'MB' },
+  { key: 'max_upload_mb', name: '最大アップロードサイズ', description: 'これを超えるファイルは、システムに保存・アップロードできません', value: 200, min: 1, max: 2000, default: 200, unit: 'MB' },
+  { key: 'track_limit_mb', name: '履歴の追跡上限', description: 'これを超えるファイルは、履歴に入れません（未追跡）', value: 5, min: 1, max: 100, default: 5, unit: 'MB' },
+  { key: 'device_days', name: '信頼端末の有効日数', description: '期限後は、もう一度承認が必要です', value: 90, min: 1, max: 365, default: 90, unit: '日' },
+  { key: 'code_ttl_sec', name: 'ログイン用コードの有効秒数', description: 'QR・数字コードが使える時間', value: 300, min: 60, max: 900, default: 300, unit: '秒' },
+  { key: 'code_max_fail', name: 'ログイン承認の失敗上限', description: '承認コードを間違えられる回数。超えるとロックされます', value: 5, min: 3, max: 10, default: 5, unit: '回' },
+  { key: 'max_publish_mb', name: 'アプリの最大サイズ', description: '1つのアプリとして公開できる大きさ', value: 200, min: 1, max: 2000, default: 200, unit: 'MB' },
+  { key: 'max_projects_per_member', name: '部員ごとのプロジェクト数', description: '1人が持てるプロジェクトの数', value: 50, min: 1, max: 500, default: 50, unit: '個' },
+  { key: 'app_code_max_fail', name: 'アクセスコードの失敗上限', description: 'アプリの入口でコードを間違えられる回数', value: 5, min: 3, max: 10, default: 5, unit: '回' },
+  { key: 'gate_private_minutes', name: '非公開アプリのアクセス有効分', description: '非公開アプリを開いてから、ログインを求め直すまでの時間', value: 60, min: 5, max: 1440, default: 60, unit: '分' },
+  { key: 'gate_unlisted_hours', name: '限定公開アプリのアクセス有効時間', description: 'アクセスコードを入れてから、入れ直しを求めるまでの時間', value: 24, min: 1, max: 168, default: 24, unit: '時間' },
+  { key: 'stale_app_days', name: '放置アプリの通知までの日数（提案）', description: 'この日数、更新のないアプリを「忘れていませんか？」で知らせます', value: 90, min: 7, max: 730, default: 90, unit: '日' },
+  { key: 'audit_retention_days', name: '監査ログの保持日数（提案）', description: 'これより古い監査ログは削除されます', value: 365, min: 30, max: 3650, default: 365, unit: '日' },
+  { key: 'zip_max_mb', name: 'ZIPの最大サイズ', description: 'ZIPでまとめてダウンロードできる上限', value: 1000, min: 10, max: 10000, default: 1000, unit: 'MB' }
+];
+
+const DATA = {
+  meta: { api_version: null, server_version: '', features: [] },
+  user: { id: '', name: '', position: '', isAdmin: false, reauthUntil: 0, trusted: false },
+  quota: { limitMB: 0, usedMB: 0 },
+  projects: { mine: [], shared: [] },
+  files: {},
+  commits: [],
+  commitsByProject: {},
+  commitStatus: {},
+  fileStates: {},
+  apps: [],
+  adminApps: [],
+  members: [],
+  devices: [],
+  adminDevices: [],
+  adminProjects: [],
+  adminUsage: { categories: [] },
+  limits: LIMIT_META.map(l => ({ ...l })),
+  audit: [],
+  settings: JSON.parse(JSON.stringify(SETTINGS_DEFAULT)),
+  usage: { categories: [] },
+  announcements: [],
+  notices: [],
+  media: { inputFormats: [], outputFormats: [] },
+  tools: [],
+  login: { code: '', approveUrl: '', requester: '', id: '', pollSecret: '', expires: 0, kind: 'qr' },
+  collab: [],
+  sharesByProject: {}
+};
+
+const arr = (d, key) => Array.isArray(d) ? d : (d && Array.isArray(d[key]) ? d[key] : []);
+const num = (v, d) => Number.isFinite(+v) ? +v : d;
+const bool = (v, d) => v === undefined || v === null ? d : (v === true || v === 1 || v === '1' || v === 'true');
+const first = (o, keys, d) => { for (const k of keys) if (o && o[k] !== undefined && o[k] !== null) return o[k]; return d; };
+const TEXTX = new Set('html htm css js mjs json md txt php sql py c h cpp cc hpp cs java kt go rs ts tsx jsx sh bash ps1 yml yaml xml csv ini conf env toml lua rb pl r vue svg diff graphql'.split(' '));
+const BINX = new Set('png jpg jpeg gif webp bmp ico avif mp3 wav m4a flac ogg opus mp4 webm mov m4v ogv avi mkv pdf zip gz tar wasm woff woff2 ttf otf'.split(' '));
+const textPath = name => { const e = String(name || '').split('.').pop().toLowerCase(); return TEXTX.has(e) || (!BINX.has(e) && !e.includes('/')); };
+
+/* 表示用の列挙（BE は英語の値、画面は日本語） */
+const VIS_IN = { public: '公開', unlisted: '限定公開', private: '非公開', '公開': '公開', '限定公開': '限定公開', '非公開': '非公開' };
+const VIS_OUT = { '公開': 'public', '限定公開': 'unlisted', '非公開': 'private', public: 'public', unlisted: 'unlisted', private: 'private' };
+const visLabel = v => VIS_IN[v] || v || '公開';
+const visValue = v => VIS_OUT[v] || v || 'public';
+const PERM_IN = { view: 'view', edit: 'edit', owner: 'owner', '閲覧': 'view', '編集': 'edit', '所有者': 'owner' };
+
+/* API の形 → 画面が使う形 */
+function fromApi(a) {
+  const d = JSON.parse(JSON.stringify(a || {}));
+  if (d.projects) {
+    const pj = p => {
+      const o = { ...p };
+      o.id = String(first(p, ['id', 'project', 'project_id'], ''));
+      o.name = first(p, ['name'], '');
+      if (o.perm === 'owner') delete o.perm;
+      o.owner = first(p, ['owner', 'owner_id'], o.owner);
+      if (o.owner === undefined) delete o.owner;
+      o.ownerLabel = first(p, ['ownerLabel', 'owner_label'], o.ownerLabel);
+      if (o.ownerLabel === undefined) delete o.ownerLabel;
+      o.canPublish = bool(first(p, ['canPublish', 'can_publish'], o.canPublish), false);
+      o.updatedAt = first(p, ['updatedAt', 'updated_at'], o.updatedAt);
+      o.sizeMB = num(first(p, ['sizeMB', 'size_mb'], first(p, ['work_bytes', 'bytes'], 0) / 1048576), o.sizeMB);
+      o.order = num(first(p, ['order', 'sort_order'], o.order), 0);
+      o.parent = first(p, ['parent', 'parent_label'], o.parent);
+      o.parentCommit = first(p, ['parentCommit', 'fork_commit'], o.parentCommit);
+      o.headCommit = first(p, ['headCommit', 'head_commit'], o.headCommit);
+      if (p.perm) o.perm = PERM_IN[p.perm] || p.perm;
+      return o;
+    };
+    d.projects = { mine: arr(d.projects, 'mine').map(pj), shared: arr(d.projects, 'shared').map(pj) };
+  }
+  if (d.files) {
+    const node = n => {
+      const o = { n: first(n, ['name', 'n'], ''), t: first(n, ['type', 't'], 'file') };
+      if (o.t === 'dir' || o.t === 'directory') { o.t = 'dir'; o.c = arr(n.children ?? n.c, '').map(node); }
+      else {
+        o.t = 'file';
+        if (n.text !== undefined) o.text = n.text;
+        if (n.size !== undefined) o.size = n.size;
+        if (n.version !== undefined) o.version = n.version;
+      }
+      const status = first(n, ['status'], '');
+      if (status === '新規' || status === 'new' || status === 'added') o.inBase = false;
+      if (status === '変更' || status === 'modified' || status === 'renamed') o.mod = true;
+      if (status === '未保存' || status === 'unsaved') o.saved = false;
+      if (bool(first(n, ['untracked'], false), false)) o.untracked = true;
+      return o;
+    };
+    const files = {};
+    Object.keys(d.files).forEach(k => { files[k] = arr(d.files[k], '').map(node); });
+    d.files = files;
+  }
+  return d;
+}
+
+function setLimits(values) {
+  if (!values) return;
+  DATA.limits.forEach(l => { if (values[l.key] !== undefined && values[l.key] !== null && Number.isFinite(+values[l.key])) l.value = +values[l.key]; });
+}
+function limitOf(k) { return DATA.limits.find(l => l.key === k) || { key: k, value: 0 }; }
+const quotaLimit = () => limitOf('quota_mb').value;
+const catOf = n => DATA.usage.categories.find(c => c.name === n);
+const usedMB = () => {
+  const total = DATA.usage.categories.reduce((s, c) => s + num(c.mb, 0), 0);
+  return total || DATA.quota.usedMB || 0;
+};
+const catItems = c => (c && c.items ? c.items : []).map(([n, v]) => [n, v]).sort((a, b) => b[1] - a[1]);
+const allProjects = () => [...DATA.projects.mine, ...DATA.projects.shared];
+const digits = s => String(s || '').replace(/\D/g, '').slice(0, 8);
+const fmtCode = c => { const d = digits(c); return d.length > 4 ? d.slice(0, 4) + ' ' + d.slice(4) : d; };
+const today = () => new Date().toISOString().slice(0, 10);
+/* BE は日時を UNIX 秒で返す。画面は 'YYYY-MM-DD HH:MM' の文字列を前提にしているので変換する。 */
+const dt = v => {
+  if (v === null || v === undefined || v === '') return '';
+  if (typeof v === 'string' && !/^\d+$/.test(v)) return v;
+  const n = +v; if (!Number.isFinite(n) || n <= 0) return '';
+  const d = new Date(n < 1e12 ? n * 1000 : n), p = x => String(x).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+const memberLabel = id => {
+  if (!id) return '';
+  if (DATA.user.id === id) return DATA.user.name || id;
+  const m = DATA.members.find(x => x.id === id);
+  return m && m.name ? m.name : id;
+};
+
+/* ---- 設定（端末の localStorage。キーに部員IDを含める：03） ---- */
+function settingsKey() { return 'vwc.settings.' + (DATA.user.id || 'anon'); }
+function loadSettings() {
+  try {
+    const v = JSON.parse(localStorage.getItem(settingsKey()) || 'null');
+    if (v && typeof v === 'object') DATA.settings = { ...JSON.parse(JSON.stringify(SETTINGS_DEFAULT)), ...v, notify: { ...SETTINGS_DEFAULT.notify, ...(v.notify || {}) } };
+  } catch { /* 壊れた値は既定に戻す */ }
+}
+function saveSettings() { try { localStorage.setItem(settingsKey(), JSON.stringify(DATA.settings)); } catch { /* 保存できなくても画面は動く */ } }
+
+/* ---- me / 初期データ ---- */
+function applyMe(d) {
+  const u = d.member || d.user || {};
+  let reauth = num(first(u, ['reauthUntil', 'reauth_until'], 0), 0);
+  /* BE が秒で返す場合にも対応（10桁未満は秒とみなす） */
+  if (reauth > 0 && reauth < 1e12) reauth *= 1000;
+  DATA.user = {
+    id: u.id || u.member_id || '', name: u.name || '', position: u.position || '',
+    isAdmin: bool(first(u, ['isAdmin', 'is_admin'], u.role === 'admin'), false),
+    reauthUntil: reauth,
+    trusted: bool(first(d, ['trusted'], false), false)
+  };
+  const q = d.quota || {};
+  DATA.quota = { limitMB: num(q.limitMB ?? q.limit_mb ?? d.quota_mb, 0), usedMB: num(q.usedMB ?? q.used_mb, 0) };
+  const values = { ...(d.limits || {}) };
+  LIMIT_META.forEach(l => { if (d[l.key] !== undefined) values[l.key] = d[l.key]; });
+  setLimits(values);
+  if (d.settings && typeof d.settings === 'object') {
+    const s = d.settings;
+    Object.keys(s).forEach(k => { if (SETTINGS_DEFAULT[k] !== undefined) DATA.settings[k] = s[k]; });
+  }
+  loadSettings();
+  if (d.csrf) Api.setCsrf(d.csrf);
+}
+
+function applyProjects(d) {
+  /* BE の projects/list は { mine, shared } を直接返す。{ projects: { mine, shared } } の形も受け付ける。 */
+  const p = fromApi({ projects: (d && d.projects) || d || {} }).projects;
+  const order = l => l.map((x, i) => ({ ...x, order: x.order ?? i })).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  DATA.projects = { mine: order(p.mine), shared: order(p.shared) };
+}
+
+function normalizeUsage(d) {
+  if (!d) return { categories: [] };
+  let raw = Array.isArray(d) ? d : (d.categories || d.usage || d.items);
+  let cats;
+  if (Array.isArray(raw)) cats = raw;
+  else if (raw && typeof raw === 'object') {
+    const keys = ['プロジェクト', 'アプリ', '履歴', 'その他'];
+    cats = keys.filter(k => raw[k] !== undefined).map(k => ({ name: k, mb: num(raw[k], 0), items: [] }));
+  } else cats = [];
+  cats = cats.map(c => ({ ...c, name: c.name || c.category || '', mb: num(c.mb ?? c.size ?? c.totalMB, 0), items: Array.isArray(c.items) ? c.items.map(x => Array.isArray(x) ? [x[0], num(x[1], 0)] : [x.name, num(x.mb, 0)]) : [] }));
+  return { categories: cats, totalMB: num(d.totalMB ?? d.total_mb, NaN) };
+}
+function applyUsage(d) {
+  if (!d) return;
+  const u = normalizeUsage(d);
+  DATA.usage = { categories: u.categories };
+  if (Number.isFinite(u.totalMB)) DATA.quota.usedMB = u.totalMB;
+  else DATA.quota.usedMB = u.categories.reduce((s, c) => s + c.mb, 0);
+}
+function applyAdminUsage(d) {
+  /* BE の admin/usage は、部員を指定しないと { members: [ { member, totalMB, categories } ] } を返す。
+     画面は { categories } を使うので、全員分を区分ごとに合算し、部員ごとの使用量も DATA.members に入れる。 */
+  if (d && Array.isArray(d.members)) {
+    const sums = new Map();
+    d.members.forEach(m => {
+      const known = DATA.members.find(x => x.id === m.member);
+      if (known) known.usedMB = num(m.totalMB, 0);
+      (m.categories || []).forEach(c => {
+        const cur = sums.get(c.name) || { name: c.name, mb: 0, items: [] };
+        cur.mb += num(c.mb, 0);
+        (c.items || []).forEach(x => cur.items.push(Array.isArray(x) ? [x[0], num(x[1], 0)] : [x.name, num(x.mb, 0)]));
+        sums.set(c.name, cur);
+      });
+    });
+    DATA.adminUsage = { categories: [...sums.values()].map(c => ({ ...c, mb: Math.round(c.mb * 100) / 100 })) };
+    return DATA.adminUsage;
+  }
+  const u = normalizeUsage(d);
+  DATA.adminUsage = { categories: u.categories };
+  return DATA.adminUsage;
+}
+function applyAnnouncements(d) {
+  DATA.announcements = arr(d, 'announcements').map(a => ({
+    ...a, id: String(a.id ?? a.key ?? ''), kind: a.kind || 'お知らせ', level: a.level || 'info',
+    title: a.title || '', body: a.body || '', from: a.from || a.from_date || '', to: a.to || a.to_date || '',
+    audience: a.audience || 'all'
+  }));
+}
+/* 通知の操作が API から来ない場合の既定（種類ごとの行き先）。文言・見た目は変えない。 */
+const NOTICE_ACTIONS = {
+  stale_app: [['アプリを管理', 'open-app']],
+  quota: [['利用状況を見る', 'open-usage']],
+  device_expiry: [['信頼端末を見る', 'open-devices']],
+  orphan_app: [['アプリ(管理)を開く', 'open-adm-apps']]
+};
+function applyNotices(d) {
+  DATA.notices = arr(d, 'notices').map(n => {
+    const type = n.type || '';
+    const actions = Array.isArray(n.actions) && n.actions.length ? n.actions
+      : (NOTICE_ACTIONS[type] || []).map(([label, do_]) => ({ label, do: do_, arg: n.target || n.name || '' }));
+    return {
+      ...n, key: n.key || n.id || '', type, title: n.title || '', body: n.body || '',
+      actions, state: n.state || 'active'
+    };
+  });
+}
+function normApp(a) {
+  return {
+    ...a, name: a.name || '', state: visLabel(a.state ?? a.visibility),
+    commit: a.commit ?? a.commit_hash ?? a.hash ?? '', proj: a.proj ?? a.project ?? a.project_id ?? '',
+    owner: a.owner ?? a.owner_id ?? null, ownerLabel: a.ownerLabel ?? a.owner_label ?? '',
+    sizeMB: Math.max(0, num(a.sizeMB ?? a.size_mb, num(a.size_bytes, 0) / 1048576)),
+    updatedAt: dt(a.updatedAt ?? a.updated_at ?? ''), code: a.code ?? a.access_code ?? '', viewers: Array.isArray(a.viewers) ? a.viewers : (a.viewers || []),
+    stale: bool(a.stale, false), orphan: bool(a.orphan, false)
+  };
+}
+function applyApps(d) {
+  DATA.apps = arr(d, 'apps').map(normApp);
+}
+function applyAdminApps(d) {
+  const list = Array.isArray(d) ? d : (d && (d.apps || d.items)) || [];
+  DATA.adminApps = list.map(normApp);
+}
+function applyAdminProjects(d) {
+  const list = Array.isArray(d) ? d : (d && (d.projects || d.items)) || [];
+  DATA.adminProjects = list.map(p => {
+    const o = { ...p };
+    o.id = String(first(p, ['id', 'project', 'project_id'], ''));
+    o.name = p.name || '';
+    o.owner = first(p, ['owner', 'owner_id'], null);
+    o.ownerLabel = first(p, ['ownerLabel', 'owner_label'], '');
+    o.orphan = bool(first(p, ['orphan'], false), false);
+    o.sizeMB = num(first(p, ['sizeMB', 'size_mb'], num(first(p, ['work_bytes', 'bytes'], 0), 0) / 1048576), 0);
+    return o;
+  });
+}
+function applyMembers(d) {
+  DATA.members = arr(d, 'members').map(m => ({
+    ...m, id: String(m.id ?? m.member_id ?? ''), name: m.name || '', mail: m.mail ?? m.email ?? '-',
+    position: m.position || '部員', isAdmin: bool(first(m, ['isAdmin', 'is_admin'], m.role === 'admin'), false),
+    active: bool(first(m, ['active'], true), true),
+    usedMB: num(m.usedMB ?? m.used_mb, 0),
+    projects: Array.isArray(m.projects) ? m.projects.map(p => typeof p === 'string' ? { id: p, name: p } : p) : [],
+    apps: Array.isArray(m.apps) ? m.apps.map(a => typeof a === 'string' ? a : (a.name || a)) : []
+  }));
+}
+function applyDevices(d) {
+  DATA.devices = arr(d, 'devices').map(v => ({
+    ...v, id: String(v.id ?? ''), member: v.member ?? v.member_id ?? '',
+    name: v.name ?? v.label ?? '', last: dt(v.last ?? v.last_used ?? ''), expires: dt(v.expires ?? ''),
+    current: bool(v.current, false)
+  }));
+}
+function applyAdminDevices(d) {
+  const list = Array.isArray(d) ? d : (d && (d.devices || d.items)) || [];
+  DATA.adminDevices = list.map(v => ({
+    ...v, id: String(v.id ?? ''), member: v.member ?? v.member_id ?? '',
+    name: v.name ?? v.label ?? '', last: dt(v.last ?? v.last_used ?? ''), expires: dt(v.expires ?? ''),
+    current: bool(v.current, false)
+  }));
+}
+function applyAudit(d) {
+  DATA.audit = arr(d, 'log').length ? arr(d, 'log') : arr(d, 'audit');
+  DATA.audit = DATA.audit.map(l => ({ ...l, at: dt(l.at ?? l.ts ?? ''), member: l.member ?? l.member_id ?? '', op: l.op ?? l.action ?? '', target: l.target ?? '', ip: l.ip ?? '' }));
+}
+function applyShares(d) {
+  DATA.collab = arr(d, 'shares').map(s => ({
+    id: String(s.member ?? s.id ?? s.member_id ?? ''),
+    name: s.name || (DATA.members.find(m => m.id === (s.member || s.id || s.member_id)) || {}).name || s.member,
+    perm: s.mode || s.perm || 'view',
+    pub: bool(s.can_publish ?? s.pub, false)
+  }));
+}
+function applyTree(projectId, d) {
+  const root = Array.isArray(d) ? d : (d && (d.tree || d.files)) || [];
+  DATA.files[projectId] = fromApi({ files: { [projectId]: root } }).files[projectId] || [];
+  if (DATA.fileStates && DATA.fileStates[projectId]) markStates(projectId, DATA.fileStates[projectId]);
+  return DATA.files[projectId];
+}
+function applyCommits(projectId, d) {
+  const list = arr(d, 'commits').map(c => ({
+    ...c, hash: String(c.hash || c.id || ''), message: c.message || '',
+    by: c.by ?? memberLabel(c.author) ?? '', at: dt(c.at ?? c.ts ?? ''), short: c.short || String(c.hash || c.id || '').slice(0, 7), parent: c.parent ?? c.parent_hash ?? null,
+    stat: c.stat || { add: num(c.add, 0), mod: num(c.mod, 0), del: num(c.del, 0) }, rel: c.rel || null
+  }));
+  DATA.commits = list;
+  if (projectId) DATA.commitsByProject[projectId] = list;
+  return list;
+}
+function applyStatus(projectId, d) {
+  /* BE の history/status は { states: { パス: 状態 }, counts: { add, mod, del } } を返す。 */
+  const s = (d && (d.counts || d.status)) || d || {};
+  const out = { add: num(s.add, 0), mod: num(s.mod, 0), del: num(s.del, 0) };
+  if (projectId) {
+    DATA.commitStatus[projectId] = out;
+    if (d && d.states && !Array.isArray(d.states)) { (DATA.fileStates = DATA.fileStates || {})[projectId] = d.states; markStates(projectId, d.states); }
+  }
+  return out;
+}
+/* states（new / modified / untracked）を、ファイルツリーの印（新・更）に反映する。 */
+function markStates(projectId, states) {
+  const walk = (list, prefix) => (list || []).forEach(n => {
+    const path = prefix ? prefix + '/' + n.n : n.n;
+    if (n.t === 'dir') { walk(n.c, path); return; }
+    const st = states[path];
+    delete n.untracked;
+    if (st === 'new') { n.inBase = false; n.mod = false; }
+    else if (st === 'modified') { n.inBase = true; n.mod = true; }
+    else if (st === 'untracked') { n.untracked = true; }
+    else if (st === 'unchanged') { n.inBase = true; n.mod = false; }
+  });
+  walk(DATA.files[projectId], '');
+}
+
+/* ---- 読み込み ---- */
+async function loadProjects() { applyProjects(await Api.projects.list()); }
+async function loadUsage() { applyUsage(await Api.call('usage/me', {})); }
+async function loadAnnouncements() { applyAnnouncements(await Api.call('announcements/list', {})); }
+async function loadAdminAnnouncements() { applyAnnouncements(await Api.admin.announcementsList()); }
+async function loadNotices() { applyNotices(await Api.call('notices/list', {})); }
+async function loadApps(scope) { applyApps(await Api.apps.list(scope)); }
+async function loadMembers() { applyMembers(await Api.admin.membersList()); }
+async function loadAdminDevices(member) { applyAdminDevices(await Api.admin.devicesList(member)); }
+async function loadAdminProjects(member) { applyAdminProjects(await Api.admin.projectsList(member)); }
+async function loadAdminUsage(member) { return applyAdminUsage(await Api.admin.usage(member)); }
+async function loadAdminLimits() {
+  const d = await Api.admin.settingsGet();
+  const vals = d.settings || d.values || (d.key ? { [d.key]: d.value } : d);
+  setLimits(vals);
+  return d;
+}
+async function loadAudit(filter) { applyAudit(await Api.admin.auditList(filter)); }
+async function loadAdminApps() { applyAdminApps(await Api.admin.appsList()); }
+async function loadMyDevices() { applyDevices(await Api.auth.devices()); }
+
+async function loadProject(projectId, opts = {}) {
+  if (!projectId) return;
+  const tasks = [
+    Api.files.tree(projectId).then(d => applyTree(projectId, d)),
+    Api.history.log(projectId).then(d => applyCommits(projectId, d)).catch(e => { if (!(e instanceof ApiError) || e.status !== 404) throw e; DATA.commits = []; }),
+    Api.history.status(projectId).then(d => applyStatus(projectId, d))
+  ];
+  const p = allProjects().find(x => x.id === projectId);
+  if (p && (!p.perm || p.perm === 'owner')) {
+    tasks.push(Api.share.list(projectId).then(d => { DATA.sharesByProject[projectId] = d; if (opts.shares !== false) applyShares(d); }).catch(e => { if (!(e instanceof ApiError) || ![403, 404].includes(e.status)) throw e; }));
+  } else if (p) {
+    DATA.collab = [];
+  }
+  await Promise.all(tasks);
+}
+
+/* ファイル本文を必要になったときに読む。テキストでなければ何もしない。 */
+async function ensureText(node, path, projectId) {
+  if (!node || node.t === 'dir' || node.text !== undefined || !textPath(node.n)) return node;
+  const d = await Api.files.read(projectId, path);
+  node.text = d.content ?? d.text ?? '';
+  if (d.version !== undefined) node.version = d.version;
+  if (node.bt === undefined) node.bt = node.text;
+  return node;
+}
+async function ensureBlob(node, path, projectId) {
+  if (!node || node.t === 'dir' || node.blob) return node;
+  const { blob } = await Api.files.raw(projectId, path);
+  node.blob = blob;
+  if (!node.size) node.size = blob.size;
+  return node;
+}
+
+/* 初期表示に必要なものをまとめて読む。失敗しても、取れたものだけで画面を出す。 */
+async function loadInitial() {
+  const tasks = [
+    ['projects/list', loadProjects], ['usage/me', loadUsage],
+    ['announcements/list', loadAnnouncements], ['notices/list', loadNotices], ['apps/list', loadApps]
+  ];
+  const results = await Promise.allSettled(tasks.map(([, load]) => load()));
+  const failed = results.flatMap((result, index) => result.status === 'rejected'
+    ? [{ endpoint: tasks[index][0], error: result.reason }]
+    : []);
+  if (DATA.user.isAdmin) {
+    await Promise.allSettled([
+      loadMembers(), loadAdminDevices(), loadAdminLimits(), loadAudit(), loadAdminApps(), loadAdminProjects(),
+      loadAdminUsage(), loadAdminAnnouncements(), loadMyDevices()
+    ]);
+  } else {
+    loadMyDevices().catch(() => {});
+  }
+  return failed;
+}
+
+/* 設定の既定値へ戻す（開発用） */
+function resetLocalSettings() { try { localStorage.removeItem(settingsKey()); } catch { /* noop */ } DATA.settings = JSON.parse(JSON.stringify(SETTINGS_DEFAULT)); }

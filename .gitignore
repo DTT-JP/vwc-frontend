@@ -1,0 +1,31 @@
+# ローカル設定
+/public/config.js
+
+# 開発用の生成物・依存
+node_modules/
+*.log
+*.pyc
+__pycache__/
+# tools/complete.py が生成するデプロイ用依存アセット
+/public/fonts/
+/public/vendor/MANIFEST.json
+/public/vendor/MANIFEST.md
+/public/vendor/fonts/
+/public/vendor/highlight/
+/public/vendor/mermaid/
+/public/vendor/qr/
+/public/vendor/ffmpeg/814.ffmpeg.js
+/public/vendor/ffmpeg/ffmpeg.js
+/public/vendor/ffmpeg/ffmpeg-core.js
+/public/vendor/ffmpeg/ffmpeg-core.wasm
+# エディター設定
+.vscode/
+.idea/
+# OS
+.DS_Store
+Thumbs.db
+# アプリ内ライセンス表示と、FFmpeg 構成部品のライセンス文書（tools/complete.py が生成）
+/public/license/
+/public/vendor/ffmpeg/components/
+# fetch_ffmpeg_source.py の出力
+/ffmpeg-source/

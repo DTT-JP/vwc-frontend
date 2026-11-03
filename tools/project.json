@@ -1,0 +1,6 @@
+{
+  "_comment": "公開時に設定する値。アプリ内のライセンス表示（public/license/）の生成に使う。値を変えたら python3 tools/complete.py を再実行する。",
+  "copyright": "Copyright (C) 2026 DTT-JP",
+  "source_repository": "",
+  "ffmpeg_source_url": ""
+}

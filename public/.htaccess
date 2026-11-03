@@ -1,0 +1,23 @@
+DirectoryIndex index.html
+Options -Indexes
+
+<FilesMatch "^\.">
+  Require all denied
+</FilesMatch>
+
+<IfModule mod_mime.c>
+  AddType application/wasm .wasm
+  AddType text/javascript .js .mjs
+</IfModule>
+
+<IfModule mod_php.c>
+  php_flag engine off
+</IfModule>
+
+<IfModule mod_headers.c>
+  <FilesMatch "^(index|mermaid-frame)\.html$">
+    Header set Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' blob:; frame-src 'self'; frame-ancestors 'none'"
+    Header set X-Frame-Options "DENY"
+    Header set X-Content-Type-Options "nosniff"
+  </FilesMatch>
+</IfModule>

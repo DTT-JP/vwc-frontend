@@ -1,0 +1,357 @@
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!doctype html>
+<html lang="ja" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>VWC | ホーム</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<!-- 非対応ブラウザ（IE・旧Edge(EdgeHTML)・古いChrome/Firefox/Safari）には、崩れた画面ではなく案内を出す。古い環境でも動くよう、ここだけ ES5 で書く。対応の下限は README「対応ブラウザ」 -->
+<style>#unsupported{display:none;padding:32px 20px;font:16px/1.7 sans-serif;color:#222;background:#fff;min-height:100vh;box-sizing:border-box}.unsupported #unsupported{display:block}.unsupported #app{display:none!important}</style>
+<script src="js/compat.js"></script>
+<!-- 外部資材は tools/complete.py で public/ に生成。台帳は vendor/MANIFEST.md -->
+<link rel="stylesheet" href="vendor/fonts/noto-sans-jp.css">
+<link rel="stylesheet" href="vendor/fonts/jetbrains-mono.css">
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/layout.css">
+<link rel="stylesheet" href="css/features.css">
+</head>
+<body>
+<div id="unsupported"><h1 style="font-size:20px">このブラウザには対応していません</h1><p>Visual Web Code は、次のブラウザ（またはそれ以降）でお使いください。</p><ul><li>Chrome / Edge（Chromium版）/ Chromium系（Opera、Samsung Internet、Android WebView など）：111 以上</li><li>Firefox：121 以上</li><li>Safari（Mac）/ iOS・iPadOS の Safari・各ブラウザ：16.2 以上</li></ul><p>Internet Explorer と、旧 Edge（EdgeHTML版）には対応していません。</p></div>
+<div id="app" data-view="right">
+ <div id="main">
+  <!-- 左サイドバー（アイコンのみ・名前は出さない。上揃え→spacer→下揃え） -->
+  <nav id="activity">
+    <button class="abtn" data-p="home" title="ホーム（押している間だけ青くなります）"><span class="ms">home</span></button><i class="abtn-sep"></i>
+    <button class="abtn" data-p="sm01" title="プロジェクト"><span class="ms">inbox</span></button>
+    <button class="abtn" data-p="sm02" title="ファイル"><span class="ms">folder_open</span></button>
+    <button class="abtn" data-p="sm03" title="検索"><span class="ms">search</span></button>
+    <button class="abtn" data-p="sm11" title="履歴"><span class="ms">history</span></button>
+    <button class="abtn" data-p="sm04" title="共有"><span class="ms">share</span></button>
+    <button class="abtn" data-p="sm05" title="公開"><span class="ms">public</span><span class="ms abtn-dot" id="dot-pub" hidden>sync</span></button>
+    <button class="abtn" data-p="sm06" title="ツール"><span class="ms">apps</span></button>
+    <button class="abtn" data-p="sm12" title="ヘルプ"><span class="ms">help</span><span class="dot-badge" id="dot-help" hidden></span></button>
+    <div class="sp"></div>
+    <button class="abtn" data-p="sm07" data-role="admin" title="管理"><span class="ms">admin_panel_settings</span></button>
+    <button class="abtn" data-p="sm08" title="利用状況"><span class="ms">data_usage</span></button>
+    <button class="abtn" data-p="sm09" title="設定"><span class="ms">settings</span></button>
+    <button class="abtn" data-p="sm10" title="ユーザー"><span class="ms">person</span></button>
+  </nav>
+
+  <!-- 左領域：各パネルは静的HTML。リスト部分だけ data.js から描画 -->
+  <aside id="left">
+    <section class="lp" id="home-l"><h2>ホーム</h2>
+      <div class="body only-in"><div class="pnote">最近のプロジェクト</div><div id="hl-recent"></div><div class="pnote" id="hl-usage"></div></div>
+      <div class="body only-out"><div class="pnote">ログイン方法を選んでください</div>
+        <div class="row" data-login="qr"><span class="ms">qr_code_2</span><span class="nm">QRで承認</span></div>
+        <div class="row" data-login="code"><span class="ms">pin</span><span class="nm">数字コードで承認</span></div>
+        <div class="row" data-login="ms"><span class="ms">account_circle</span><span class="nm">Microsoftでログイン</span></div>
+        <div class="lic-sep" role="presentation"></div>
+        <div class="pnote lic-h">ライセンス</div>
+        <div class="row" data-license role="button" tabindex="0"><span class="ms">description</span><span class="nm">ライセンスを開く</span></div></div></section>
+    <section class="lp" id="sm01"><h2>プロジェクト</h2><div class="sync" hidden></div>
+      <div class="body">
+        <div class="row" id="btn-new"><span class="nm">新しいプロジェクト</span><span class="ms">new_window</span></div>
+        <div class="row dim" data-fold="mine"><span class="ms">inbox_text_person</span><span class="nm">自分のプロジェクト</span><span class="ms fi">keyboard_arrow_up</span></div>
+        <div id="list-mine" class="sk-list"></div>
+        <div class="row dim" data-fold="shared"><span class="ms">inbox_text_share</span><span class="nm">共有されたプロジェクト</span><span class="ms fi">keyboard_arrow_up</span></div>
+        <div id="list-shared" class="sk-list"></div>
+      </div></section>
+    <section class="lp" id="sm02"><h2>ファイル</h2><div class="sync" hidden></div>
+      <div class="row dim" style="border-bottom:1px solid var(--border)"><span class="nm" id="proj-root">-/</span>
+        <span class="acts"><button title="フォルダ追加" data-act="mkdir"><span class="ms">create_new_folder</span></button><button title="ファイル追加" data-act="mkfile"><span class="ms">note_add</span></button><button title="ファイルをアップロード" data-act="up"><span class="ms">upload_file</span></button><button title="フォルダをアップロード" data-act="upd"><span class="ms">drive_folder_upload</span></button></span></div>
+      <div class="body sk-list" id="tree"></div>
+      <div id="msel-bar" aria-label="選択したファイルの操作"><div class="msb-h"><b id="msb-n">0件選択中</b><button id="msb-x">解除</button></div><div class="msb-b"><button id="msb-all"><span class="ms">select_all</span>全選択</button><button id="msb-cp"><span class="ms">content_copy</span>コピー</button><button id="msb-del" class="danger"><span class="ms">delete</span>削除</button></div></div>
+      <div class="legend" aria-label="ファイルの色の凡例"><span title="システムに未保存。ページを閉じると失われます"><i style="background:var(--st-blue)"></i>未保存</span><span title="履歴保存から新規のファイル／名前変更したフォルダ"><i style="background:var(--st-green)"></i>新規</span><span title="履歴保存から変更したファイル／新規フォルダ"><i style="background:var(--st-orange)"></i>変更</span><span title="隠しファイル"><i style="background:var(--fg-dim)"></i>隠し</span></div>
+      <input type="file" id="up-files" multiple hidden><input type="file" id="up-dir" webkitdirectory hidden></section>
+    <section class="lp" id="sm03"><h2>検索</h2><div class="sync" hidden></div>
+      <div class="sform">
+        <div class="fld"><span class="ms">search</span><input id="sq" placeholder="検索"><button id="tg-case" title="大文字小文字を区別">Aa</button><button id="tg-re" title="正規表現">.*</button></div>
+        <div class="fld"><span class="ms">find_replace</span><input id="sr" placeholder="置換"></div>
+        <div class="acts3"><button class="o" id="s-run">検索</button><button class="o" id="s-rep">置換</button><button class="o" id="s-all">すべて置換</button></div>
+      </div>
+      <div class="pnote" id="s-msg">検索語を入れて「検索」を押すと、プロジェクト全体から探します。</div>
+      <div class="body" id="s-res"></div>
+      <div class="row" id="find-open"><span class="ms">find_in_page</span><span class="nm">このファイル内を検索（Ctrl+F）</span></div><div class="row" id="pal-open"><span class="ms">manage_search</span><span class="nm">ファイル名を検索（Ctrl+P）</span></div><div class="row" id="cmd-open"><span class="ms">terminal</span><span class="nm">コマンド</span></div></section>
+    <section class="lp" id="sm04"><h2>共有</h2><div class="sync" hidden></div>
+      <div class="body"><div class="pnote sk-one" id="sh-state"></div>
+        <div id="sh-owner"><div class="sform"><div class="fld"><span class="ms">person_search</span><input id="sh-add" list="sh-dl" placeholder="部員を検索して追加"><datalist id="sh-dl"></datalist><button class="o" id="sh-addbtn">追加</button></div></div></div>
+        <div id="sh-list" class="sk-list"></div>
+        <div class="row" id="sh-transfer"><span class="ms">swap_horiz</span><span class="nm">所有者を移動</span></div></div></section>
+    <section class="lp" id="sm05"><h2>公開</h2><div class="sync" hidden></div>
+      <div class="row" id="pub-new"><span class="ms">publish</span><span class="nm">新しく公開</span></div>
+      <div class="row" id="pub-upd"><span class="ms">update</span><span class="nm">既存のアプリを更新</span></div>
+      <div class="pnote">このプロジェクトを公開中のアプリ</div>
+      <div class="body sk-list" id="pub-list"></div></section>
+    <section class="lp" id="sm06"><h2>ツール</h2><div class="sync" hidden></div><div class="body" id="tools"></div></section>
+    <section class="lp" id="sm07"><h2>管理</h2><div class="sync" hidden></div><div class="body">
+      <div class="row" data-adm="members"><span class="ms">group</span><span class="nm">部員</span></div>
+      <div class="row" data-adm="devices"><span class="ms">devices</span><span class="nm">端末</span></div>
+      <div class="row" data-adm="limits"><span class="ms">tune</span><span class="nm">制限値</span></div>
+      <div class="row" data-adm="apps"><span class="ms">public</span><span class="nm">アプリ</span></div>
+      <div class="row" data-adm="ann"><span class="ms">campaign</span><span class="nm">お知らせ</span></div>
+      <div class="row" data-adm="maint"><span class="ms">build</span><span class="nm">使用状況・保守</span></div></div></section>
+    <section class="lp" id="sm08"><h2>利用状況</h2><div class="sync" hidden></div>
+      <div class="body"><div class="pnote sk-txt" id="u-sum"></div><div class="uv sk-chart" id="u-chart"></div><div id="u-rank" class="sk-list"></div>
+        <div class="pnote" style="margin-top:8px">容量を減らすには：大きいファイルの削除、不要なアプリの整理、履歴の整理（GC）。</div>
+        <div class="row" id="u-more"><span class="ms">open_in_new</span><span class="nm">詳細を右に開く</span></div></div></section>
+    <section class="lp" id="sm09"><h2>設定</h2><div class="sync" hidden></div><div class="body">
+      <div class="row" data-set="theme"><span class="ms">palette</span><span class="nm">外観（テーマ・色）</span></div>
+      <div class="row" data-set="font"><span class="ms">format_size</span><span class="nm">文字サイズ</span></div>
+      <div class="row" data-set="editor"><span class="ms">edit_note</span><span class="nm">エディター</span></div>
+      <div class="row" data-set="touch"><span class="ms">touch_app</span><span class="nm">操作・余白</span></div>
+      <div class="row" data-set="notify"><span class="ms">notifications</span><span class="nm">通知</span></div>
+      <div class="row" data-set="guide"><span class="ms">school</span><span class="nm">ヘルプの案内</span></div>
+      <div class="row" data-set="license"><span class="ms">description</span><span class="nm">ライセンス</span></div></div></section>
+    <section class="lp" id="sm10"><h2>アカウント</h2><div class="sync" hidden></div>
+      <div class="pnote sk-list" id="acct"></div>
+      <div class="row" data-acc="devices"><span class="ms">devices</span><span class="nm">信頼端末</span></div>
+      <div class="row" data-acc="scanqr"><span class="ms">qr_code_scanner</span><span class="nm">QR読み取りでログイン</span></div>
+      <div class="row" data-acc="entercode"><span class="ms">pin</span><span class="nm">コード入力でログイン</span></div>
+      <div class="row logout" id="btn-logout"><span class="ms">logout</span><span class="nm">ログアウト</span></div></section>
+    <section class="lp" id="sm12"><h2>ヘルプ</h2><div class="sync" hidden></div><div class="body sk-list" id="help-l"></div></section>
+    <section class="lp" id="sm11"><h2>履歴</h2><div class="sync" hidden></div>
+      <div class="field"><input id="hi-msg" maxlength="200" placeholder="コミットメッセージ（1〜200文字）"></div>
+      <div class="pnote" id="hi-count">追加 0・変更 0・削除 0</div>
+      <div class="field"><button class="primary" id="hi-save" disabled>コミット</button></div>
+      <div class="body sk-list" id="hi-list"></div><div id="hi-un"></div></section>
+  </aside>
+  <div id="split-v" title="ドラッグで幅を変更"></div>
+
+  <!-- 右：ワークベンチ（メイン＋サブの2画面。PC/タブレットは サブ(左)・メイン(右)、スマホは メイン(上)・サブ(下)） -->
+  <div id="bench">
+    <div id="home" hidden>
+      <div class="home-wrap only-in">
+        <header class="hero"><div class="hero-sub">Visual Web Code</div><h1>こんにちは、<span id="home-name"></span></h1><p>編集するプロジェクトを選ぶか、新しく作って始めましょう。</p></header>
+        <div class="quick"><button class="o" id="q-new"><span class="ms">add_box</span>新しいプロジェクト</button><button class="o" id="q-files"><span class="ms">folder_open</span>ファイルを開く</button><button class="o" id="q-help"><span class="ms">help</span>使い方を見る</button></div>
+        <div class="cards">
+          <section class="hcard" id="h-guide"><h3><span class="ms">school</span>はじめてガイド</h3><div id="h-guide-b"></div></section>
+          <section class="hcard"><h3><span class="ms">inbox</span>最近のプロジェクト</h3><div id="h-recent"></div></section>
+          <section class="hcard" id="h-usage-card" title="押すと、左に利用状況を表示します"><h3><span class="ms">data_usage</span>使用量</h3><div id="h-usage"></div><div class="meter" id="h-meterbox"><i id="h-meter"></i></div><div class="hnote" id="h-usage-note"></div><button class="o" id="h-usage-detail">詳細を見る</button></section>
+          <section class="hcard" id="h-notice" hidden></section>
+          <section class="hcard" id="h-news"></section>
+        </div>
+      </div>
+      <div class="home-wrap only-out">
+        <header class="hero"><div class="hero-sub">Visual Web Code</div><h1>ログインしてください</h1><p>ログイン方法を選びます。ログインはこの画面のタブで行います。</p></header>
+        <div class="cards">
+          <div class="lcard" data-login="qr"><h3><span class="ms">qr_code_2</span>QRで承認</h3>登録済みの端末でQRを読み取って承認します。</div>
+          <div class="lcard" data-login="code"><h3><span class="ms">pin</span>数字コードで承認</h3>登録済みの端末で6桁のコードを入力して承認します。</div>
+          <div class="lcard" data-login="ms"><h3><span class="ms">account_circle</span>Microsoftでログイン</h3>Microsoftアカウントでログインします。</div>
+        </div>
+        <section class="lic-sec" aria-labelledby="lic-sec-h">
+          <h2 id="lic-sec-h">ライセンス</h2>
+          <div class="cards">
+            <div class="lcard" data-license role="button" tabindex="0"><h3><span class="ms">description</span>ライセンスを見る</h3>このアプリのライセンスと、利用している第三者ソフトウェアの権利表示を開きます。ログインは必要ありません。</div>
+          </div>
+        </section>
+      </div>
+    </div>
+    <div id="findbar" hidden><button id="fb-restore" title="検索バーを開く"><span class="ms">search</span></button><input id="fb-q" placeholder="検索"><span id="fb-n">0/0</span>
+      <button id="fb-prev" title="前へ"><span class="ms">keyboard_arrow_up</span></button><button id="fb-next" title="次へ"><span class="ms">keyboard_arrow_down</span></button>
+      <button id="fb-case" title="大文字小文字を区別">Aa</button><button id="fb-re" title="正規表現">.*</button>
+      <input id="fb-r" class="rep" placeholder="置換"><button id="fb-rep" class="rep" title="置換"><span class="ms">find_replace</span></button><button id="fb-all" class="rep" title="すべて置換"><span class="ms">sync_alt</span></button><button id="fb-min" title="検索バーを小さくして右へよける"><span class="ms">keyboard_double_arrow_right</span></button><button id="fb-x" title="閉じる"><span class="ms">close</span></button></div>
+    <div id="statebar" class="alert" hidden><span class="ms">error</span><div><b class="sb-t"></b><span class="sb-m"></span></div><button class="o" id="sb-act"></button></div>
+    <div class="dz" id="dz-sub" data-z="sub" hidden>サブ画面で開く</div>
+    <div id="top">
+      <div class="group" id="g1" data-g="g1"><div class="tabs"></div><div class="crumb"></div><div class="pane"></div></div>
+      <div id="split-g" hidden title="ドラッグでメイン／サブの大きさを変更"></div>
+      <div class="group" id="g2" data-g="g2" hidden><div class="tabs"></div><div class="crumb"></div><div class="pane"></div></div>
+    </div>
+  </div>
+ </div>
+
+ <div id="keybar"><button data-key="tab">Tab</button><button data-key="undo" title="元に戻す"><span class="ms">undo</span></button><button data-key="redo" title="やり直す"><span class="ms">redo</span></button><button data-key="left" title="左へ"><span class="ms">arrow_back</span></button><button data-key="right" title="右へ"><span class="ms">arrow_forward</span></button><button data-key="up" title="上へ"><span class="ms">arrow_upward</span></button><button data-key="down" title="下へ"><span class="ms">arrow_downward</span></button><button data-k="{">{</button><button data-k="}">}</button><button data-k="(">(</button><button data-k=")">)</button><button data-k="[">[</button><button data-k="]">]</button><button data-k="&lt;">&lt;</button><button data-k="&gt;">&gt;</button><button data-k="&quot;">&quot;</button><button data-k="'">'</button><button data-k=";">;</button><button data-k=":">:</button><button data-k="=">=</button><button data-k="/">/</button><button data-k="\">\</button><button data-k="#">#</button><button data-k="$">$</button><button data-k="&amp;">&amp;</button><button data-k="|">|</button><button data-k="!">!</button><button data-k="?">?</button><button data-k="`">`</button><button data-k="~">~</button><button data-k="_">_</button><button data-k="-">-</button><button data-k="+">+</button><button data-k="*">*</button><button data-k="%">%</button><button data-k="^">^</button><button data-k="@">@</button><button data-k=",">,</button><button data-k=".">.</button></div>
+ <nav id="bnav"><button id="bn-back"><span class="ms">arrow_back</span>戻る</button><button id="bn-fwd"><span class="ms">arrow_forward</span>進む</button><i class="sep"></i><button id="bn-home"><span class="ms">home</span>ホーム</button><button id="bn-menu" data-v="left"><span class="ms">menu</span>メニュー</button><i class="sep"></i><button id="bn-ed" data-v="right"><span class="ms">code</span>エディター<i class="red" hidden></i></button><button id="bn-prev"><span class="ms">preview</span>プレビュー</button></nav>
+
+ <footer id="status">
+   <span id="s-proj"></span><button id="s-save" title="押すと保存">保存済み</button><span id="s-pos"></span><span id="s-lang"></span><span id="s-cap"></span>
+   <span class="right">
+     <span id="s-proc"><span class="ms">check</span> 待機中</span>
+     <button id="s-prev" hidden><span class="ms">preview</span> プレビュー</button>
+     <span id="s-net"><span class="ms">cloud_done</span> オンライン</span>
+   </span>
+ </footer>
+ <div id="welcome" hidden><div class="w-h"><span class="ms">school</span><b>ヘルプを読んでみませんか？</b></div><p>はじめての方向けに、画面の見かたと基本の使い方をまとめています。数分で読めます。</p><div class="w-b"><button class="primary" id="w-open">ヘルプを開く</button><button class="o" id="w-later">あとで</button><button id="w-never">今後表示しない</button></div></div>
+</div>
+
+<!-- SM-CNP -->
+<dialog id="d-cnp"><h3>新しいプロジェクトを作成</h3>
+  <input id="cnp-name" placeholder="YYYY-MM-DDのプロジェクト">
+  <label class="opt"><input type="radio" name="cnp-mode" value="empty" checked><span><b>空のプロジェクトから作る</b><small>何もない状態から始めます</small></span></label>
+  <label class="opt"><input type="radio" name="cnp-mode" value="branch"><span><b>既存のプロジェクトから分岐して作る</b><small>内容をコピーして始めます。分岐元は変わりません</small></span></label>
+  <div id="cnp-br" hidden><select id="cnp-src" style="width:100%"></select><br><br><select id="cnp-commit" style="width:100%"></select><div class="dnote">分岐元の内容をコピーして始めます。分岐元は変わりません。</div></div>
+  <div class="btns"><button data-close>キャンセル</button><button class="primary" id="cnp-ok">作成</button></div></dialog>
+<!-- SM-DEL（初期値はプレースホルダー＝未入力扱い） -->
+<dialog id="d-del"><h3>確認</h3>
+  <p><b id="del-n"></b> を削除していいですか？ 削除すると復元できません</p>
+  <div id="del-impact"></div>
+  <label id="del-apps-wrap" class="opt" hidden><input type="checkbox" id="del-apps"><span><b>アプリも削除する</b><small>このプロジェクトに紐づくアプリと公開URLも削除します</small></span></label>
+  <label class="fld">確認のため、プロジェクト名を入力<input id="del-in"></label>
+  <div class="btns"><button data-close>キャンセル</button><button class="primary" id="del-ok" disabled>削除</button></div></dialog>
+<!-- SM-DEL-F -->
+<dialog id="d-delf"><h3>確認</h3>
+  <p><b id="delf-n"></b> を削除していいですか？削除すると復元できません</p>
+  <div class="btns"><button data-close>キャンセル</button><button class="primary" id="delf-ok">削除</button></div></dialog>
+<!-- S06：未保存警告（Esc/外側では閉じない）/ 競合 / 容量超過 -->
+<dialog id="d-uns" data-lock="1"><h3>確認</h3><p>保存されていない変更があります。保存しますか？</p>
+  <div class="btns"><button data-close>キャンセル</button><button id="uns-no">保存しない</button><button class="primary" id="uns-yes">保存</button></div></dialog>
+<dialog id="d-cf"><h3>保存できません</h3><p>他の人が先にこのファイルを保存しました。</p><div class="btns"><button id="cf-diff">差分を見る</button><button id="cf-reload">再読み込み（自分の変更は退避）</button><button class="primary" id="cf-over">上書き</button></div></dialog>
+<dialog id="d-cap"><h3>保存できません</h3><p>容量が上限に達しています。大きいファイルや不要なアプリを整理してください。</p><div class="btns"><button class="primary" data-close>はい</button></div></dialog>
+<!-- CSV一括登録 / 閲覧者管理 -->
+<dialog id="d-csv"><h3>CSV一括登録</h3><p class="dnote">列：部員ID,名前,メール,役職（顧問/部長/副部長/部員）,管理者権限（あり/なし）</p>
+  <textarea id="csv-in" rows="6" style="width:100%;font-family:var(--mono)"></textarea>
+  <div class="btns" style="margin-top:8px"><button id="csv-pv">プレビュー</button></div>
+  <div id="csv-out" style="max-height:30vh;max-height:30dvh;overflow:auto"></div>
+  <div class="btns"><button data-close>キャンセル</button><button class="primary" id="csv-ok" disabled>エラー行を除いて登録</button></div></dialog>
+<dialog id="d-view"><h3>閲覧者（非公開）</h3><p class="dnote" id="vw-app"></p>
+  <div style="display:flex;gap:4px"><input id="vw-in" list="vw-dl" placeholder="部員を検索して追加"><datalist id="vw-dl"></datalist><button class="o" id="vw-add">追加</button></div>
+  <div id="vw-list" style="margin-top:8px"></div>
+  <div class="btns"><button class="primary" data-close>閉じる</button></div></dialog>
+<!-- 部員削除（4ステップ） / 再認証 / 部員追加 -->
+<dialog id="d-md"><h3>部員を削除</h3>
+  <div data-step="1"><p id="md-imp"></p><div id="md-impact"></div></div>
+  <div data-step="2" hidden><p>各プロジェクトの扱いを選んでください。</p><div id="md-proj"></div></div>
+  <div data-step="3" hidden><p>アプリごとの公開状態を選んでください。</p><div id="md-apps"></div></div>
+  <div data-step="4" hidden><p>部員IDを入力して再認証し、削除を実行します。</p><input id="md-in"></div>
+  <div class="btns"><button data-close>キャンセル</button><button class="primary" id="md-next">次へ</button></div></dialog>
+<dialog id="d-re"><h3>再認証が必要です</h3><p>管理の操作は、ログイン（再認証）から10分以内に限られます。もう一度ログインしてください。<br>いまの状態：<b id="re-t">切れています</b></p>
+  <div class="btns"><button data-close>キャンセル</button><button type="button" class="ms-signin" id="re-ok"><svg class="ms-logo" viewBox="0 0 21 21" width="21" height="21" aria-hidden="true" focusable="false"><rect x="0" y="0" width="10" height="10" fill="#F25022"/><rect x="11" y="0" width="10" height="10" fill="#7FBA00"/><rect x="0" y="11" width="10" height="10" fill="#00A4EF"/><rect x="11" y="11" width="10" height="10" fill="#FFB900"/></svg><span class="ms-label">Microsoft でサインイン</span></button></div></dialog>
+<dialog id="d-ann"><h3 id="an-h">お知らせ</h3>
+  <label class="fld">種別<select id="an-kind"></select></label><label class="fld">重要度<select id="an-level"></select></label>
+  <label class="fld">タイトル<input id="an-title" style="width:100%" maxlength="80"></label><label class="fld">本文<textarea id="an-body" rows="3" style="width:100%"></textarea></label>
+  <div class="row2"><label class="fld">表示の開始<input id="an-from" type="date"></label><label class="fld">表示の終了<input id="an-to" type="date"></label></div>
+  <label class="fld">対象<select id="an-aud"></select></label><div class="err" id="an-err"></div>
+  <h4>表示の確認（ホームでの見え方）</h4><div id="an-pv"></div>
+  <div class="btns"><button data-close>キャンセル</button><button class="primary" id="an-save">保存</button></div></dialog>
+<dialog id="d-assign"><h3>再関連付け</h3><p><b id="as-app"></b> の所有者を選んでください。</p><p id="as-proj-info"></p><select id="as-sel" style="width:100%"></select><div class="btns"><button data-close>キャンセル</button><button class="primary" id="as-ok">関連付ける</button></div></dialog>
+<dialog id="d-logout"><h3>ログアウト</h3><p>ログアウトします。</p><label><input id="logout-untrust" type="checkbox" style="width:auto"> この端末の信頼を解除する</label><div class="btns"><button data-close>キャンセル</button><button class="primary" id="logout-ok">ログアウト</button></div></dialog>
+<dialog id="d-mem"><h3 id="mem-h">部員を追加</h3><input id="mem-id" placeholder="部員ID（半角英数字と . _ @ -）" maxlength="64" autocomplete="off"><br><br><span id="mem-name-row" hidden><input id="mem-name" placeholder="名前（空欄なら今のまま）"><br><br></span><input id="mem-mail" type="email" placeholder="Microsoftのメールアドレス"><p class="dnote" id="mem-note">名前は、本人が最初に Microsoft でログインしたときに自動で入ります。</p><br><br><select id="mem-pos"><option>顧問</option><option>部長</option><option>副部長</option><option selected>部員</option></select> <label><input type="checkbox" id="mem-adm" style="width:auto"> 管理者権限</label>
+  <div class="btns"><button data-close>キャンセル</button><button class="primary" id="mem-ok">追加</button></div></dialog>
+<!-- エディター内タブとして開く画面（ログイン / 承認 / 端末登録） -->
+<template id="t-login"><div class="box"><h1>ログイン</h1>
+  <div class="seg login-tabs" data-seg="login" role="tablist" aria-label="ログイン方法">
+    <button role="tab" data-t="qr" class="on" aria-selected="true"><span class="ms">qr_code_2</span><span>QRコード</span></button>
+    <button role="tab" data-t="code" aria-selected="false"><span class="ms">pin</span><span>数字コード</span></button>
+    <button role="tab" data-t="ms" aria-selected="false"><span class="ms">account_circle</span><span>MSアカウント</span></button>
+  </div>
+  <div class="seg-p" data-p="qr" role="tabpanel"><div class="qrbox" id="qr-login" role="img" aria-label="ログイン用のQRコード"></div><p>ログイン済みの信頼端末で、<b>「QR読み取りでログイン」</b>からこのQRを読み取って承認してください。</p><p>残り <b class="cd">300</b> 秒</p><button class="primary" data-renew>新しいQRを表示</button></div>
+  <div class="seg-p" data-p="code" role="tabpanel" hidden><div class="login-code" id="login-code">482 915</div><p>ログイン済みの信頼端末で、<b>「コード入力でログイン」</b>にこの数字を入力して承認してください。</p><p>残り <b class="cd">300</b> 秒</p><button class="primary" data-renew>新しいコードを表示</button></div>
+  <div class="seg-p" data-p="ms" role="tabpanel" hidden><p>Microsoft アカウントでログインします。</p><p class="ms-hint">下の<b>「Microsoft でサインイン」</b>ボタンを押してください。</p><button type="button" class="ms-signin" id="ms-login"><svg class="ms-logo" viewBox="0 0 21 21" width="21" height="21" aria-hidden="true" focusable="false"><rect x="0" y="0" width="10" height="10" fill="#F25022"/><rect x="11" y="0" width="10" height="10" fill="#7FBA00"/><rect x="0" y="11" width="10" height="10" fill="#00A4EF"/><rect x="11" y="11" width="10" height="10" fill="#FFB900"/></svg><span class="ms-label">Microsoft でサインイン</span></button><p class="dnote">信頼端末でない端末では、ログイン後にこの端末を信頼端末にするか聞きます。</p></div>
+  <p class="msg" id="s01-msg" role="status" aria-live="polite"></p></div></template>
+<template id="t-trust"><div class="box"><h1>この端末を信頼端末にしますか？</h1>
+  <input id="dev-name" value="自宅のPC"><p>有効期間：<span id="trust-days">90</span>日</p>
+  <div class="btns2"><button class="primary" data-lg="trust">信頼する</button><button data-lg="once">今回のみ</button></div></div></template>
+<template id="t-apq"><div class="box"><h1>QR読み取りでログイン</h1>
+  <div id="apq-1"><div class="camview" id="apq-cam" hidden><video id="apq-v" playsinline muted></video><div class="camframe"></div></div>
+    <span class="ms big" id="apq-ic">qr_code_scanner</span><p id="apq-st">ログインしたい端末に出ているQRを読み取ります。</p>
+    <button class="primary" data-ap="scan" id="apq-go">カメラで読み取る</button> <button class="o" data-ap="stop" id="apq-stop" hidden>読み取りをやめる</button>
+    <p class="dnote">カメラが使えないときは、「コード入力でログイン」から6桁のコードで承認できます。</p></div>
+  <div id="apq-2" hidden><h2>ログインを承認しますか？</h2><p class="dev-req" id="apq-req"></p><div class="btns2"><button class="primary" data-ap="ok-q">承認する</button><button data-ap="no-q">拒否する</button></div></div>
+  <p class="msg" id="apq-msg"></p></div></template>
+<template id="t-apc"><div class="box"><h1>コード入力でログイン</h1>
+  <div id="apc-1"><p>ログインしたい端末に表示された6桁のコードを入力します。</p>
+  <input id="ap-in" inputmode="numeric" maxlength="6" placeholder="6桁のコード" class="big-in" autocomplete="one-time-code">
+  <div class="btns2"><button class="primary" data-ap="check-c">次へ</button></div></div>
+  <div id="apc-2" hidden><h2>ログインを承認しますか？</h2><p class="dev-req" id="apc-req"></p>
+  <div class="btns2"><button class="primary" data-ap="ok-c">承認する</button><button data-ap="no-c">拒否する</button></div></div>
+  <p class="msg" id="apc-msg"></p></div></template>
+<!-- 独立画面（S01〜S03,S19,S20）：URL契約またはAPI結果に応じて表示 -->
+<div id="screens" hidden>
+ <section class="scr" id="s19" hidden><div class="box"><h1>アクセスコードを入力</h1>
+  <input id="gate-in" placeholder="アクセスコード（8桁の数字）" class="big-in" inputmode="numeric" maxlength="9" autocomplete="off">
+  <div class="btns2"><button class="primary" id="gate-ok">開く</button></div><p class="msg" id="gate-msg"></p>
+  <p><a href="#" data-go="editor">アプリ以外はログインが必要です（エディターへ）</a></p></div></section>
+ <section class="scr" id="s20" hidden><div class="box"><span class="ms big" id="s20-i">info</span><h1 id="s20-t"></h1><p id="s20-m"></p><button class="primary" data-go="editor">戻る</button></div></section>
+</div>
+<!-- アプリ管理（SM05） -->
+<dialog id="d-app"><h3>アプリの管理</h3>
+  <select id="ap-sel" style="width:100%"></select>
+  <h4>公開状態</h4>
+  <div class="segc"><label><input type="radio" name="as" value="公開"><span>公開</span></label><label><input type="radio" name="as" value="限定公開"><span>限定公開</span></label><label><input type="radio" name="as" value="非公開"><span>非公開</span></label></div>
+  <div id="ap-codebox"><h4>アクセスコード（8桁の数字）</h4><input id="ap-code" class="code8" type="password" readonly style="width:auto">
+    <button id="ap-show" title="表示/隠す"><span class="ms">visibility</span></button><button id="ap-copy" title="コピー"><span class="ms">content_copy</span></button><button id="ap-regen">再生成</button><div class="dnote" id="ap-codemsg"></div></div>
+  <h4>更新・ロールバック</h4><select id="ap-commit" style="width:100%"></select>
+  <div class="dnote" id="ap-sum"></div><div class="dnote" id="ap-pres"></div>
+  <div class="btns"><button id="ap-view">閲覧者</button><button id="ap-del" style="color:var(--danger)">削除</button><button id="ap-upd">更新</button><button id="ap-rb">ロールバック</button><button data-close>閉じる</button></div></dialog>
+<dialog id="d-pal"><input id="pal-in" placeholder="ファイル名を検索" style="width:100%"><div id="pal-l" style="margin-top:8px;max-height:50vh;max-height:50dvh;overflow:auto"></div><div class="btns"><button data-close>閉じる</button></div></dialog>
+<dialog id="d-cmd"><input id="cmd-in" placeholder="コマンドを検索" aria-label="コマンドを検索" style="width:100%"><div id="cmd-list" style="margin-top:8px;max-height:50vh;max-height:50dvh;overflow:auto"></div><div class="btns"><button data-close>閉じる</button></div></dialog>
+<div id="tab-menu" hidden role="menu">
+  <button data-tm="close">閉じる</button><button data-tm="others">他を閉じる</button><button data-tm="right">右側を閉じる</button><button data-tm="all">すべて閉じる</button>
+  <div class="sep"></div><button data-tm="save">保存</button><button data-tm="copy">パスをコピー</button><button data-tm="move">サブ（メイン）へ移動</button><button data-tm="preview">プレビューを開く</button>
+</div>
+<div id="history-menu" hidden role="menu">
+  <button data-hm="diff">差分を見る</button><button data-hm="restore">このコミットに復元</button><button data-hm="branch">ここから新しいプロジェクトを作る</button><button data-hm="publish">このコミットをアプリとして公開</button><button data-hm="prune">これより古い履歴を削除</button>
+</div>
+<dialog id="d-own"><h3>所有者を移動</h3><p>移動先を選んでください。あなたは編集権限になります。</p><select id="own-sel" style="width:100%"></select><div class="dnote" id="own-note"></div><div class="btns"><button data-close>キャンセル</button><button class="primary" id="own-go">Go</button></div></dialog>
+<dialog id="d-sv"><h3>確認</h3><p>保存されていない変更があります。保存しますか？</p><div class="btns"><button data-close>キャンセル</button><button class="primary" id="sv-ok">保存</button></div></dialog>
+<dialog id="d-in"><h3 id="in-t"></h3><input id="in-v"><p class="err" id="in-e" style="color:var(--danger);min-height:22px"></p><div class="btns"><button data-close>キャンセル</button><button class="primary" id="in-ok">OK</button></div></dialog>
+<dialog id="d-pick"><h3>システムのファイルから選ぶ</h3><div id="pick-l" style="max-height:50vh;max-height:50dvh;overflow:auto"></div><div class="btns"><button data-close>閉じる</button></div></dialog>
+<!-- 汎用確認 / 公開 -->
+<dialog id="d-conf"><h3 id="conf-t">確認</h3><p id="conf-m"></p>
+  <div class="btns"><button data-close>キャンセル</button><button class="primary" id="conf-ok">OK</button></div></dialog>
+<dialog id="d-pub"><h3>新しく公開</h3>
+  <div data-pstep="1">
+    <input id="pub-name" placeholder="公開名（英小文字・数字・ハイフン）"><div class="dnote" id="pub-chk"></div>
+    <label class="fld">プロジェクト<select id="pub-proj" style="width:100%"></select></label>
+    <label class="fld">コミット<select id="pub-commit" style="width:100%"></select></label>
+    <label class="opt"><input type="radio" name="ps" value="公開" checked><span><b>公開</b><small>誰でも見られます</small></span></label>
+    <label class="opt"><input type="radio" name="ps" value="限定公開"><span><b>限定公開</b><small>アクセスコード（8桁）が必要です</small></span></label>
+    <label class="opt"><input type="radio" name="ps" value="非公開"><span><b>非公開</b><small>指定した部員だけ（ログインが必要）</small></span></label>
+    <div class="btns"><button data-close>キャンセル</button><button class="primary" id="pub-next" disabled>確認へ</button></div></div>
+  <div data-pstep="2" hidden><p class="dnote">公開する前に、内容を確認してください。</p><div id="pub-sum"></div>
+    <div class="btns"><button id="pub-back">戻る</button><button class="primary" id="pub-go">公開する</button></div></div>
+  <div data-pstep="3" hidden><div id="pub-res"></div><div class="btns"><button class="primary" data-close>閉じる</button></div></div></dialog>
+<dialog id="d-res"><h3 id="res-t"></h3><div id="res-b"></div><div class="btns"><button class="primary" data-close>閉じる</button></div></dialog>
+<dialog id="d-err"><h3 id="err-t"></h3><div id="err-m"></div><div class="btns"><button class="primary" data-close>閉じる</button></div></dialog>
+<div id="toast" hidden></div>
+
+<!-- 構文強調：highlight.js 11.9.0（vendor/ に同梱）。主要言語は本体に含まれ、追加言語は個別ファイル -->
+<script src="config.js"></script>
+<script src="vendor/highlight/highlight.min.js"></script>
+<script src="vendor/highlight/languages/dart.min.js"></script>
+<script src="vendor/highlight/languages/scala.min.js"></script>
+<script src="vendor/highlight/languages/haskell.min.js"></script>
+<script src="vendor/highlight/languages/powershell.min.js"></script>
+<script src="vendor/highlight/languages/dockerfile.min.js"></script>
+<script src="vendor/highlight/languages/nginx.min.js"></script>
+<script src="vendor/highlight/languages/elixir.min.js"></script>
+<script src="vendor/highlight/languages/groovy.min.js"></script>
+<script src="vendor/highlight/languages/apache.min.js"></script>
+<script src="vendor/qr/qrcode.js"></script>
+<script src="js/markdown.js"></script>
+<script src="js/api.js"></script>
+<script src="js/data.js"></script>
+<script src="js/store.js"></script>
+<script src="js/app.js"></script>
+<script src="js/layout.js"></script>
+<script src="js/panels.js"></script>
+<script src="js/transfer.js"></script>
+<script src="js/publish.js"></script>
+<script src="js/screens.js"></script>
+<script src="js/admin.js"></script>
+<script src="js/tools.js"></script>
+<script src="js/editor.js"></script>
+<script src="js/search.js"></script>
+<script src="js/media.js"></script>
+<script src="js/toolkit.js"></script>
+<script src="js/localtools.js"></script>
+<script src="js/dnd.js"></script>
+<script src="js/fileselect.js"></script>
+<script src="js/dropdown.js"></script>
+<script src="js/scrollbar.js"></script>
+<script src="js/controls.js"></script>
+<script src="js/dialogs.js"></script>
+<script src="js/title.js"></script>
+<script src="js/touchui.js"></script>
+<script src="help/bundle.js"></script>
+<script src="js/help.js"></script>
+<script src="js/license.js"></script>
+<script src="js/usage.js"></script>
+<script src="js/settings.js"></script>
+<script src="js/account.js"></script>
+<script src="js/qr.js"></script>
+<script src="js/notices.js"></script>
+<script src="js/boot.js"></script>
+</body>
+</html>
