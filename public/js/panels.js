@@ -2,7 +2,7 @@
 /* 共有(SM04) / 公開(SM05) / 履歴(SM11)。app.js の $ ico S toast DATA を利用。
    共有は所有者だけが変更できる（04_API.md の share/*）。部員の候補は members/search があれば使い、
    無い場合は、既に分かっている部員（管理一覧・共有先）から絞り込む。 */
-const owner = () => S.role !== 'shared-view' && S.role !== 'shared-edit' && !S.proj.perm; // 所有者のみ共有操作可
+const owner = () => (S.proj && (S.proj.owner === DATA.user.id || !S.proj.perm || S.proj.perm === 'owner')) && S.role !== 'shared-view' && S.role !== 'shared-edit'; // 所有者のみ共有操作可
 function confirmDlg(title, msg, ok) {
   $('#conf-t').textContent = title; $('#conf-m').textContent = msg;
   $('#conf-ok').onclick = () => { $('#d-conf').close(); ok(); }; $('#d-conf').showModal();
@@ -21,6 +21,7 @@ let shareCandidates = [], shareTimer = 0;
 function renderShare() {
   if (!$('#sh-state') || !S.proj) return;
   const o = owner(), n = DATA.collab.length, st = S.proj.perm ? `共有されています（${S.proj.perm === 'edit' ? '編集可' : '閲覧のみ'}）` : n ? `${n}人に共有中` : '共有していません';
+  if (!S.proj) return;
   $('#sh-state').innerHTML = `<span class="ms">${S.proj.perm || n ? 'group' : 'lock'}</span><div><b>${S.proj.name}</b><small>${st}</small></div>${o ? `<button data-sh-ren title="プロジェクト名を変更">${ico('edit')}</button>` : ''}`;
   $('#sh-owner').hidden = !o; $('#sh-transfer').hidden = !o;
   const known = [...shareCandidates, ...DATA.members].filter((m, i, a) => m.active !== false && a.findIndex(x => x.id === m.id) === i && !DATA.collab.some(c => c.id === m.id));
@@ -66,7 +67,7 @@ $('#sh-transfer').onclick = () => {
   if (!DATA.collab.length) return showToast('先に共有先を追加してください');
   $('#own-sel').innerHTML = DATA.collab.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join(''); $('#own-sel').onchange(); $('#d-own').showModal();
 };
-const projMB = () => { const c = DATA.usage.categories.find(x => x.name === 'プロジェクト'); if (!c) return 0; const m = (c.items || []).find(x => x[0] === S.proj.name); return m ? m[1] : 0; };
+const projMB = () => { if (!S.proj) return 0; const c = DATA.usage.categories.find(x => x.name === 'プロジェクト'); if (!c) return 0; const m = (c.items || []).find(x => x[0] === S.proj.name); return m ? m[1] : 0; };
 $('#own-sel').onchange = () => { const c = DATA.collab.find(x => x.id === $('#own-sel').value); $('#own-note').innerHTML = c ? `<b>容量の付け替え：</b>このプロジェクトの容量（約${projMB()}MB）は、あなたの使用量から外れ、<b>${esc(c.name)}</b> さんの使用量に加わります。移動後、あなたは編集権限になります。` : ''; };
 $('#own-go').onclick = async () => {
   const c = DATA.collab.find(x => x.id === $('#own-sel').value); if (!c) return;

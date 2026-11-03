@@ -68,7 +68,6 @@ function pubScan(projId) {
   const ex = [], inc = []; const w = (l, p) => l.forEach(f => { const path = p + f.n;
     if (f.n.startsWith('.')) ex.push([path + (f.t === 'dir' ? '/' : ''), '隠しファイル（. で始まる）']);
     else if (f.t !== 'dir' && /\.(php|phtml|phar|php[3-8]|pl|cgi|py|sh|asp|aspx|jsp)$/i.test(f.n)) ex.push([path, '実行系ファイル（Webへ公開しない）']);
-    else if (f.untracked) ex.push([path, '履歴に入っていない（未追跡）']);
     else if (f.t === 'dir') w(f.c, path + '/'); else inc.push([path, nodeBytes(f)]); });
   w(DATA.files[projId] || [], ''); return { ex, bytes: inc.reduce((a, x) => a + x[1], 0), n: inc.length };
 }
@@ -107,7 +106,7 @@ function fillPubCommits(preferredHash) {
   loadCommits(projectId).then(() => {
     if ($('#pub-proj').value !== projectId) return;
     const commits = commitsForProject(projectId, preferredHash);
-    select.innerHTML = commits.length ? commits.map(c => `<option value="${c.hash}">${c.hash} ${esc(c.message)}</option>`).join('') : '<option value="">コミットがありません</option>';
+    select.innerHTML = commits.length ? commits.map(c => `<option value="${c.hash}">${esc(c.message)} (${String(c.hash).slice(0, 7)})</option>`).join('') : '<option value="">コミットがありません</option>';
     if (preferredHash && commits.some(c => c.hash === preferredHash)) select.value = preferredHash;
     $('#pub-next').disabled = !checkName($('#pub-name').value).ok || !select.value;
   }).catch(e => { select.innerHTML = '<option value="">読み込めませんでした</option>'; showApiError(e); });
@@ -199,7 +198,7 @@ async function fillApp() {
   const a = curApp(); if (!a) return;
   try { await loadCommits(a.proj); } catch (e) { showApiError(e); }
   const commits = commitsForProject(a.proj, a.commit);
-  $('#ap-commit').innerHTML = commits.map(c => `<option value="${c.hash}">${c.hash} ${esc(c.message)}</option>`).join('');
+  $('#ap-commit').innerHTML = commits.map(c => `<option value="${c.hash}">${esc(c.message)} (${String(c.hash).slice(0, 7)})</option>`).join('');
   $$('input[name=as]').forEach(r => r.checked = r.value === a.state); $('#ap-codebox').hidden = a.state !== '限定公開';
   $('#ap-code').value = ''; $('#ap-code').type = 'password'; $('#ap-codemsg').textContent = '';
   if (a.state === '限定公開') {
@@ -399,7 +398,7 @@ async function diffHtml(hash) {
     const side = hunks.map(h => { const o = h.old ? h.old.split('\n') : [], n = ((h.neu ?? h.new ?? '') !== '' || h.hasNew) ? (h.neu ?? h.new ?? '').split('\n') : [], k = Math.max(o.length, n.length); return Array.from({ length: k }, (_, i) => `<div class="sr"><div class="dl ${o[i] !== undefined ? 'del' : 'emp'}"><span class="dt">${esc(o[i] || '')}</span></div><div class="dl ${n[i] !== undefined ? 'add' : 'emp'}"><span class="dt">${esc(n[i] || '')}</span></div></div>`).join(''); }).join('');
     return `<section class="df"><h4>${fico(f.path)} ${esc(f.path)}</h4><div class="dv-u">${uni}</div><div class="dv-s"><div class="sr sh"><b>変更前</b><b>変更後</b></div>${side}</div></section>`;
   }).join('');
-  return `<div class="diffv" data-view="u"><div class="dtools"><b>${hash} ${esc(c ? c.message : '')}</b><span class="sp"></span><button class="o on" data-dv="u">まとめて</button><button class="o" data-dv="s">並べて</button></div>${files}</div>`;
+  return `<div class="diffv" data-view="u"><div class="dtools"><b>${esc(c ? c.message : '')} (${String(hash).slice(0, 7)})</b><span class="sp"></span><button class="o on" data-dv="u">まとめて</button><button class="o" data-dv="s">並べて</button></div>${files}</div>`;
 }
 document.addEventListener('click', e => { const b = e.target.closest('[data-dv]'); if (!b) return; const w = b.closest('.diffv'); w.dataset.view = b.dataset.dv; w.querySelectorAll('[data-dv]').forEach(x => x.classList.toggle('on', x === b)); });
 $('#hi-save').onclick = async () => {

@@ -26,7 +26,7 @@ async function runSearch() {
     if (!hits.length) { sMsg('見つかりませんでした'); $('#s-res').innerHTML = ''; return; }
     sMsg(`${hits.length}件（${new Set(hits.map(h => h.p)).size}ファイル）`);
     let last = '';
-    $('#s-res').innerHTML = hits.map((h, i) => (h.p !== last ? (last = h.p, `<div class="row dim">${ico(fileIcon(h.p))}<span class="nm">${h.p}</span></div>`) : '') +
+    $('#s-res').innerHTML = hits.map((h, i) => (h.p !== last ? (last = h.p, `<div class="row dim">${ico(fileIcon(h.p))}<span class="nm">${esc(h.p)}</span></div>`) : '') +
       `<div class="row" data-hit="${i}" style="padding-left:28px"><span class="nm">${h.ln}: ${esc(String(h.l).trim())}</span></div>`).join('');
   } catch (e) { sMsg(apiMessage(e)); }
 }
@@ -79,9 +79,59 @@ document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'p' || e.key === 'F1') { e.preventDefault(); openCommands(); }
 });
 
+const CMD_KEYS = {
+  'ホーム': 'home homu main',
+  'プロジェクト': 'project purojekuto',
+  'ファイル': 'file fairu',
+  '検索': 'search kensaku',
+  '履歴': 'history rireki commit',
+  '共有': 'share kyouyuu',
+  '公開': 'publish koukai app',
+  'ツール': 'tool tsuuru',
+  'ヘルプ': 'help herupu',
+  '利用状況': 'usage riyou joukyou',
+  '設定': 'settings settei',
+  'アカウント': 'account akaunto',
+  '外観': 'theme theme gai kan',
+  '文字サイズ': 'font moji size',
+  'エディター': 'editor edita',
+  '操作・余白': 'touch sousa yohaku',
+  '通知': 'notify tsuuchi',
+  '信頼端末': 'device shinrai tanmatsu',
+  'QR読み取りでログイン': 'qr login rogoin',
+  'コード入力でログイン': 'code login rogoin',
+  'ログアウト': 'logout rogouto',
+  'ファイル名を検索': 'file search kensaku ctrl+p',
+  'プレビュー': 'preview purebyuu',
+  'ファイル内検索': 'find in file kensaku',
+  '全体検索': 'search all kensaku',
+  'コミット': 'commit komitto',
+  'ダークテーマ': 'dark theme daaku',
+  'ライトテーマ': 'light theme raito',
+  'サブ画面の開閉': 'sub screen sabu',
+  '左エリアの表示・非表示': 'left panel hidari',
+  '部員': 'member buin',
+  '端末': 'device tanmatsu',
+  '制限値': 'limit seigen chi',
+  'アプリ': 'app apuri',
+  'お知らせ': 'announcement oshirase',
+  '使用状況・保守': 'usage maint seigen',
+  '新しいプロジェクト': 'new project atarashii',
+  'ZIPでダウンロード': 'zip download daunroodo',
+  '新規ファイル': 'new file atarashii',
+  '新規フォルダ': 'new folder atarashii',
+  'アップロード': 'upload appuroodo',
+  'フォルダをアップロード': 'upload folder appuroodo',
+  '保存': 'save hozon',
+  'すべて保存': 'save all hozon',
+  'このファイルのパスをコピー': 'copy path kopii',
+  '新しく公開': 'publish new koukai',
+  'を管理': 'manage kanri',
+  'を開く': 'open hiraku'
+};
 const commandHistory = [];
 function commandItems() {
-  const canEdit = S.role !== 'shared-view' && S.proj.perm !== 'view';
+  const canEdit = S.role !== 'shared-view' && !(S.proj && S.proj.perm === 'view');
   const openSetting = key => { showPanel('sm09'); document.querySelector(`[data-set="${key}"]`)?.click(); };
   const items = [
     ['画面', 'ホーム', 'ホームへ戻る', () => showPanel('home')],
@@ -138,13 +188,13 @@ function commandItems() {
   });
   (DATA.tools || []).forEach(t => items.push(['ツール', t.name, Array.isArray(t.accepts) ? t.accepts.join('・') : t.accepts || 'ツールを開く', () => Tools.open(t.id)]));
   if (typeof helpFiles === 'function') helpFiles().forEach(h => items.push(['ヘルプ', h.title, 'ヘルプ記事を開く', () => openHelp(h.file)]));
-  return items.map((item, id) => ({ id, category: item[0], name: item[1], detail: item[2], run: item[3] }));
+  return items.map((item, id) => { const o = { id, category: item[0], name: item[1], detail: item[2], run: item[3] }; o.keys = (item[4] || '') + ' ' + (CMD_KEYS[o.name] || o.name) + ' ' + (CMD_KEYS[o.category] || o.category); return o; });
 }
 let cmdRows = [], cmdSel = 0;
 function renderCommands() {
   const q = $('#cmd-in').value.trim().toLocaleLowerCase();
   const all = commandItems();
-  const matched = all.filter(x => !q || q.split(/\s+/).every(term => `${x.category} ${x.name} ${x.detail}`.toLocaleLowerCase().includes(term)));
+  const matched = all.filter(x => !q || q.split(/\s+/).every(term => `${x.category} ${x.name} ${x.detail} ${x.keys || ''}`.toLocaleLowerCase().includes(term)));
   const recent = matched.filter(x => commandHistory.includes(x.id)).sort((a, b) => commandHistory.indexOf(a.id) - commandHistory.indexOf(b.id));
   cmdRows = q ? matched : [...recent, ...matched.filter(x => !recent.includes(x))];
   cmdSel = 0;

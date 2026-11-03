@@ -91,6 +91,7 @@ function fromApi(a) {
       o.parentCommit = first(p, ['parentCommit', 'fork_commit'], o.parentCommit);
       o.headCommit = first(p, ['headCommit', 'head_commit'], o.headCommit);
       if (p.perm) o.perm = PERM_IN[p.perm] || p.perm;
+      if (o.perm === 'owner') delete o.perm;
       return o;
     };
     d.projects = { mine: arr(d.projects, 'mine').map(pj), shared: arr(d.projects, 'shared').map(pj) };

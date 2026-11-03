@@ -22,15 +22,16 @@ function bootPlaceholderProject() {
   if (S.proj && S.proj.id) return;
   const p = allProjects()[0];
   if (p) { S.proj = p; return; }
-  S.proj = { id: '', name: 'プロジェクトなし', perm: 'owner' };
-  DATA.files[''] = DATA.files[''] || [];
+  S.proj = null;
 }
 
 function roleForProject() {
   if (!DATA.user.id) return 'member';
   if (DATA.user.isAdmin) return 'admin';
   const p = S.proj;
-  if (!p || !p.perm || p.perm === 'owner') return 'member';
+  if (!p) return 'member';
+  if (p.owner && p.owner === DATA.user.id) return 'member';
+  if (!p.perm || p.perm === 'owner') return 'member';
   return p.perm === 'view' ? 'shared-view' : 'shared-edit';
 }
 function applyRoleForProject() {
@@ -53,7 +54,7 @@ async function afterLogin(mode) {
   }
   reportLoadFailures(await loadInitial(), 'Initial data load failed');
   bootPlaceholderProject();
-  if (S.proj.id) {
+  if (S.proj && S.proj.id) {
     try { await loadProject(S.proj.id); } catch (e) { reportLoadFailures([e], 'Project load failed'); }
   }
   initBase(); applyRoleForProject(); renderAll(); setAuth(true);
@@ -114,7 +115,7 @@ async function boot() {
   if (loggedIn) {
     reportLoadFailures(await loadInitial(), 'Initial data load failed');
     bootPlaceholderProject();
-    if (S.proj.id) {
+    if (S.proj && S.proj.id) {
       try { await loadProject(S.proj.id); } catch (e) { reportLoadFailures([e], 'Project load failed'); }
     }
   } else {

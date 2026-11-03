@@ -240,6 +240,7 @@ const openPath = () => { const t = S.act[S.grp]; return t && !t.render && !t.pre
 const actRow = () => (S.mmode || S.msel.size > 1) ? null : (S.hov || [...S.msel][0] || openPath()); /* 優先：ホバー ＞ 選択 ＞ 開いている。複数選択中は出さない */
 function updActs() { const x = actRow(); $$('#tree .row').forEach(r => r.classList.toggle('ax', (r.dataset.file || r.dataset.dir) === x)); }
 function renderTree() {
+  if (!S.proj || !S.proj.id) { $('#proj-root').textContent = '-/'; $('#tree').innerHTML = ''; return; }
   $('#proj-root').textContent = S.proj.name + '/'; const ax = actRow();
   const walk = (list, path, depth) => list.map(f => {
     const p = path + f.n, pad = `style="padding-left:${12 + depth * 16}px"`, s = nodeState(f), m = MARK[s.c], on = S.msel.has(p), cls = [s.c ? 'st-' + s.c : '', on ? 'pk' : '', p === ax ? 'ax' : ''].join(' '), stm = m && m[0] ? `<span class="stm" title="${m[1]}">${m[0]}</span>` : '';
@@ -339,7 +340,7 @@ function tabBar(g) {
   $('.tabs', el).innerHTML = '<div class="ts">' + ts.map(t => `<div class="tab ${t === act ? (g === S.grp ? 'on' : 'on dim') : ''}" data-p="${t.path}">${t.icon ? ico(t.icon) : fico(t.name)}<span>${t.name}</span>${unsaved(t) ? '<button class="dirty-btn" data-sv title="未保存：押すと保存します"><i class="dirty"></i></button>' : ''}<button class="x" title="閉じる">${ico('close')}</button></div>`).join('') + '</div>' +
     (g === 'g1' ? `<span class="tools"><button id="b-find" title="ファイル内を検索">${ico('find_in_page')}</button><button id="b-save" title="保存">${ico('save')}</button><button id="b-saveall" title="すべて保存">${ico('save_as')}</button><button id="b-sub" title="サブ画面を開く／閉じる">${ico(isPhone() ? 'dock_to_bottom' : 'dock_to_right')}</button></span>` : '');
   const bar = $('.ts', el); bar.scrollLeft = sl; revealTab(el, bar, ts, act);
-  $('.crumb', el).textContent = act && !act.render && !act.prev ? S.proj.name + ' › ' + act.path.replace(/\//g, ' › ') : '';
+  $('.crumb', el).textContent = act && !act.render && !act.prev ? (S.proj ? S.proj.name : '') + ' › ' + act.path.replace(/\//g, ' › ') : '';
 }
 /* タブ欄の表示領域の外に、開いているタブがあるときだけ、そのタブが見えるよう横にずらす。対象は、新しくタブが置かれた（開く・移動）とき、または表示領域外のタブをタブ以外の方法（ヘルプを選ぶ等）で開いたとき。タブ自身の操作（クリック・閉じる）や保存などの再描画では動かさない */
 function revealTab(el, bar, ts, act) {
@@ -379,7 +380,7 @@ function paneFor(el, t, g) {
   if (t.prev) {
     const src = S.tabs.find(x => x.path === t.prev.srcPath), warning = src && unsaved(src);
     pane.innerHTML = (warning ? '<div class="pv-warning"><span>未保存の変更は反映されていません</span><button data-pv-save>保存して更新</button></div>' : '') +
-      (t.prev.md ? `<div class="md mdx" data-ctx="project">${t.prev.html}</div>` : `<iframe sandbox="allow-scripts"${t.prev.url ? ` src="${esc(t.prev.url)}"` : ''}></iframe>`);
+      (t.prev.md ? `<div class="md mdx" data-ctx="project">${t.prev.html}</div>` : `<iframe sandbox="allow-scripts" referrerpolicy="no-referrer"${t.prev.url ? ` src="${esc(t.prev.url)}"` : ''}></iframe>`);
     if (t.prev.md) MD.post(pane); else if (!t.prev.url) $('iframe', pane).srcdoc = t.prev.html;
     const update = $('[data-pv-save]', pane);
     if (update) update.onclick = async () => {
@@ -525,7 +526,8 @@ $('#s-prev').onclick = preview;
 /* ---- ステータスバー ---- */
 function updateStatus() {
   const t = S.act[S.grp], used = usedMB();
-  $('#s-proj').innerHTML = `${ico('inbox')} ${S.proj.name}` + (S.proj.parent ? ` (${S.proj.parent} から分岐)` : '');
+  if (!S.proj || !S.proj.id) { $('#s-proj').innerHTML = ''; }
+  else { $('#s-proj').innerHTML = `${ico('inbox')} ${S.proj.name}` + (S.proj.parent ? ` (${S.proj.parent} から分岐)` : ''); }
   $('#s-lang').textContent = t && !t.render && !t.prev ? ext(t.name).toUpperCase() : '';
   $('#s-cap').textContent = `容量 ${used}/${quotaLimit()}MB`;
   $('#s-prev').hidden = !(t && !t.prev && ['html', 'md'].includes(ext(t.name))); $('#bn-prev').disabled = $('#s-prev').hidden || S.auth === false;
@@ -540,6 +542,17 @@ function renderHome() {
   const roles = { member: '部員', 'shared-view': '共有先（閲覧）', 'shared-edit': '共有先（編集）', admin: '管理者権限あり' };
   $('#hl-recent').innerHTML = $('#h-recent').innerHTML;
   $('#acct').innerHTML = `<div class="ucard"><span class="avatar">${esc((DATA.user.name || '?')[0])}</span><div><b>${esc(DATA.user.name)}</b><small>${esc(DATA.user.id)} ・ ${roles[S.role]}</small></div></div>`; $('#home-name').textContent = (DATA.user.name || '').split(' ')[0] + 'さん';
+  const quick = document.querySelector('#home .home-wrap.only-in .quick');
+  if (quick) {
+    let html = `<button class="o" id="q-new"><span class="ms">add_box</span>新しいプロジェクト</button><button class="o" id="q-openproj"><span class="ms">inbox</span>プロジェクトを開く</button>`;
+    if (S.proj && S.proj.id) html += `<button class="o" id="q-files"><span class="ms">folder_open</span>ファイルを開く</button>`;
+    html += `<button class="o" id="q-help"><span class="ms">help</span>使い方を見る</button>`;
+    quick.innerHTML = html;
+    const qn = $('#q-new'); if (qn) qn.onclick = () => $('#btn-new').click();
+    const qo = $('#q-openproj'); if (qo) qo.onclick = () => showPanel('sm01');
+    const qf = $('#q-files'); if (qf) qf.onclick = () => showPanel('sm02');
+    const qh = $('#q-help'); if (qh) qh.onclick = () => openHelp('start');
+  }
 }
 
 /* ---- ダイアログ ---- */
@@ -554,7 +567,7 @@ $('#btn-new').onclick = () => {
 function fillForkCommits() {
   const src = $('#cnp-src').value;
   const list = DATA.commitsByProject[src] || (src === S.proj?.id ? DATA.commits : []);
-  $('#cnp-commit').innerHTML = '<option value="">最新の状態から</option>' + list.map(c => `<option value="${c.hash}">${c.hash} ${esc(c.message)} の時点から</option>`).join('');
+  $('#cnp-commit').innerHTML = '<option value="">最新の状態から</option>' + list.map(c => `<option value="${c.hash}">${esc(c.message)} (${String(c.hash).slice(0, 7)}) の時点から</option>`).join('');
   if (!list.length && src) Api.history.log(src).then(d => { applyCommits(src, d); if ($('#cnp-src').value === src) fillForkCommits(); }).catch(() => {});
 }
 $('#cnp-src').onchange = fillForkCommits;
@@ -655,7 +668,7 @@ $('#bn-prev').onclick = () => $('#s-prev').hidden ? showToast('HTML / Markdown �
 addEventListener('beforeunload', e => { if (anyBlue()) { e.preventDefault(); e.returnValue = ''; } }); // 青（未保存）があるまま閉じようとしたら確認
 
 /* ホームのクイック操作 */
-$('#q-new').onclick = () => $('#btn-new').click(); $('#q-files').onclick = () => showPanel('sm02'); $('#q-help').onclick = () => openHelp('start');
+$('#q-new').onclick = () => $('#btn-new').click(); $('#q-help').onclick = () => openHelp('start');
 
 /* Markdownプレビューのチェックボックス：押すと元の .md の「- [ ] / - [x]」を書き換える（未保存＝青になるので保存する） */
 window.mdTask = (n, on, ctx) => {
