@@ -2,7 +2,7 @@
 
 Visual Web Code は、ブラウザー上で HTML/CSS/JavaScript などを編集し、プロジェクト共有・履歴管理・アプリ公開を行う Web エディターです。このリポジトリはブラウザーへ配信するフロントエンドを収録します。サーバー側の PHP は含まず、バックエンドとは HTTP API で連携します。
 
-> **公開前チェックリスト:** ライセンス表示（アプリ内「ライセンス」）と、FFmpeg（`@ffmpeg/core`、GPL-2.0-or-later）の構成部品・固定コミット・ライセンス文書は `tools/complete.py` が生成します。公開前に、[下のチェックリスト](#公開前チェックリスト) の人手の作業（公開先 URL の設定、FFmpeg の対応ソースの公開、法的確認）を済ませてください。
+> **公開前チェックリスト:** ライセンス表示（アプリ内「ライセンス」）と、FFmpeg（`@ffmpeg/core`、GPL-2.0-or-later）の構成部品・固定コミット・ライセンス文書は `tools/complete.py` が生成します。公開前に、[下のチェックリスト](#公開前チェックリスト) の未完了項目（FFmpeg のソース提供方法、再ビルド同一性の要否、Mermaid の依存ライセンス、法的確認）を済ませてください。
 
 ## 主な機能
 
@@ -129,11 +129,11 @@ python3 tools/fetch_ffmpeg_source.py --out ffmpeg-source
 
 ### 公開前チェックリスト
 
-1. `tools/project.json` の `source_repository`（このリポジトリの公開先 URL）を設定し、`python3 tools/complete.py` を再実行する。未設定の間は、アプリ内の表示は「運営者から入手できます」になる。
-2. `ffmpeg-core.wasm` を配信する場所と同じ場所に、`fetch_ffmpeg_source.py` で作ったソース一式を置き、その URL を `tools/project.json` の `ffmpeg_source_url` に設定して `complete.py` を再実行する（GPL の対応ソースの提供）。
-3. 配布バイナリを、`SOURCE.md` の手順で再ビルドして一致するかの確認は、まだ行っていません（x264 と LAME は、上流がブランチ名でしか固定していません）。必要なら実施する。
-4. Mermaid が同梱するライブラリ（`mermaid.min.js` に含まれる D3 など）の個別のライセンス表示は **要確認** です（アプリ内「第三者ソフトウェア」にも記載）。
-5. 公開前に、専門家による法的確認を受ける。本 README は法的助言ではありません。
+1. **設定済み:** `tools/project.json` の `source_repository` はこのリポジトリの GitHub URL です。設定を変えた場合は `python3 tools/complete.py` を再実行してください。
+2. **URL設定済み・公開方法は未確認:** `ffmpeg_source_url` は FFmpeg 本体（n5.1.4）の固定コミットを指します。その他の構成部品・ビルド手順の固定コミットは [`public/vendor/ffmpeg/SOURCE.md`](public/vendor/ffmpeg/SOURCE.md) に出力されます。全構成部品のアーカイブが必要な場合は `python3 tools/fetch_ffmpeg_source.py --out ffmpeg-source` で作成できます。GitHub上の参照先またはアーカイブの提供方法が、実際の配布形態における GPL の要件を満たすか確認してください。
+3. **未実施:** 配布バイナリを `SOURCE.md` の手順で再ビルドして一致するかは確認していません。x264 と LAME は上流のビルド手順がブランチ名で指定しているため、同一性の確認には限界があります。公開に必要か判断してください。
+4. **未確認:** Mermaid 11.17.2 の `mermaid.min.js` にバンドルされた各依存ライブラリのライセンス・著作権表示を確認してください（アプリ内「第三者ソフトウェア」にも記載）。
+5. **未実施:** 公開前に、専門家による法的確認を受けてください。本 README は法的助言ではありません。
 
 ログイン画面の「Microsoft でサインイン」ボタンは、[Microsoft のブランドガイドライン](https://learn.microsoft.com/ja-jp/entra/identity-platform/howto-add-branding-in-apps)に従っています（ロゴは改変せず、文言は「Microsoft でサインイン」）。寸法・色は公式画像に合わせた値ですが、公式画像との照合は **要確認** です。
 

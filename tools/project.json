@@ -1,6 +1,6 @@
 {
-  "_comment": "公開時に設定する値。アプリ内のライセンス表示（public/license/）の生成に使う。値を変えたら python3 tools/complete.py を再実行する。",
+  "_comment": "公開時に設定する値。source_repository はフロントエンドの公開先、ffmpeg_source_url は FFmpeg 本体のソース参照先。値を変えたら python3 tools/complete.py を再実行する。",
   "copyright": "Copyright (C) 2026 DTT-JP",
-  "source_repository": "",
-  "ffmpeg_source_url": ""
+  "source_repository": "https://github.com/DTT-JP/vwc-frontend",
+  "ffmpeg_source_url": "https://github.com/FFmpeg/FFmpeg/tree/4729204c17f756e186d622060088371d10b34f7e"
 }

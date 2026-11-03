@@ -125,7 +125,7 @@ def component_table(source):
     for c in source["components"]:
         lines.append("| " + " | ".join(cell(v) for v in (
             c["name"], c["version"], c["license"],
-            f"[{c['repository'].split('github.com/')[1]}]({c['repository']}) の `{c['commit']}`",
+            f"[{c['repository'].split('github.com/')[1]}]({c['repository']}/tree/{c['commit']}) の `{c['commit']}`",
         )) + " |")
     return "\n".join(lines)
 
@@ -165,9 +165,13 @@ def ffmpeg_doc(manifest, project):
         "",
     ]
     if url:
-        lines += [f"- 対応ソースコード一式：[{url}]({url})", ""]
+        lines += [
+            f"- FFmpeg 本体（n5.1.4）：[{url}]({url})",
+            "- その他の同梱部品とビルド手順：下の固定コミット一覧を参照してください。",
+            "",
+        ]
     else:
-        lines += ["- 対応ソースコード一式：このアプリを配布している運営者に請求してください。", ""]
+        lines += ["- FFmpeg 本体を含む対応ソース：このアプリを配布している運営者に請求してください。", ""]
     lines += [
         "- 上の表のコミットを、各リポジトリから取得できます。ビルド手順は ffmpeg.wasm の Dockerfile と `build/*.sh` です。",
         f"- {source['build_recipe'] if source else ''}",
@@ -234,7 +238,7 @@ def source_md(manifest, project):
         "python3 tools/fetch_ffmpeg_source.py --out ffmpeg-source",
         "```",
         "",
-        "各部品を固定コミットで取得し、`ffmpeg-source/` に tar.gz と `SHA256SUMS` を作ります（git が必要です）。GPL に基づき、`ffmpeg-core.wasm` を配信する運営者は、このソース一式を、配信するのと同じ場所から入手できるようにしてください。公開先は `tools/project.json` の `ffmpeg_source_url` に書きます（アプリ内のライセンス表示に出ます）。",
+        "各部品を固定コミットで取得し、`ffmpeg-source/` に tar.gz と `SHA256SUMS` を作ります（git が必要です）。上の表のリンクは各部品の固定コミットを指し、FFmpeg 本体のリンクは `tools/project.json` の `ffmpeg_source_url` から生成します。`ffmpeg_source_url` は FFmpeg 本体のソースを示すもので、同梱部品全体をまとめたアーカイブではありません。公開方法が GPL の要件を満たすことは、配布形態に応じて公開前に確認してください。",
         "",
         "## 確認の範囲",
         "",
@@ -289,5 +293,5 @@ def build(manifest, outputs):
     if not project.get("source_repository", "").strip():
         warnings.append("tools/project.json の source_repository が未設定です（公開先が決まったら設定して再実行してください）")
     if manifest.get("corresponding_source") and not project.get("ffmpeg_source_url", "").strip():
-        warnings.append("tools/project.json の ffmpeg_source_url が未設定です（FFmpeg の対応ソースの公開先）")
+        warnings.append("tools/project.json の ffmpeg_source_url が未設定です（FFmpeg 本体のソース参照先）")
     return result, warnings
