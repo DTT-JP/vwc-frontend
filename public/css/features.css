@@ -94,3 +94,26 @@ dl.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:8px 0}dl.k
 #app .aud-seg button+button{border-left:1px solid var(--border)}
 #app .aud-seg button:hover{background:var(--hover)}
 #app .aud-seg button.on{background:var(--pill);color:var(--accent);font-weight:600}
+
+/* Shared presentation for generated rows and status overlays. */
+.app-row{border:1px solid transparent;transition:border-color .12s,background .12s,box-shadow .12s}
+.app-row:hover,.app-row:focus-within{border-color:var(--border)}
+.app-row[aria-selected=true],.app-row.selected,.app-row[data-selected=true]{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,var(--bar));box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 24%,transparent)}
+.app-row:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.app-row .commit-hash,.commit-hash{font:12px/1.4 var(--mono);color:var(--fg-dim);overflow-wrap:anywhere}
+.app-row .url-actions,.app-row .app-row-tools{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.app-row .url-actions button,.app-row .app-row-tools button{min-width:40px}
+
+.tr-m,.activity-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tr-row .tr-m::after{content:'…';display:none}
+.timeout-overlay,.adm-timeout-overlay{position:absolute;inset:0;z-index:10;display:grid;place-items:center;padding:24px;background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filter:blur(2px)}
+.timeout-overlay[hidden],.adm-timeout-overlay[hidden]{display:none}
+.timeout-overlay>*,.adm-timeout-overlay>*{max-width:420px;text-align:center}
+.preview-split,.pv-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);min-height:0}
+.preview-split>* ,.pv-split>*{min-width:0;min-height:0}
+@media (max-width:700px){
+  .preview-split,.pv-split{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) minmax(0,1fr)}
+  #home .home-wrap{padding:20px 12px 32px}
+  .hero h1{font-size:28px}
+  .lic-sec{margin-top:32px;padding-top:22px}
+}

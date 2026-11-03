@@ -3,7 +3,8 @@
    QR は実際にカメラで読み取る（qr.js）。承認コードは6桁（auth/approve）。失敗回数とロックはサーバーが判定する。 */
 function rMyDevices() {
   const rows = DATA.devices.map((d, i) => ({ d, i })).filter(x => x.d.member === DATA.user.id || !x.d.member);
-  return `<h2>信頼端末</h2><div class="tools"><button class="o" data-acc="scanqr">${ico('qr_code_scanner')} QR読み取りでログイン</button><button class="o" data-acc="entercode">${ico('pin')} コード入力でログイン</button><button class="o" data-acc="revoke-current">${ico('block')} この端末の信頼を解除</button></div>
+  const current = DATA.devices.some(d => d.current);
+  return `<h2>信頼端末</h2><div class="tools"><button class="o" data-acc="scanqr">${ico('qr_code_scanner')} QR読み取りでログイン</button><button class="o" data-acc="entercode">${ico('pin')} コード入力でログイン</button>${current ? `<button class="o" data-acc="revoke-current">${ico('block')} この端末の信頼を解除</button>` : ''}</div>
   <table class="tbl"><thead><tr><th>端末名</th><th>最終利用</th><th>有効期限</th><th></th></tr></thead><tbody>` +
     (rows.map(({ d, i }) => `<tr><td data-l="端末名">${esc(d.name)} ${d.current ? bd('この端末', 'b-ok') : ''}</td><td data-l="最終利用">${esc(d.last)}</td><td data-l="有効期限">${fmtDate(d.expires)}</td><td><button data-a="my-rev" data-i="${i}" aria-label="失効" title="失効">${ico('block')}</button></td></tr>`).join('') || '<tr><td colspan="4">信頼端末はありません</td></tr>') + '</tbody></table>';
 }

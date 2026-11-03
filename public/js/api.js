@@ -30,7 +30,12 @@ const Api = (() => {
       try { data = JSON.parse(text); } catch { data = { raw: text }; }
     }
     if (!res.ok || (data && data.error)) {
-      throw new ApiError((data && data.error) || `http_${res.status}`, res.status, data || {});
+      const raw = (data && data.error) || `http_${res.status}`;
+      /* Older API handlers only set the HTTP status. Keep one stable error
+         code so all callers take the same expiry/permission path. */
+      const code = (!data?.error && res.status === 401) || raw === 'http_401' ? 'unauthorized'
+        : (!data?.error && res.status === 403) || raw === 'http_403' ? 'forbidden' : raw;
+      throw new ApiError(code, res.status, data || {});
     }
     return data == null ? {} : data;
   }
@@ -169,7 +174,7 @@ const Api = (() => {
   const history = {
     status: project => call('history/status', { project }),
     commit: (project, message) => call('history/commit', { project, message }),
-    log: project => call('history/log', { project }),
+    log: (project, opts = {}) => call('history/log', { project, ...opts }),
     diff: (project, hash) => call('history/diff', { project, hash }),
     restore: (project, hash) => call('history/restore', { project, hash }),
     remove: (project, beforeHash) => call('history/delete', { project, before_hash: beforeHash })

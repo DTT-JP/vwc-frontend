@@ -23,6 +23,19 @@ async function loadCommits(projectId) {
   }
   return list;
 }
+/* Paginated history endpoints are optional for older servers. A full log is
+   still cached above; when a cursor is returned, this loads only older rows. */
+async function loadMoreHistory(projectId = S.proj?.id) {
+  const page = DATA.historyPageByProject[projectId];
+  if (!projectId || !page?.next || page.loading) return false;
+  page.loading = true;
+  try {
+    const d = await Api.history.log(projectId, { cursor: page.next });
+    applyCommits(projectId, d, { append: true });
+    renderHist();
+    return true;
+  } finally { page.loading = false; }
+}
 function commitsForProject(projectId, preferredHash) {
   const all = cachedCommits(projectId);
   if (!all.length) return preferredHash ? [preferredHash] : [];
@@ -274,8 +287,10 @@ $('#ap-del').onclick = () => confirmDlg('アプリを削除', `${curApp().name} 
 const laneCls = c => c.rel && c.rel.dir ? 'cm-' + c.rel.dir : '', headHash = () => DATA.commits[0]?.hash || '';
 function renderHist() {
   if (!$('#hi-list')) return;
+  const page = DATA.historyPageByProject[S.proj?.id] || {};
   $('#hi-list').innerHTML = DATA.commits.map(c => `<div class="cm ${laneCls(c)}" data-h="${c.hash}"><div class="cm-g"><i class="hdot"></i>${c.rel ? '<i class="hbr"></i>' : ''}</div><div class="cm-b"><div class="cm-t">${esc(c.message)}</div><div class="cm-m">${c.short || c.hash} ・ ${esc(c.by)} ・ ${c.at}</div>` +
     `<div class="cm-m">${c.parent ? '親: ' + c.parent : '最初のコミット（親なし）'}</div>` + (c.rel ? `<div class="cm-r ${c.rel.dir}">${ico(c.rel.dir === 'in' ? 'call_merge' : c.rel.kind === 'publish' ? 'public' : 'call_split')}${esc(c.rel.t)}</div>` : '') + `</div><button title="ここに戻す" data-rs="${c.hash}">${ico('restore')}</button><button title="コミットの操作" data-hmenu="${c.hash}">${ico('more_vert')}</button></div>`).join('');
+  if (page.next) $('#hi-list').insertAdjacentHTML('beforeend', '<button class="o" data-hi-more>古い履歴を読み込む</button>');
   const un = []; (function w(l, p) { l.forEach(f => f.t === 'dir' ? w(f.c, p + f.n + '/') : f.untracked && un.push([p + f.n, nodeBytes(f)])); })(files(), '');
   $('#hi-un').innerHTML = un.length ? `<div class="un-h">${ico('visibility_off')}<b>未追跡のファイル</b></div><div class="pnote">${limitVal('track_limit_mb')}MB を超えるため、履歴に入りません（戻したり、差分を見たりできません）。</div>` + un.map(x => `<div class="un-r">${fico(x[0].split('/').pop())}<span class="nm">${esc(x[0])}</span><span class="dnote">${kb(x[1])}</span></div>`).join('') : '';
   updateCommitControl();
@@ -293,6 +308,11 @@ VWC.on('role', updateCommitControl);
 let historyMenuHash = '';
 const historyMenu = $('#history-menu');
 $('#hi-list').onclick = async e => {
+  if (e.target.closest('[data-hi-more]')) {
+    const b = e.target.closest('[data-hi-more]'); b.disabled = true; b.textContent = '読み込み中…';
+    try { await loadMoreHistory(); } catch (err) { showApiError(err); b.disabled = false; b.textContent = '古い履歴を読み込む'; }
+    return;
+  }
   const menuButton = e.target.closest('[data-hmenu]');
   if (menuButton) {
     historyMenuHash = menuButton.dataset.hmenu;

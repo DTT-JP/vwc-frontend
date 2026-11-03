@@ -9,20 +9,20 @@ const SETTINGS_DEFAULT = {
 };
 /* 制限値の表示用の定義（名前・説明・範囲）。値は API（me / admin/settings_get）から受け取る。 */
 const LIMIT_META = [
-  { key: 'quota_mb', name: '部員ごとの容量上限', description: '1人あたりの使用量の上限', value: 500, min: 10, max: 10000, default: 500, unit: 'MB' },
-  { key: 'max_upload_mb', name: '最大アップロードサイズ', description: 'これを超えるファイルは、システムに保存・アップロードできません', value: 200, min: 1, max: 2000, default: 200, unit: 'MB' },
+  { key: 'quota_mb', name: '部員ごとの容量上限', description: '1人あたりの使用量の上限', value: 2048, min: 1, max: 10000, default: 2048, unit: 'MB' },
+  { key: 'max_upload_mb', name: '最大アップロードサイズ', description: 'これを超えるファイルは、システムに保存・アップロードできません', value: 256, min: 1, max: 8192, default: 256, unit: 'MB' },
   { key: 'track_limit_mb', name: '履歴の追跡上限', description: 'これを超えるファイルは、履歴に入れません（未追跡）', value: 5, min: 1, max: 100, default: 5, unit: 'MB' },
   { key: 'device_days', name: '信頼端末の有効日数', description: '期限後は、もう一度承認が必要です', value: 90, min: 1, max: 365, default: 90, unit: '日' },
   { key: 'code_ttl_sec', name: 'ログイン用コードの有効秒数', description: 'QR・数字コードが使える時間', value: 300, min: 60, max: 900, default: 300, unit: '秒' },
   { key: 'code_max_fail', name: 'ログイン承認の失敗上限', description: '承認コードを間違えられる回数。超えるとロックされます', value: 5, min: 3, max: 10, default: 5, unit: '回' },
-  { key: 'max_publish_mb', name: 'アプリの最大サイズ', description: '1つのアプリとして公開できる大きさ', value: 200, min: 1, max: 2000, default: 200, unit: 'MB' },
-  { key: 'max_projects_per_member', name: '部員ごとのプロジェクト数', description: '1人が持てるプロジェクトの数', value: 50, min: 1, max: 500, default: 50, unit: '個' },
+  { key: 'max_publish_mb', name: 'アプリの最大サイズ', description: '1つのアプリとして公開できる大きさ', value: 1024, min: 1, max: 8192, default: 1024, unit: 'MB' },
+  { key: 'max_projects_per_member', name: '部員ごとのプロジェクト数', description: '1人が持てるプロジェクトの数', value: 100, min: 1, max: 1000, default: 100, unit: '個' },
   { key: 'app_code_max_fail', name: 'アクセスコードの失敗上限', description: 'アプリの入口でコードを間違えられる回数', value: 5, min: 3, max: 10, default: 5, unit: '回' },
   { key: 'gate_private_minutes', name: '非公開アプリのアクセス有効分', description: '非公開アプリを開いてから、ログインを求め直すまでの時間', value: 60, min: 5, max: 1440, default: 60, unit: '分' },
   { key: 'gate_unlisted_hours', name: '限定公開アプリのアクセス有効時間', description: 'アクセスコードを入れてから、入れ直しを求めるまでの時間', value: 24, min: 1, max: 168, default: 24, unit: '時間' },
   { key: 'stale_app_days', name: '放置アプリの通知までの日数（提案）', description: 'この日数、更新のないアプリを「忘れていませんか？」で知らせます', value: 90, min: 7, max: 730, default: 90, unit: '日' },
   { key: 'audit_retention_days', name: '監査ログの保持日数（提案）', description: 'これより古い監査ログは削除されます', value: 365, min: 30, max: 3650, default: 365, unit: '日' },
-  { key: 'zip_max_mb', name: 'ZIPの最大サイズ', description: 'ZIPでまとめてダウンロードできる上限', value: 1000, min: 10, max: 10000, default: 1000, unit: 'MB' }
+  { key: 'zip_max_mb', name: 'ZIPの最大サイズ', description: 'ZIPでまとめてダウンロードできる上限', value: 2048, min: 1, max: 8192, default: 2048, unit: 'MB' }
 ];
 
 const DATA = {
@@ -33,6 +33,7 @@ const DATA = {
   files: {},
   commits: [],
   commitsByProject: {},
+  historyPageByProject: {},
   commitStatus: {},
   fileStates: {},
   apps: [],
@@ -332,15 +333,25 @@ function applyTree(projectId, d) {
   if (DATA.fileStates && DATA.fileStates[projectId]) markStates(projectId, DATA.fileStates[projectId]);
   return DATA.files[projectId];
 }
-function applyCommits(projectId, d) {
+function applyCommits(projectId, d, opts = {}) {
   const list = arr(d, 'commits').map(c => ({
     ...c, hash: String(c.hash || c.id || ''), message: c.message || '',
     by: c.by ?? memberLabel(c.author) ?? '', at: dt(c.at ?? c.ts ?? ''), short: c.short || String(c.hash || c.id || '').slice(0, 7), parent: c.parent ?? c.parent_hash ?? null,
     stat: c.stat || { add: num(c.add, 0), mod: num(c.mod, 0), del: num(c.del, 0) }, rel: c.rel || null
   }));
-  DATA.commits = list;
-  if (projectId) DATA.commitsByProject[projectId] = list;
-  return list;
+  const previous = DATA.commitsByProject[projectId] || [];
+  const merged = opts.append ? [...previous, ...list.filter(c => !previous.some(p => p.hash === c.hash))] : list;
+  DATA.commits = projectId === (S.proj && S.proj.id) ? merged : DATA.commits;
+  if (projectId) {
+    DATA.commitsByProject[projectId] = merged;
+    if (d && typeof d === 'object') {
+      DATA.historyPageByProject[projectId] = {
+        next: d.next_cursor ?? d.nextCursor ?? d.next ?? null,
+        loading: false
+      };
+    }
+  }
+  return merged;
 }
 function applyStatus(projectId, d) {
   /* BE の history/status は { states: { パス: 状態 }, counts: { add, mod, del } } を返す。 */

@@ -54,7 +54,11 @@ dragKit($('#left'), {
 });
 
 /* ファイル：プロジェクト内の任意の場所（フォルダの中・並び順）へ移動 */
-const listOf = dir => dir ? findFile(dir).c : files();
+const listOf = dir => {
+  if (!dir) return files();
+  const node = findFile(dir);
+  return node && node.t === 'dir' ? node.c : [];
+};
 function retarget(oldP, newP) { // 開いているタブ・折りたたみ状態のパスを更新
   const re = p => p === oldP || p.startsWith(oldP + '/') || p.startsWith(oldP + '#') ? newP + p.slice(oldP.length) : p;
   S.tabs.forEach(t => { if (!t.render && !t.prev || t.prev) { t.path = re(t.path); t.name = t.prev ? t.path.split('#')[0].split('/').pop() : t.path.split('/').pop(); } });
@@ -62,12 +66,13 @@ function retarget(oldP, newP) { // 開いているタブ・折りたたみ状態
 }
 async function moveNode(src, t) {
   if (S.role === 'shared-view' || S.proj.perm === 'view') return showToast('閲覧のみのため移動できません');
-  const node = findFile(src); if (!node) return;
+  const node = findFile(src); if (!node || !t) return;
   const sParent = listOf(src.split('/').slice(0, -1).join('/'));
   let list, dir, dest;
   if (t.root) { list = files(); dir = ''; dest = (dir ? dir + '/' : '') + node.n; }
   else {
     const tn = findFile(t.path), td = t.path.split('/').slice(0, -1).join('/');
+    if (!tn) return;
     if (t.pos === 'into') { list = tn.c; dir = t.path; }
     else { list = listOf(td); dir = td; }
     dest = (dir ? dir + '/' : '') + node.n;

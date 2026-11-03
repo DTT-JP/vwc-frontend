@@ -129,6 +129,24 @@ const CMD_KEYS = {
   'を管理': 'manage kanri',
   'を開く': 'open hiraku'
 };
+/* The palette uses stable English command names; Japanese remains in the
+   description and search aliases so existing users can still find commands. */
+const CMD_EN = {
+  'ホーム': 'Home', 'プロジェクト': 'Projects', 'ファイル': 'Files', '検索': 'Search',
+  '履歴': 'History', '共有': 'Sharing', '公開': 'Publish', 'ツール': 'Tools',
+  'ヘルプ': 'Help', '利用状況': 'Usage', '設定': 'Settings', 'アカウント': 'Account',
+  '外観': 'Appearance', '文字サイズ': 'Font size', 'エディター': 'Editor',
+  '操作・余白': 'Touch and spacing', '通知': 'Notifications', '信頼端末': 'Trusted devices',
+  'QR読み取りでログイン': 'Sign in with QR', 'コード入力でログイン': 'Sign in with code',
+  'ログアウト': 'Sign out', 'ファイル名を検索': 'Find files', 'プレビュー': 'Preview',
+  'ファイル内検索': 'Find in file', '全体検索': 'Search project', 'コミット': 'Commit',
+  'ダークテーマ': 'Dark theme', 'ライトテーマ': 'Light theme',
+  'サブ画面の開閉': 'Toggle secondary pane', '左エリアの表示・非表示': 'Toggle sidebar',
+  '新しいプロジェクト': 'New project', 'ZIPでダウンロード': 'Download ZIP',
+  '新規ファイル': 'New file', '新規フォルダ': 'New folder', 'アップロード': 'Upload',
+  'フォルダをアップロード': 'Upload folder', '保存': 'Save', 'すべて保存': 'Save all',
+  'このファイルのパスをコピー': 'Copy file path', '新しく公開': 'Publish app'
+};
 const commandHistory = [];
 function commandItems() {
   const canEdit = S.role !== 'shared-view' && !(S.proj && S.proj.perm === 'view');
@@ -188,7 +206,11 @@ function commandItems() {
   });
   (DATA.tools || []).forEach(t => items.push(['ツール', t.name, Array.isArray(t.accepts) ? t.accepts.join('・') : t.accepts || 'ツールを開く', () => Tools.open(t.id)]));
   if (typeof helpFiles === 'function') helpFiles().forEach(h => items.push(['ヘルプ', h.title, 'ヘルプ記事を開く', () => openHelp(h.file)]));
-  return items.map((item, id) => { const o = { id, category: item[0], name: item[1], detail: item[2], run: item[3] }; o.keys = (item[4] || '') + ' ' + (CMD_KEYS[o.name] || o.name) + ' ' + (CMD_KEYS[o.category] || o.category); return o; });
+  return items.map((item, id) => {
+    const original = item[1], o = { id, category: item[0], name: CMD_EN[original] || original, detail: item[2], run: item[3] };
+    o.keys = (item[4] || '') + ' ' + original + ' ' + (CMD_KEYS[original] || original) + ' ' + (CMD_KEYS[o.category] || o.category);
+    return o;
+  });
 }
 let cmdRows = [], cmdSel = 0;
 function renderCommands() {
