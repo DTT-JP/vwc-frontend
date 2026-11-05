@@ -66,9 +66,11 @@ function rLicense() {
       <p>このアプリは GNU GPL version 3 or later（GPL-3.0-or-later）で提供されます。全文は <a href="https://www.gnu.org/licenses/gpl-3.0.html" target="_blank" rel="noopener">https://www.gnu.org/licenses/gpl-3.0.html</a> で確認できます。</p></article>`;
   }
   const fs = licFiles(), i = fs.findIndex(x => x.file === LIC.cur), it = fs[i < 0 ? 0 : i], k = fs.indexOf(it), prev = fs[k - 1], next = fs[k + 1];
-  const chip = x => `<a href="${MD.esc(x.file)}" data-md="${MD.esc(x.file)}" class="lic-chip${x === it ? ' on' : ''}"${x === it ? ' aria-current="page"' : ''}>${MD.esc(x.title)}</a>`;
+  /* 上の切り替えは、ログイン画面の上のタブと同じ部品（.seg.login-tabs）。選ばれているタブは青い背景＋白い文字 */
+  const ICONS_LIC = ['gavel', 'description', 'inventory_2', 'verified', 'info'];
+  const chip = (x, j) => `<button type="button" role="tab" data-lic-tab="${MD.esc(x.file)}" class="${x === it ? 'on' : ''}" aria-selected="${x === it}"><span class="ms">${ICONS_LIC[j % ICONS_LIC.length]}</span><span>${MD.esc(x.title)}</span></button>`;
   const nav = a => a ? `<a href="${MD.esc(a.file)}" data-md="${MD.esc(a.file)}" class="${a === prev ? 'prev' : 'next'}"><small>${a === prev ? '<span class="ms">arrow_back</span>前へ' : '次へ<span class="ms">arrow_forward</span>'}</small><span>${MD.esc(a.title)}</span></a>` : '<span></span>';
-  return `<article class="mdx" data-ctx="license"><nav class="lic-tabs" aria-label="ライセンス文書">${fs.map(chip).join('')}</nav>${MD.render(it.body, { resolve: u => u })}
+  return `<article class="mdx" data-ctx="license"><div class="seg login-tabs lic-tabbar" role="tablist" aria-label="ライセンス文書">${fs.map(chip).join('')}</div>${MD.render(it.body, { resolve: u => u })}
     <nav class="help-nav">${nav(prev)}${nav(next)}</nav></article>`;
 }
 
@@ -86,6 +88,8 @@ async function openLicense(file) {
 /* ライセンス文書どうしのリンク（[…](03-third-party.md)）と上部の切替 */
 const licPrevMdOpen = window.mdOpen;
 window.mdOpen = (file, ctx) => { if (ctx === 'license') openLicense(file.replace(/#.*$/, '')); else if (licPrevMdOpen) licPrevMdOpen(file, ctx); };
+
+document.addEventListener('click', e => { const b = e.target.closest('[data-lic-tab]'); if (b) { e.preventDefault(); openLicense(b.dataset.licTab); } });
 
 /* 入口：[data-license]（設定、ログアウト時のホーム左・右） */
 document.addEventListener('click', e => { const r = e.target.closest('[data-license]'); if (r) { e.preventDefault(); openLicense(); } });

@@ -22,7 +22,8 @@ function settleReauth(ok) {
   if (ok) {
     $('#d-re').close(); renderAdmReauth();
     const cb = reauthCb; reauthCb = null;
-    if (cb) cb();
+    /* 再認証のあと、ページを読み込み直さなくても管理の画面が使えるように、管理のデータを取り直して、開いている管理の画面を描き直す */
+    refreshAdminAfterReauth().then(() => { if (cb) cb(); });
     showToast('再認証しました。10分間、管理の操作ができます');
   }
 }
@@ -49,7 +50,25 @@ function reauth(cb) {
   $('#d-re').showModal();
 }
 const admReauthBar = () => `<div class="adm-re" role="status">${ico('verified_user')}<span data-re-t></span><button class="o" data-a="re-now">いま再認証する</button></div>`;
-function renderAdmReauth() { $$('.adm-re').forEach(b => { const l = reauthLeft(); b.classList.toggle('exp', !l); $('[data-re-t]', b).textContent = l ? `管理の再認証 あと ${mmssL(l)}` : '管理の再認証 切れています'; }); }
+/* 再認証が切れている間は、管理の画面の全体を覆って、操作できなくする。認証するまで、中の情報も見せない（覆いの下の内容は取り除く） */
+const isAdminTab = t => !!t && typeof t.name === 'string' && t.name.startsWith('管理: ');
+function adminLockHtml() {
+  return `<div class="adm-lock" role="alertdialog" aria-labelledby="adm-lock-t"><div class="box"><span class="ms big">lock_clock</span><h2 id="adm-lock-t">管理の再認証が必要です</h2><p>再認証の有効時間（10分）が切れました。Microsoft で再認証すると、続けて管理の操作ができます。</p><button class="primary" data-a="re-now">${ico('verified_user')} 再認証する</button></div></div>`;
+}
+function applyAdminLock() {
+  const expired = reauthLeft() <= 0;
+  G.forEach(g => {
+    const t = S.act[g], pane = document.querySelector('#' + g + ' .pane'); if (!pane) return;
+    const lock = pane.querySelector(':scope > .adm-lock');
+    if (isAdminTab(t) && expired) {
+      if (!lock) { const host = pane.querySelector(':scope > .adm'); if (host) { host.innerHTML = ''; host.inert = true; } pane.insertAdjacentHTML('beforeend', adminLockHtml()); }
+    } else if (lock) {
+      lock.remove(); const host = pane.querySelector(':scope > .adm'); if (host) host.inert = false;
+      if (isAdminTab(t)) renderTabs();   // 覆いを外すときは、中身を描き直す（覆っている間は取り除いてあるため）
+    }
+  });
+}
+function renderAdmReauth() { $$('.adm-re').forEach(b => { const l = reauthLeft(); b.classList.toggle('exp', !l); $('[data-re-t]', b).textContent = l ? `管理の再認証 あと ${mmssL(l)}` : '管理の再認証 切れています'; }); applyAdminLock(); }
 setInterval(renderAdmReauth, 1000);
 $('#re-ok').onclick = startReauth;
 $('#d-re').addEventListener('close', () => { stopReauthPoll(); });
@@ -57,6 +76,12 @@ const memName = id => (DATA.members.find(m => m.id === id) || {}).name || id || 
 const memberProjects = m => (m && m.projects && m.projects.length ? m.projects : DATA.adminProjects.filter(p => p.owner === (m && m.id)))
   .map(p => ({ id: String(p.id || p.project || ''), name: p.name || String(p.id || ''), sizeMB: num(p.sizeMB, 0), orphan: !!p.orphan }));
 const memberApps = m => (m && m.apps && m.apps.length ? m.apps : DATA.adminApps.filter(a => a.owner === (m && m.id)).map(a => a.name));
+/* 再認証のあとの取り直し：管理者のデータを読み直し、開いている管理のタブを描き直す。画面の再読み込みは要らない。 */
+async function refreshAdminAfterReauth() {
+  try { await reloadAdminAll(); } catch (e) { showApiError(e); }
+  S.tabs.filter(isAdminTab).forEach(t => { /* 再描画は renderTabs が行う */ });
+  renderTabs(); renderAdmReauth();
+}
 async function reloadAdminAll() {
   const tasks = [loadMembers(), loadAdminDevices(), loadAdminProjects(), loadAdminApps(), loadAdminUsage(), loadAdminLimits(), loadAudit(), loadAdminAnnouncements(), loadMyDevices()];
   await Promise.allSettled(tasks);
@@ -77,7 +102,7 @@ $('#u-more').onclick = () => openTab('使用状況の詳細', rUsage, 'data_usag
 
 /* S14 部員 */
 function rMembers() {
-  const rows = DATA.members.map(m => { const pc = memberProjects(m).length, ac = memberApps(m).length; return `<tr><td data-l="ID">${m.id}</td><td data-l="名前">${esc(m.name)}</td><td data-l="メール">${esc(m.mail)}</td><td data-l="役職"><select data-a="mem-pos" data-id="${m.id}">${['顧問', '部長', '副部長', '部員'].map(p => `<option ${m.position === p ? 'selected' : ''}>${p}</option>`).join('')}</select></td><td data-l="管理者権限"><label><input type="checkbox" data-a="mem-adm" data-id="${m.id}" ${m.isAdmin ? 'checked' : ''} style="width:auto"> ${m.isAdmin ? bd('あり', 'b-warn') : 'なし'}</label></td><td data-l="状態">${bd(m.active ? '有効' : '無効', m.active ? 'b-ok' : 'b-ng')}</td><td data-l="使用量">${m.usedMB}MB<small class="dnote">（P${pc} / A${ac}）</small></td>` +
+  const rows = DATA.members.map(m => { const pc = memberProjects(m).length, ac = memberApps(m).length; return `<tr><td data-l="ID">${m.id}</td><td data-l="名前">${esc(m.name)}</td><td data-l="メール">${esc(m.mail)}</td><td data-l="役職"><select data-a="mem-pos" data-id="${m.id}">${['顧問', '部長', '副部長', '部員'].map(p => `<option ${m.position === p ? 'selected' : ''}>${p}</option>`).join('')}</select></td><td data-l="管理者権限"><label><input type="checkbox" data-a="mem-adm" data-id="${m.id}" ${m.isAdmin ? 'checked' : ''} style="width:auto"> ${m.isAdmin ? bd('あり', 'b-warn') : 'なし'}</label></td><td data-l="状態">${bd(m.active ? '有効' : '無効', m.active ? 'b-ok' : 'b-ng')}</td><td data-l="使用量">${fmtMB(m.usedMB)}MB<small class="dnote">（P${pc} / A${ac}）</small></td>` +
     `<td><button data-a="mem-edit" data-id="${m.id}" title="編集">${ico('edit')}</button><button data-a="mem-tog" data-id="${m.id}" title="無効化/有効化">${ico('block')}</button><button data-a="mem-del" data-id="${m.id}" title="削除">${ico('delete')}</button></td></tr>`; });
   return `<h2>部員</h2>${admReauthBar()}<div class="tools"><input placeholder="検索" id="adm-q"><button class="o" data-a="mem-add">${ico('person_add')} 追加</button><button class="o" data-a="csv">${ico('upload_file')} CSV一括登録</button></div>
   <table class="tbl"><thead><tr><th>ID</th><th>名前</th><th>メール</th><th>役職</th><th>管理者権限</th><th>状態</th><th>使用量</th><th></th></tr></thead><tbody>` + rows.join('') + '</tbody></table>';
@@ -94,7 +119,7 @@ function mdStep(n) {
   if (n === 3) {
     $('#md-apps').innerHTML = memberApps(delM).map(name => {
       const app = DATA.adminApps.find(x => x.name === name) || DATA.apps.find(x => x.name === name), projectId = app && app.proj || '';
-      return `<label class="fld">${esc(name)}<select data-app-name="${name}" data-app-proj="${projectId}"><option value="same">状態はそのまま</option><option value="private">非公開</option><option value="unlisted">限定公開</option><option value="delete">削除</option></select></label>`;
+      return `<label class="fld">${esc(name)}<select data-app-name="${esc(name)}" data-app-proj="${esc(projectId)}"><option value="same">状態はそのまま</option><option value="private">非公開</option><option value="unlisted">限定公開</option><option value="delete">削除</option></select></label>`;
     }).join('') || '<p>アプリはありません</p>';
     updateMemberDeleteApps();
   }
@@ -130,7 +155,7 @@ let devF = '';
 function rDevices() {
   return `<h2>端末</h2>${admReauthBar()}<div class="tools"><select data-a="dev-f"><option value="">全部員</option>${DATA.members.map(m => `<option value="${m.id}" ${devF === m.id ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}</select></div>
   <table class="tbl"><thead><tr><th>部員</th><th>端末名</th><th>最終利用</th><th>有効期限</th><th></th></tr></thead><tbody>` +
-    (DATA.adminDevices.filter(d => !devF || d.member === devF).map(d => `<tr><td data-l="部員">${esc(memName(d.member))}</td><td data-l="端末名">${esc(d.name)}</td><td data-l="最終利用">${esc(d.last)}</td><td data-l="有効期限">${fmtDate(d.expires)}</td><td class="adm-actions"><button data-a="dev-rev" data-i="${DATA.adminDevices.indexOf(d)}" aria-label="失効" title="失効">${ico('block')}</button><span class="adm-action-spacer" aria-hidden="true"></span></td></tr>`).join('') || '<tr><td colspan="5">端末はありません</td></tr>') + '</tbody></table>';
+    (DATA.adminDevices.filter(d => !devF || d.member === devF).map(d => `<tr><td data-l="部員">${esc(memName(d.member))}</td><td data-l="端末名">${esc(d.name)}</td><td data-l="最終利用">${esc(d.last)}</td><td data-l="有効期限">${fmtDate(d.expires)}</td><td class="adm-actions"><div class="adm-actions-in"><button data-a="dev-rev" data-i="${DATA.adminDevices.indexOf(d)}" aria-label="失効" title="失効">${ico('block')}</button><span class="adm-action-spacer" aria-hidden="true"></span></div></td></tr>`).join('') || '<tr><td colspan="5">端末はありません</td></tr>') + '</tbody></table>';
 }
 
 /* S16 制限値（14項目）。単位つき。保存の前に変更点を確認し、再認証を求める */
@@ -146,8 +171,8 @@ $('#bench').addEventListener('input', e => { const k = e.target.dataset.lim; if 
 function rApps() {
   const mp = DATA.members;
   return `<h2>アプリ</h2>${admReauthBar()}<div class="tools"><select data-a="app-filter-state"><option value="">状態：すべて</option><option ${window.admAppState === '公開' ? 'selected' : ''}>公開</option><option ${window.admAppState === '限定公開' ? 'selected' : ''}>限定公開</option><option ${window.admAppState === '非公開' ? 'selected' : ''}>非公開</option></select><select data-a="app-filter-owner"><option value="">所有者：すべて</option>${DATA.members.map(m => `<option value="${m.id}" ${window.admAppOwner === m.id ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}</select></div><table class="tbl"><thead><tr><th>公開名</th><th>所有者</th><th>状態</th><th>サイズ</th><th>更新</th><th></th></tr></thead><tbody>` +
-    DATA.adminApps.filter(a => (!window.admAppState || a.state === window.admAppState) && (!window.admAppOwner || a.owner === window.admAppOwner)).map(a => `<tr><td data-l="公開名"><div class="adm-app-cell"><span class="adm-app-name">${esc(a.name)}</span><span class="adm-app-badges">${a.orphan ? bd('孤立', 'b-warn') : ''}${a.stale ? bd('放置', 'b-ng') : ''}</span><small class="adm-app-url">${APP_URL(a.name)}</small><div class="adm-app-tools"><button data-a="app-open" data-n="${esc(a.name)}">開く</button><button data-a="app-copy" data-n="${esc(a.name)}">URLをコピー</button></div></div></td><td data-l="所有者">${esc(a.ownerLabel || memName(a.owner))}</td><td data-l="状態"><select data-a="app-st" data-n="${esc(a.name)}">${['公開', '限定公開', '非公開'].map(s => `<option ${a.state === s ? 'selected' : ''}>${s}</option>`).join('')}</select></td><td data-l="サイズ">${a.sizeMB}MB</td><td data-l="更新">${fmtDate(a.updatedAt)}</td>` +
-      `<td class="adm-actions">${a.orphan ? `<button data-a="app-re" data-n="${esc(a.name)}" aria-label="再関連付け" title="再関連付け">${ico('link')}</button>` : '<span class="adm-action-spacer" aria-hidden="true"></span>'}<button data-a="app-mgr" data-n="${esc(a.name)}" aria-label="管理" title="管理">${ico('settings')}</button><button data-a="app-view" data-n="${esc(a.name)}" aria-label="閲覧者" title="閲覧者">${ico('group')}</button><button data-a="app-del" data-n="${esc(a.name)}" aria-label="削除" title="削除">${ico('delete')}</button></td></tr>`).join('') +
+    DATA.adminApps.filter(a => (!window.admAppState || a.state === window.admAppState) && (!window.admAppOwner || a.owner === window.admAppOwner)).map(a => `<tr><td data-l="公開名"><div class="adm-app-cell"><span class="adm-app-name">${esc(a.name)}</span><span class="adm-app-badges">${a.orphan ? bd('孤立', 'b-warn') : ''}${a.stale ? bd('放置', 'b-ng') : ''}</span><small class="adm-app-url">${APP_URL(a.name)}</small><div class="adm-app-tools"><button data-a="app-open" data-n="${esc(a.name)}">開く</button><button data-a="app-copy" data-n="${esc(a.name)}">URLをコピー</button></div></div></td><td data-l="所有者">${esc(a.ownerLabel || memName(a.owner))}</td><td data-l="状態"><select data-a="app-st" data-n="${esc(a.name)}">${['公開', '限定公開', '非公開'].map(s => `<option ${a.state === s ? 'selected' : ''}>${s}</option>`).join('')}</select></td><td data-l="サイズ">${fmtMB(a.sizeMB)}MB</td><td data-l="更新">${fmtDate(a.updatedAt)}</td>` +
+      `<td class="adm-actions"><div class="adm-actions-in">${a.orphan ? `<button data-a="app-re" data-n="${esc(a.name)}" aria-label="再関連付け" title="再関連付け">${ico('link')}</button>` : '<span class="adm-action-spacer" aria-hidden="true"></span>'}<button data-a="app-mgr" data-n="${esc(a.name)}" aria-label="管理" title="管理">${ico('settings')}</button><button data-a="app-view" data-n="${esc(a.name)}" aria-label="閲覧者" title="閲覧者">${ico('group')}</button><button data-a="app-del" data-n="${esc(a.name)}" aria-label="削除" title="削除">${ico('delete')}</button></div></td></tr>`).join('') +
     `</tbody></table><h3>他者のプロジェクトを公開</h3><div class="tools"><select id="ox-m">${mp.map(m => `<option value="${m.id}">${esc(m.name)}</option>`).join('')}</select><select id="ox-p">${memberProjects(mp[0]).map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select><button class="primary" data-a="ox-go">公開へ進む</button></div><div class="anote" id="ox-w"></div>`;
 }
 const fillOx = () => { const m = DATA.members.find(x => x.id === ($('#ox-m') || {}).value); if ($('#ox-p')) $('#ox-p').innerHTML = memberProjects(m).map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join(''); };
@@ -164,8 +189,8 @@ function rMaint() {
   const memberAppNames = selected ? new Set(memberApps(selected)) : null;
   const cats = DATA.adminUsage.categories || [];
   const usageRows = cats.flatMap(c => (c.items || []).filter(([name]) => !selected || c.name === 'その他' || (c.name === 'プロジェクト' && memberNames.has(name)) || (c.name === 'アプリ' && memberAppNames.has(name)) || (c.name === '履歴' && [...memberNames].some(p => name.startsWith(p + ' の履歴')))).map(([name, mb]) => ({ c: c.name, name, mb })));
-  return `<h2>使用状況・保守</h2>${admReauthBar()}<h3>使用量ランキング</h3><table class="tbl"><tbody>` + [...DATA.members].sort((a, b) => (b.usedMB || 0) - (a.usedMB || 0)).map(m => `<tr><td data-l="部員">${esc(m.name)}</td><td data-l="使用量" style="width:50%"><div class="bar" style="width:${(m.usedMB || 0) / mx * 100}%"></div></td><td>${m.usedMB || 0}MB</td></tr>`).join('') +
-    `</tbody></table><h3>容量の内訳と操作</h3><div class="tools"><label>部員<select data-maint-member><option value="">全体</option>${DATA.members.map(m => `<option value="${m.id}" ${maintMember === m.id ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}</select></label></div><table class="tbl"><thead><tr><th>区分</th><th>項目</th><th>容量</th><th>操作</th></tr></thead><tbody>${usageRows.map(x => `<tr><td>${esc(x.c)}</td><td>${esc(x.name)}</td><td>${x.mb}MB</td><td>${x.c === 'プロジェクト' ? `<button class="o" data-usage-open="${esc(x.name)}">開く</button>` : ''}${x.c === '履歴' ? `<button class="o" data-usage-history="${esc(x.name)}">履歴を削除</button>` : ''}${x.c === 'アプリ' ? `<button class="o" data-usage-open-app="${esc(x.name)}">開く</button><button class="o" data-usage-delete-app="${esc(x.name)}">削除</button>` : ''}</td></tr>`).join('')}</tbody></table>` +
+  return `<h2>使用状況・保守</h2>${admReauthBar()}<h3>使用量ランキング</h3><table class="tbl"><tbody>` + [...DATA.members].sort((a, b) => (b.usedMB || 0) - (a.usedMB || 0)).map(m => `<tr><td data-l="部員">${esc(m.name)}</td><td data-l="使用量" style="width:50%"><div class="bar" style="width:${(m.usedMB || 0) / mx * 100}%"></div></td><td>${fmtMB(m.usedMB || 0)}MB</td></tr>`).join('') +
+    `</tbody></table><h3>容量の内訳と操作</h3><div class="tools"><label>部員<select data-maint-member><option value="">全体</option>${DATA.members.map(m => `<option value="${m.id}" ${maintMember === m.id ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}</select></label></div><table class="tbl"><thead><tr><th>区分</th><th>項目</th><th>容量</th><th>操作</th></tr></thead><tbody>${usageRows.map(x => `<tr><td>${esc(x.c)}</td><td>${esc(x.name)}</td><td>${fmtMB(x.mb)}MB</td><td>${x.c === 'プロジェクト' ? `<button class="o" data-usage-open="${esc(x.name)}">開く</button>` : ''}${x.c === '履歴' ? `<button class="o" data-usage-history="${esc(x.name)}">履歴を削除</button>` : ''}${x.c === 'アプリ' ? `<button class="o" data-usage-open-app="${esc(x.name)}">開く</button><button class="o" data-usage-delete-app="${esc(x.name)}">削除</button>` : ''}</td></tr>`).join('')}</tbody></table>` +
     `<h3>GC（不要データの回収）</h3><p>回収できる見込み：<span id="gc-est">実行して確認</span></p><button class="o" data-a="gc">GCを実行</button><span id="gc-r" class="anote"></span>
   <h3>監査ログ</h3><p class="dnote">${limitOf('audit_retention_days').value}日より古いものは削除されます。IPアドレスは、操作した端末の接続元です。</p>
   <div class="tools" id="aud-f"><select data-aud="m"><option value="">全部員</option>${DATA.members.map(m => `<option value="${m.id}" ${AUD.m === m.id ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}</select><select data-aud="op"><option value="">全操作</option>${ops.map(o => `<option ${AUD.op === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select><input data-aud="ip" placeholder="IPで絞り込み（例 192.0.2）" value="${esc(AUD.ip)}" style="width:190px"></div>
@@ -185,7 +210,7 @@ $('#bench').addEventListener('change', async e => {
 const ANN_L = { info: '通常', warn: '注意', danger: '重要' }, ANN_K = ['お知らせ', 'メンテナンス', '障害'], ANN_A = { all: '全員', admin: '管理者のみ' };
 function rAnn() {
   return `<h2>お知らせ</h2>${admReauthBar()}<div class="tools"><button class="primary" data-a="ann-new">${ico('add')} 新しいお知らせ</button></div><table class="tbl"><thead><tr><th>種別</th><th>重要度</th><th>タイトル</th><th>表示期間</th><th>対象</th><th></th></tr></thead><tbody>` +
-    (DATA.announcements.map(a => `<tr><td data-l="種別">${esc(a.kind)}</td><td data-l="重要度" class="severity-cell">${bd(ANN_L[a.level], a.level === 'danger' ? 'b-ng' : a.level === 'warn' ? 'b-warn' : '')}</td><td data-l="タイトル">${esc(a.title)}</td><td data-l="表示期間">${fmtRange(a.from, a.to)}</td><td data-l="対象">${ANN_A[a.audience]}</td><td class="adm-actions"><button data-a="ann-edit" data-id="${a.id}" aria-label="編集" title="編集">${ico('edit')}</button><button data-a="ann-del" data-id="${a.id}" aria-label="削除" title="削除">${ico('delete')}</button></td></tr>`).join('') || '<tr><td colspan="6">お知らせはありません</td></tr>') + '</tbody></table>';
+    (DATA.announcements.map(a => `<tr><td data-l="種別">${esc(a.kind)}</td><td data-l="重要度" class="severity-cell">${bd(ANN_L[a.level], a.level === 'danger' ? 'b-ng' : a.level === 'warn' ? 'b-warn' : '')}</td><td data-l="タイトル">${esc(a.title)}</td><td data-l="表示期間">${fmtRange(a.from, a.to)}</td><td data-l="対象">${ANN_A[a.audience]}</td><td class="adm-actions"><div class="adm-actions-in"><button data-a="ann-edit" data-id="${a.id}" aria-label="編集" title="編集">${ico('edit')}</button><button data-a="ann-del" data-id="${a.id}" aria-label="削除" title="削除">${ico('delete')}</button></div></td></tr>`).join('') || '<tr><td colspan="6">お知らせはありません</td></tr>') + '</tbody></table>';
 }
 let annEdit = null;
 const annForm = () => ({ kind: $('#an-kind').value, level: $('#an-level').value, title: $('#an-title').value.trim(), body: $('#an-body').value.trim(), from: $('#an-from').value, to: $('#an-to').value, audience: $('#an-aud').value });
@@ -219,7 +244,7 @@ $('#bench').addEventListener('click', e => { const b = e.target.closest('[data-a
   if (a === 'mem-del') {
     delM = DATA.members.find(x => x.id === id);
     const ps = memberProjects(delM), as = memberApps(delM);
-    $('#md-imp').textContent = `削除対象：${delM.name}（${delM.id}）。プロジェクト ${ps.length}件 / アプリ ${as.length}件 / 使用量 ${delM.usedMB}MB`;
+    $('#md-imp').textContent = `削除対象：${delM.name}（${delM.id}）。プロジェクト ${ps.length}件 / アプリ ${as.length}件 / 使用量 ${fmtMB(delM.usedMB)}MB`;
     $('#md-impact').innerHTML = `<h4>プロジェクト</h4><ul>${ps.map(p => `<li>${esc(p.name)}</li>`).join('') || '<li>なし</li>'}</ul><h4>アプリ</h4><ul>${as.map(n => `<li>${esc(n)}</li>`).join('') || '<li>なし</li>'}</ul>`;
     mdStep(1); $('#d-md').showModal();
   }
@@ -249,8 +274,8 @@ $('#bench').addEventListener('click', e => { const b = e.target.closest('[data-a
   if (a === 'gc') reauth(async () => {
     try {
       const d = await Api.admin.gc(), freed = num(d.freed_mb ?? d.freedMB ?? (d.freed_bytes ? d.freed_bytes / 1048576 : 0), 0), est = num(d.estimate_mb ?? d.estimateMB, NaN);
-      const el = $('#gc-est'); if (el) el.textContent = Number.isFinite(est) ? `約 ${est}MB` : '実行済み';
-      $('#gc-r').textContent = ` 実行しました：${freed ? freed + 'MB を回収' : '回収できるものはありませんでした'}`;
+      const el = $('#gc-est'); if (el) el.textContent = Number.isFinite(est) ? `約 ${fmtMB(est)}MB` : '実行済み';
+      $('#gc-r').textContent = ` 実行しました：${freed ? fmtMB(freed) + 'MB を回収' : '回収できるものはありませんでした'}`;
       await Promise.allSettled([loadAdminUsage(maintMember || undefined), loadAudit()]);
       redo();
     } catch (e) { showApiError(e); } });

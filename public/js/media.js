@@ -9,16 +9,22 @@
 
 /* ---- 現在の処理（ツール変換・アップロード・ZIP準備） ---- */
 const Proc = (() => {
-  const items = []; let seq = 0;
+  const items = []; let seq = 0, total = 0;   /* total：いまの「連続した作業」で始めた件数（待機に戻るとリセット） */
+  const KIND_ICON = { upload: 'upload', zip: 'folder_zip', tool: 'build', task: 'sync' };
   const render = () => {
     const el = document.getElementById('s-proc'); if (!el) return;
-    if (!items.length) { el.innerHTML = '<span class="ms">check</span> 待機中'; el.classList.remove('busy'); el.title = ''; return; }
-    const a = items[0], pct = a.pct != null ? ` ${Math.round(a.pct * 100)}%` : '';
-    el.classList.add('busy'); el.innerHTML = `<span class="ms">sync</span> ${a.label}${pct}` + (items.length > 1 ? `（ほか${items.length - 1}件）` : '');
+    if (!items.length) { total = 0; el.innerHTML = '<span class="ms">check</span><span class="proc-text">待機中</span>'; el.classList.remove('busy'); el.title = ''; return; }
+    el.classList.add('busy');
+    if (items.length === 1) {
+      const a = items[0], pct = a.pct != null ? ` ${Math.round(a.pct * 100)}%` : '';
+      el.innerHTML = `<span class="ms spin">${esc(a.icon)}</span><span class="proc-text">${esc(a.label)}${pct}</span>`;
+    } else {
+      el.innerHTML = `<span class="ms spin">sync</span><span class="proc-text">${items.length}/${total}件の作業を実施中</span>`;
+    }
     el.title = items.map(x => x.label + (x.pct != null ? ' ' + Math.round(x.pct * 100) + '%' : '')).join('\n');
   };
   return {
-    add(label, kind) { const it = { id: ++seq, label, kind: kind || 'tool', pct: null }; items.push(it); render(); return it.id; },
+    add(label, kind, icon) { const k = kind || 'tool'; const it = { id: ++seq, label, kind: k, icon: icon || KIND_ICON[k] || 'sync', pct: null }; items.push(it); total++; render(); return it.id; },
     set(id, o) { const it = items.find(x => x.id === id); if (it) { Object.assign(it, o); render(); } },
     done(id) { const i = items.findIndex(x => x.id === id); if (i >= 0) items.splice(i, 1); render(); },
     list: () => items.map(x => ({ ...x })), render

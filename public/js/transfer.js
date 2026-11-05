@@ -15,12 +15,15 @@ const Tray = (() => {
   let el = null, seq = 0; const rows = [];
   const mount = () => { if (el) return el; el = document.createElement('div'); el.id = 'tray'; el.hidden = true; (window.floatStack ? floatStack() : document.body).appendChild(el);
     el.onclick = e => { const x = e.target.closest('[data-tx]'), c = e.target.closest('[data-tc]'); if (x) Tray.remove(+x.dataset.tx); if (c) { const r = rows.find(r => r.id === +c.dataset.tc); r && r.onCancel && r.onCancel(); } }; return el; };
+  /* 進み具合が分からない（pct が null）処理は、左右に動く帯で「動いていること」を示す。実行中のアイコンは回る。 */
   const paint = () => { mount(); el.hidden = !rows.length;
-    el.innerHTML = rows.map(r => `<div class="tr-row ${r.kind}" data-id="${r.id}"><div class="tr-h"><span class="ms">${r.icon}</span><b title="${esc(r.title)}">${esc(r.title)}</b>` +
-      (r.state === 'run' && r.onCancel ? `<button data-tc="${r.id}">キャンセル</button>` : r.state !== 'run' ? `<button data-tx="${r.id}" title="閉じる"><span class="ms">close</span></button>` : '') + `</div>` +
-      (r.state === 'run' ? `<div class="pgb" role="progressbar" aria-valuenow="${Math.round((r.pct || 0) * 100)}"><i style="width:${Math.round((r.pct || 0) * 100)}%"></i></div>` : '') + `<div class="tr-m">${esc(r.msg || '')}</div></div>`).join(''); };
+    el.innerHTML = rows.map(r => { const run = r.state === 'run', known = r.pct !== null && r.pct !== undefined, pct = Math.round((r.pct || 0) * 100);
+      return `<div class="tr-row ${r.kind} ${run ? 'run' : ''}" data-id="${r.id}"><div class="tr-h"><span class="ms${run && r.spin ? ' spin' : ''}">${esc(r.icon)}</span><b title="${esc(r.title)}">${esc(r.title)}</b>` +
+      (run && known ? `<span class="tr-pct">${pct}%</span>` : '') +
+      (run && r.onCancel ? `<button data-tc="${r.id}">キャンセル</button>` : !run ? `<button data-tx="${r.id}" title="閉じる"><span class="ms">close</span></button>` : '') + `</div>` +
+      (run ? `<div class="pgb${known ? '' : ' ind'}" role="progressbar"${known ? ` aria-valuenow="${pct}"` : ''}><i style="width:${known ? pct : 38}%"></i></div>` : '') + `<div class="tr-m" title="${esc(r.msg || '')}">${esc(r.msg || '')}</div></div>`; }).join(''); };
   return {
-    add(o) { const r = { id: ++seq, kind: 'up', icon: 'cloud_upload', state: 'run', pct: 0, msg: '', ...o }; rows.push(r); paint(); return r.id; },
+    add(o) { const r = { id: ++seq, kind: 'up', icon: 'cloud_upload', state: 'run', pct: 0, msg: '', spin: false, ...o }; rows.push(r); paint(); return r.id; },
     set(id, o) { const r = rows.find(x => x.id === id); if (r) { Object.assign(r, o); paint(); } },
     remove(id) { const i = rows.findIndex(x => x.id === id); if (i >= 0) rows.splice(i, 1); paint(); },
     rows: () => rows.map(r => ({ ...r })), paint
@@ -64,7 +67,7 @@ const Upl = {
       return { done: [], rejected: ok, cancelled: false, failed: [], quota: true };
     }
 
-    const job = { cancelled: false }, tid = Tray.add({ title: 'アップロード：' + label, msg: '準備しています…', onCancel: () => { job.cancelled = true; } }), pid = Proc.add('アップロード：' + label, 'upload');
+    const job = { cancelled: false }, tid = Tray.add({ title: label + 'をアップロード中', msg: '準備しています…', pct: null, spin: true, onCancel: () => { job.cancelled = true; } }), pid = Proc.add(label + 'をアップロード中', 'upload', 'upload');
     this.active.push(job);
     const done = [], failed = []; let sent = 0;
     try {
@@ -86,7 +89,7 @@ const Upl = {
             await Api.files.uploadChunk(uploadId, c, toB64(bytes));
             sent = baseSent + end;
             const p = total ? Math.min(.99, sent / total) : .5;
-            Tray.set(tid, { pct: p, msg: `${name}（${c + 1}/${chunks} 分割）　${kb(sent)} / ${kb(total)}` });
+            Tray.set(tid, { pct: p, spin: false, icon: 'cloud_upload', msg: `${name}（${c + 1}/${chunks} 分割）　${kb(sent)} / ${kb(total)}` });
             Proc.set(pid, { pct: p });
           }
           if (job.cancelled) break;
@@ -144,14 +147,14 @@ const Zip = {
   /* 準備中 → ダウンロード開始 / 失敗 / 大きすぎ。projectId=プロジェクト、path=フォルダ（空なら全体）、rootName=ZIP内の先頭フォルダ名 */
   async download(zipName, projectId, path, rootName) {
     if (!projectId) { showToast('プロジェクトを選んでください'); return { ok: false, why: 'no_project' }; }
-    const pid = Proc.add('ZIPを準備中：' + zipName, 'zip'), tid = Tray.add({ kind: 'zip', icon: 'folder_zip', title: 'ZIP：' + zipName, msg: '準備中…（サーバーで作成しています）', pct: .1 });
+    const pid = Proc.add(zipName + ' のZIPを準備中', 'zip', 'folder_zip'), tid = Tray.add({ kind: 'zip', icon: 'folder_zip', title: zipName + ' のZIPを準備中', msg: 'サーバーで作成しています…', pct: null, spin: true });
     const finish = (state, icon, msg) => { Proc.done(pid); Tray.set(tid, { state, icon, msg, pct: 0 }); };
     try {
       const prep = await Api.files.zipPrepare(projectId, path || '');
       const token = prep.token || prep.zip_token || prep.preview_token || '';
       if (!token) throw new ApiError('invalid', 0, prep);
-      Tray.set(tid, { pct: .55, msg: 'ZIPをダウンロードしています…' }); Proc.set(pid, { pct: .55 });
-      const { blob } = await Api.files.zip(token);
+      Tray.set(tid, { pct: 0, spin: false, title: zipName + ' をダウンロード中', msg: 'ZIPをダウンロードしています…' }); Proc.set(pid, { label: zipName + ' をダウンロード中', pct: 0 });
+      const { blob } = await Api.files.zip(token, { onProgress: (n, t) => { if (t) { Tray.set(tid, { pct: n / t, msg: `${kb(n)} / ${kb(t)}` }); Proc.set(pid, { pct: n / t }); } } });
       finish('ok', 'download_done', `ダウンロードを開始しました（${kb(blob.size)}）`);
       dl(blob, zipName);
       setTimeout(() => Tray.remove(tid), 5000);
@@ -168,3 +171,29 @@ const Zip = {
     }
   }
 };
+
+/* ---- 待たされる処理の共通表示 ----
+   時間のかかる処理は、Task.run で包む。状態バー（右下の「現在の処理」）には、すぐに「何をしているか」を出し、
+   ある程度かかったら（既定 0.35 秒）、右下の通知エリアにも、処理の名前と進み具合を出す。
+   進み具合が分からない処理は、動いている帯で示す。終わったら、どちらからも消える（失敗は呼び出し側が通知する）。
+     await Task.run({ title: 'index.html を開いています', icon: 'description' }, async t => { t.set({ pct: .5, msg: '…' }); … }) */
+const Task = (() => {
+  async function run(opts, fn) {
+    const o = typeof opts === 'string' ? { title: opts } : (opts || {});
+    const t = { tid: 0, done: false, state: { pct: o.pct ?? null, msg: o.detail || '' } };
+    const proc = Proc.add(o.title || '処理中', o.kind || 'task', o.icon || 'sync');
+    const show = () => { if (t.done || t.tid) return; t.tid = Tray.add({ kind: 'task', icon: o.icon || 'sync', spin: t.state.pct == null, title: o.title || '処理中', msg: t.state.msg, pct: t.state.pct, onCancel: o.onCancel }); };
+    const timer = o.delay === 0 ? (show(), 0) : setTimeout(show, o.delay ?? 350);
+    const api = {
+      set(p) {
+        Object.assign(t.state, p);
+        if (t.tid) Tray.set(t.tid, { pct: t.state.pct, msg: t.state.msg, spin: t.state.pct == null, ...(p.title ? { title: p.title } : {}) });
+        Proc.set(proc, { ...(p.title ? { label: p.title } : {}), pct: t.state.pct });
+      }
+    };
+    try { return await fn(api); }
+    finally { t.done = true; clearTimeout(timer); Proc.done(proc); if (t.tid) Tray.remove(t.tid); }
+  }
+  return { run };
+})();
+const busy = (title, icon, fn) => Task.run({ title, icon }, fn);

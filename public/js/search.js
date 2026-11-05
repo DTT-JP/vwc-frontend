@@ -145,8 +145,11 @@ const CMD_EN = {
   '新しいプロジェクト': 'New project', 'ZIPでダウンロード': 'Download ZIP',
   '新規ファイル': 'New file', '新規フォルダ': 'New folder', 'アップロード': 'Upload',
   'フォルダをアップロード': 'Upload folder', '保存': 'Save', 'すべて保存': 'Save all',
-  'このファイルのパスをコピー': 'Copy file path', '新しく公開': 'Publish app'
+  'このファイルのパスをコピー': 'Copy file path', '新しく公開': 'Publish app',
+  '部員': 'Admin: Members', '端末': 'Admin: Devices', '制限値': 'Admin: Limits', 'アプリ': 'Admin: Apps',
+  'お知らせ': 'Admin: Announcements', '使用状況・保守': 'Admin: Usage and maintenance', '共有の一括設定': 'Bulk sharing'
 };
+/* 画面に出すコマンド名は、英語（またはローマ字）。説明は日本語のまま。日本語でも探せるよう、元の名前は検索のキーに入っている。 */
 const commandHistory = [];
 function commandItems() {
   const canEdit = S.role !== 'shared-view' && !(S.proj && S.proj.perm === 'view');
@@ -169,9 +172,10 @@ function commandItems() {
     ['設定', 'エディター', '折り返し・行番号・タブ幅', () => openSetting('editor')],
     ['設定', '操作・余白', 'タッチ操作・行の余白', () => openSetting('touch')],
     ['設定', '通知', '画面内通知の設定', () => openSetting('notify')],
-    ['アカウント', '信頼端末', '端末の確認・信頼解除', () => ACCT.devices()],
-    ['アカウント', 'QR読み取りでログイン', 'カメラでQRを読み取る', () => ACCT.scanqr()],
-    ['アカウント', 'コード入力でログイン', '6桁のコードで承認', () => ACCT.entercode()],
+    ...(isTrusted() ? [
+      ['アカウント', '信頼端末', '端末の確認・信頼解除', () => ACCT.devices()],
+      ['アカウント', 'QR読み取りでログイン', 'カメラでQRを読み取る', () => ACCT.scanqr()],
+      ['アカウント', 'コード入力でログイン', '6桁のコードで承認', () => ACCT.entercode()]] : []),
     ['アカウント', 'ログアウト', 'この端末からログアウト', () => $('#btn-logout').click()],
     ['ファイル・編集', 'ファイル名を検索', 'Ctrl+P', openPalette],
     ['ファイル・編集', 'プレビュー', 'HTML / Markdown のプレビューを開く', preview],
@@ -186,9 +190,10 @@ function commandItems() {
   if (S.role === 'admin') for (const [name, key] of [['部員', 'members'], ['端末', 'devices'], ['制限値', 'limits'], ['アプリ', 'apps'], ['お知らせ', 'ann'], ['使用状況・保守', 'maint']]) {
     items.push(['管理', name, '管理画面を開く', () => { showPanel('sm07'); document.querySelector(`[data-adm="${key}"]`)?.click(); }]);
   }
-  allProjects().forEach(project => items.push(['プロジェクト', project.name, 'このプロジェクトに切り替える', () => openProject(project.id)]));
+  allProjects().forEach(project => items.push(['プロジェクト', project.name, 'このプロジェクトに切り替える', () => openProject(project.id), '', 'Open ' + project.name]));
   items.push(['プロジェクト', '新しいプロジェクト', 'プロジェクトを作成', () => $('#btn-new').click()]);
   if (S.proj) items.push(['プロジェクト', 'ZIPでダウンロード', '現在のプロジェクト', () => { showPanel('sm01'); document.querySelector(`[data-zip="${S.proj.id}"]`)?.click(); }]);
+  if (S.proj && (!S.proj.perm || S.proj.perm === 'owner') && DATA.projects.mine.length) items.push(['共有', '共有の一括設定', '部員への共有を、プロジェクトごとにまとめて ON / OFF', () => { showPanel('sm04'); openBulkShare(); }]);
   if (canEdit) {
     items.push(['ファイル・編集', '新規ファイル', 'ファイルを追加', () => { showPanel('sm02'); $('[data-act=mkfile]').click(); }],
       ['ファイル・編集', '新規フォルダ', 'フォルダを追加', () => { showPanel('sm02'); $('[data-act=mkdir]').click(); }],
@@ -201,13 +206,13 @@ function commandItems() {
   }
   DATA.apps.forEach(app => {
     const project = allProjects().find(p => p.id === app.proj), owner = app.owner === DATA.user.id || project && project.owner === DATA.user.id;
-    if (S.role === 'admin' || canEdit && owner) items.push(['アプリ', app.name + 'を管理', 'アプリの公開状態・設定を管理', () => openApp(app.name)]);
-    if (app.state !== '非公開' || owner || (app.viewers || []).includes(DATA.user.id)) items.push(['アプリ', app.name + 'を開く', 'アプリを別タブで開く', () => window.open(APP_URL(app.name), '_blank', 'noopener,noreferrer')]);
+    if (S.role === 'admin' || canEdit && owner) items.push(['アプリ', app.name + 'を管理', 'アプリの公開状態・設定を管理', () => openApp(app.name), '', 'Manage ' + app.name]);
+    if (app.state !== '非公開' || owner || (app.viewers || []).includes(DATA.user.id)) items.push(['アプリ', app.name + 'を開く', 'アプリを別タブで開く', () => window.open(APP_URL(app.name), '_blank', 'noopener,noreferrer'), '', 'Open ' + app.name]);
   });
-  (DATA.tools || []).forEach(t => items.push(['ツール', t.name, Array.isArray(t.accepts) ? t.accepts.join('・') : t.accepts || 'ツールを開く', () => Tools.open(t.id)]));
-  if (typeof helpFiles === 'function') helpFiles().forEach(h => items.push(['ヘルプ', h.title, 'ヘルプ記事を開く', () => openHelp(h.file)]));
+  (DATA.tools || []).forEach(t => items.push(['ツール', t.name, (t.name || '') + '：' + (Array.isArray(t.accepts) ? t.accepts.join('・') : t.accepts || 'ツールを開く'), () => Tools.open(t.id), t.name, 'Tool: ' + t.id]));
+  if (typeof helpFiles === 'function') helpFiles().forEach(h => items.push(['ヘルプ', h.title, h.title + '（ヘルプ記事を開く）', () => openHelp(h.file), h.title, 'Help: ' + String(h.file).replace(/\.md$/, '').replace(/^\d+[-_]?/, '')]));
   return items.map((item, id) => {
-    const original = item[1], o = { id, category: item[0], name: CMD_EN[original] || original, detail: item[2], run: item[3] };
+    const original = item[1], o = { id, category: item[0], name: item[5] || CMD_EN[original] || original, detail: item[2], run: item[3] };
     o.keys = (item[4] || '') + ' ' + original + ' ' + (CMD_KEYS[original] || original) + ' ' + (CMD_KEYS[o.category] || o.category);
     return o;
   });

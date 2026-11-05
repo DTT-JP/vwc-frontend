@@ -135,7 +135,7 @@ async function acceptTrust(which) {
   const name = ($('#dev-name') || {}).value || 'この端末';
   const trust = which === 'trust';
   if (trust) {
-    try { await Api.auth.trust(name); DATA.user.trusted = true; }
+    try { await Api.auth.trust(name); DATA.user.trusted = true; applyTrustUi(); }
     catch (e) { showToast(apiMessage(e)); return; }
   }
   closeTab('端末の登録'); setAuth(true); showPanel('home');
@@ -145,6 +145,7 @@ async function acceptTrust(which) {
 /* 承認画面（?approve= / QRの読み取り後）。信頼端末でログインしている人だけが使える。 */
 let approveCode = '';
 function openApproval(code) {
+  if (typeof isTrusted === 'function' && !isTrusted()) { window.VWC_APPROVE_CODE = ''; return showToast('この端末は信頼端末ではないため、承認できません。信頼端末でログインしてください'); }
   approveCode = String(code || '');
   window.VWC_APPROVE_CODE = '';
   openTab('コード入力でログイン', () => $('#t-apc').innerHTML, 'pin', () => {

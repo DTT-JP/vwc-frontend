@@ -9,14 +9,14 @@ const SETTINGS_DEFAULT = {
 };
 /* 制限値の表示用の定義（名前・説明・範囲）。値は API（me / admin/settings_get）から受け取る。 */
 const LIMIT_META = [
-  { key: 'quota_mb', name: '部員ごとの容量上限', description: '1人あたりの使用量の上限', value: 2048, min: 1, max: 10000, default: 2048, unit: 'MB' },
-  { key: 'max_upload_mb', name: '最大アップロードサイズ', description: 'これを超えるファイルは、システムに保存・アップロードできません', value: 256, min: 1, max: 8192, default: 256, unit: 'MB' },
-  { key: 'track_limit_mb', name: '履歴の追跡上限', description: 'これを超えるファイルは、履歴に入れません（未追跡）', value: 5, min: 1, max: 100, default: 5, unit: 'MB' },
+  { key: 'quota_mb', name: '部員ごとの容量上限', description: '1人あたりの使用量の上限（プロジェクト・アプリ・履歴などの合計）', value: 2048, min: 1, max: 10000, default: 2048, unit: 'MB' },
+  { key: 'max_upload_mb', name: '最大アップロードサイズ', description: 'これを超えるファイルは、システムに保存・アップロードできません（1〜8192MB）', value: 256, min: 1, max: 8192, default: 256, unit: 'MB' },
+  { key: 'track_limit_mb', name: '履歴の追跡上限', description: 'これ以下のテキストは行の差分で、これを超えるファイルは形式を問わずハッシュ・名前・サイズで追跡します', value: 5, min: 1, max: 100, default: 5, unit: 'MB' },
   { key: 'device_days', name: '信頼端末の有効日数', description: '期限後は、もう一度承認が必要です', value: 90, min: 1, max: 365, default: 90, unit: '日' },
   { key: 'code_ttl_sec', name: 'ログイン用コードの有効秒数', description: 'QR・数字コードが使える時間', value: 300, min: 60, max: 900, default: 300, unit: '秒' },
   { key: 'code_max_fail', name: 'ログイン承認の失敗上限', description: '承認コードを間違えられる回数。超えるとロックされます', value: 5, min: 3, max: 10, default: 5, unit: '回' },
-  { key: 'max_publish_mb', name: 'アプリの最大サイズ', description: '1つのアプリとして公開できる大きさ', value: 1024, min: 1, max: 8192, default: 1024, unit: 'MB' },
-  { key: 'max_projects_per_member', name: '部員ごとのプロジェクト数', description: '1人が持てるプロジェクトの数', value: 100, min: 1, max: 1000, default: 100, unit: '個' },
+  { key: 'max_publish_mb', name: 'アプリの最大サイズ', description: '1つのアプリとして公開できる大きさ（1〜8192MB）', value: 1024, min: 1, max: 8192, default: 1024, unit: 'MB' },
+  { key: 'max_projects_per_member', name: '部員ごとのプロジェクト数', description: '1人が持てるプロジェクトの数（1〜1000個）', value: 100, min: 1, max: 1000, default: 100, unit: '個' },
   { key: 'app_code_max_fail', name: 'アクセスコードの失敗上限', description: 'アプリの入口でコードを間違えられる回数', value: 5, min: 3, max: 10, default: 5, unit: '回' },
   { key: 'gate_private_minutes', name: '非公開アプリのアクセス有効分', description: '非公開アプリを開いてから、ログインを求め直すまでの時間', value: 60, min: 5, max: 1440, default: 60, unit: '分' },
   { key: 'gate_unlisted_hours', name: '限定公開アプリのアクセス有効時間', description: 'アクセスコードを入れてから、入れ直しを求めるまでの時間', value: 24, min: 1, max: 168, default: 24, unit: '時間' },
@@ -56,6 +56,9 @@ const DATA = {
   sharesByProject: {}
 };
 
+/* 容量（MB）の表示は、いつでも 0.01MB 単位（小数第2位まで）に四捨五入する。 */
+const roundMB = v => Math.round((Number(v) || 0) * 100) / 100;
+const fmtMB = v => roundMB(v).toFixed(2);
 const arr = (d, key) => Array.isArray(d) ? d : (d && Array.isArray(d[key]) ? d[key] : []);
 const num = (v, d) => Number.isFinite(+v) ? +v : d;
 const bool = (v, d) => v === undefined || v === null ? d : (v === true || v === 1 || v === '1' || v === 'true');
@@ -86,7 +89,7 @@ function fromApi(a) {
       if (o.ownerLabel === undefined) delete o.ownerLabel;
       o.canPublish = bool(first(p, ['canPublish', 'can_publish'], o.canPublish), false);
       o.updatedAt = first(p, ['updatedAt', 'updated_at'], o.updatedAt);
-      o.sizeMB = num(first(p, ['sizeMB', 'size_mb'], first(p, ['work_bytes', 'bytes'], 0) / 1048576), o.sizeMB);
+      o.sizeMB = roundMB(num(first(p, ['sizeMB', 'size_mb'], first(p, ['work_bytes', 'bytes'], 0) / 1048576), o.sizeMB));
       o.order = num(first(p, ['order', 'sort_order'], o.order), 0);
       o.parent = first(p, ['parent', 'parent_label'], o.parent);
       o.parentCommit = first(p, ['parentCommit', 'fork_commit'], o.parentCommit);
@@ -130,7 +133,7 @@ const quotaLimit = () => limitOf('quota_mb').value;
 const catOf = n => DATA.usage.categories.find(c => c.name === n);
 const usedMB = () => {
   const total = DATA.usage.categories.reduce((s, c) => s + num(c.mb, 0), 0);
-  return total || DATA.quota.usedMB || 0;
+  return roundMB(total || DATA.quota.usedMB || 0);
 };
 const catItems = c => (c && c.items ? c.items : []).map(([n, v]) => [n, v]).sort((a, b) => b[1] - a[1]);
 const allProjects = () => [...DATA.projects.mine, ...DATA.projects.shared];
@@ -175,7 +178,7 @@ function applyMe(d) {
     trusted: bool(first(d, ['trusted'], false), false)
   };
   const q = d.quota || {};
-  DATA.quota = { limitMB: num(q.limitMB ?? q.limit_mb ?? d.quota_mb, 0), usedMB: num(q.usedMB ?? q.used_mb, 0) };
+  DATA.quota = { limitMB: num(q.limitMB ?? q.limit_mb ?? d.quota_mb ?? (d.limits || {}).quota_mb, 0), usedMB: roundMB(num(q.usedMB ?? q.used_mb, 0)) };
   const values = { ...(d.limits || {}) };
   LIMIT_META.forEach(l => { if (d[l.key] !== undefined) values[l.key] = d[l.key]; });
   setLimits(values);
@@ -185,13 +188,17 @@ function applyMe(d) {
   }
   loadSettings();
   if (d.csrf) Api.setCsrf(d.csrf);
+  if (typeof applyTrustUi === 'function') applyTrustUi();
 }
 
 function applyProjects(d) {
   /* BE の projects/list は { mine, shared } を直接返す。{ projects: { mine, shared } } の形も受け付ける。 */
   const p = fromApi({ projects: (d && d.projects) || d || {} }).projects;
   const order = l => l.map((x, i) => ({ ...x, order: x.order ?? i })).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-  DATA.projects = { mine: order(p.mine), shared: order(p.shared) };
+  /* 自分のものは「共有されたプロジェクト」に入れない（同じプロジェクトが両方に出て、閲覧のみ扱いになるのを防ぐ） */
+  const mineIds = new Set(p.mine.map(x => x.id));
+  const shared = p.shared.filter(x => !mineIds.has(x.id) && !(DATA.user.id && x.owner === DATA.user.id));
+  DATA.projects = { mine: order(p.mine), shared: order(shared) };
 }
 
 function normalizeUsage(d) {
@@ -203,15 +210,15 @@ function normalizeUsage(d) {
     const keys = ['プロジェクト', 'アプリ', '履歴', 'その他'];
     cats = keys.filter(k => raw[k] !== undefined).map(k => ({ name: k, mb: num(raw[k], 0), items: [] }));
   } else cats = [];
-  cats = cats.map(c => ({ ...c, name: c.name || c.category || '', mb: num(c.mb ?? c.size ?? c.totalMB, 0), items: Array.isArray(c.items) ? c.items.map(x => Array.isArray(x) ? [x[0], num(x[1], 0)] : [x.name, num(x.mb, 0)]) : [] }));
+  cats = cats.map(c => ({ ...c, name: c.name || c.category || '', mb: roundMB(num(c.mb ?? c.size ?? c.totalMB, 0)), items: Array.isArray(c.items) ? c.items.map(x => Array.isArray(x) ? [x[0], roundMB(num(x[1], 0))] : [x.name, roundMB(num(x.mb, 0))]) : [] }));
   return { categories: cats, totalMB: num(d.totalMB ?? d.total_mb, NaN) };
 }
 function applyUsage(d) {
   if (!d) return;
   const u = normalizeUsage(d);
   DATA.usage = { categories: u.categories };
-  if (Number.isFinite(u.totalMB)) DATA.quota.usedMB = u.totalMB;
-  else DATA.quota.usedMB = u.categories.reduce((s, c) => s + c.mb, 0);
+  if (Number.isFinite(u.totalMB)) DATA.quota.usedMB = roundMB(u.totalMB);
+  else DATA.quota.usedMB = roundMB(u.categories.reduce((s, c) => s + c.mb, 0));
 }
 function applyAdminUsage(d) {
   /* BE の admin/usage は、部員を指定しないと { members: [ { member, totalMB, categories } ] } を返す。
@@ -220,11 +227,11 @@ function applyAdminUsage(d) {
     const sums = new Map();
     d.members.forEach(m => {
       const known = DATA.members.find(x => x.id === m.member);
-      if (known) known.usedMB = num(m.totalMB, 0);
+      if (known) known.usedMB = roundMB(num(m.totalMB, 0));
       (m.categories || []).forEach(c => {
         const cur = sums.get(c.name) || { name: c.name, mb: 0, items: [] };
         cur.mb += num(c.mb, 0);
-        (c.items || []).forEach(x => cur.items.push(Array.isArray(x) ? [x[0], num(x[1], 0)] : [x.name, num(x.mb, 0)]));
+        (c.items || []).forEach(x => cur.items.push(Array.isArray(x) ? [x[0], roundMB(num(x[1], 0))] : [x.name, roundMB(num(x.mb, 0))]));
         sums.set(c.name, cur);
       });
     });
@@ -263,9 +270,9 @@ function applyNotices(d) {
 function normApp(a) {
   return {
     ...a, name: a.name || '', state: visLabel(a.state ?? a.visibility),
-    commit: a.commit ?? a.commit_hash ?? a.hash ?? '', proj: a.proj ?? a.project ?? a.project_id ?? '',
+    commit: a.commit ?? a.commit_hash ?? a.hash ?? '', commitMessage: a.commitMessage ?? a.commit_message ?? '', proj: a.proj ?? a.project ?? a.project_id ?? '',
     owner: a.owner ?? a.owner_id ?? null, ownerLabel: a.ownerLabel ?? a.owner_label ?? '',
-    sizeMB: Math.max(0, num(a.sizeMB ?? a.size_mb, num(a.size_bytes, 0) / 1048576)),
+    sizeMB: roundMB(Math.max(0, num(a.sizeMB ?? a.size_mb, num(a.size_bytes, 0) / 1048576))),
     updatedAt: dt(a.updatedAt ?? a.updated_at ?? ''), code: a.code ?? a.access_code ?? '', viewers: Array.isArray(a.viewers) ? a.viewers : (a.viewers || []),
     stale: bool(a.stale, false), orphan: bool(a.orphan, false)
   };
@@ -286,7 +293,7 @@ function applyAdminProjects(d) {
     o.owner = first(p, ['owner', 'owner_id'], null);
     o.ownerLabel = first(p, ['ownerLabel', 'owner_label'], '');
     o.orphan = bool(first(p, ['orphan'], false), false);
-    o.sizeMB = num(first(p, ['sizeMB', 'size_mb'], num(first(p, ['work_bytes', 'bytes'], 0), 0) / 1048576), 0);
+    o.sizeMB = roundMB(num(first(p, ['sizeMB', 'size_mb'], num(first(p, ['work_bytes', 'bytes'], 0), 0) / 1048576), 0));
     return o;
   });
 }
@@ -295,7 +302,7 @@ function applyMembers(d) {
     ...m, id: String(m.id ?? m.member_id ?? ''), name: m.name || '', mail: m.mail ?? m.email ?? '-',
     position: m.position || '部員', isAdmin: bool(first(m, ['isAdmin', 'is_admin'], m.role === 'admin'), false),
     active: bool(first(m, ['active'], true), true),
-    usedMB: num(m.usedMB ?? m.used_mb, 0),
+    usedMB: roundMB(num(m.usedMB ?? m.used_mb, 0)),
     projects: Array.isArray(m.projects) ? m.projects.map(p => typeof p === 'string' ? { id: p, name: p } : p) : [],
     apps: Array.isArray(m.apps) ? m.apps.map(a => typeof a === 'string' ? a : (a.name || a)) : []
   }));
@@ -403,9 +410,14 @@ async function loadProject(projectId, opts = {}) {
   if (!projectId) return;
   const tasks = [
     Api.files.tree(projectId).then(d => applyTree(projectId, d)),
-    Api.history.log(projectId).then(d => applyCommits(projectId, d)).catch(e => { if (!(e instanceof ApiError) || e.status !== 404) throw e; DATA.commits = []; }),
-    Api.history.status(projectId).then(d => applyStatus(projectId, d))
+    Api.history.log(projectId).then(d => applyCommits(projectId, d)).catch(e => { if (!(e instanceof ApiError) || e.status !== 404) throw e; DATA.commits = []; })
   ];
+  /* 変更の判定（ファイルの比較）は時間がかかることがあるので、プロジェクトを開く処理は待たない。終わりしだい画面に反映する */
+  const statusDone = Api.history.status(projectId).then(d => {
+    applyStatus(projectId, d);
+    if (S.proj && S.proj.id === projectId) { if (typeof renderTree === 'function') renderTree(); if (typeof renderHist === 'function') renderHist(); }
+  }).catch(() => { /* 表示は、判定できるまで「変更なし」扱いのまま */ });
+  if (opts.waitStatus) tasks.push(statusDone);
   const p = allProjects().find(x => x.id === projectId);
   if (p && (!p.perm || p.perm === 'owner')) {
     tasks.push(Api.share.list(projectId).then(d => { DATA.sharesByProject[projectId] = d; if (opts.shares !== false) applyShares(d); }).catch(e => { if (!(e instanceof ApiError) || ![403, 404].includes(e.status)) throw e; }));
@@ -418,15 +430,22 @@ async function loadProject(projectId, opts = {}) {
 /* ファイル本文を必要になったときに読む。テキストでなければ何もしない。 */
 async function ensureText(node, path, projectId) {
   if (!node || node.t === 'dir' || node.text !== undefined || !textPath(node.n)) return node;
-  const d = await Api.files.read(projectId, path);
+  const name = String(path).split('/').pop(), big = (node.size || 0) >= 1048576;
+  const read = () => Api.files.read(projectId, path);
+  const d = big ? await Task.run({ title: `${name} を読み込み中（${kb(node.size)}）`, icon: 'description', delay: 0 }, read) : await read();
   node.text = d.content ?? d.text ?? '';
   if (d.version !== undefined) node.version = d.version;
   if (node.bt === undefined) node.bt = node.text;
   return node;
 }
+/* ファイルの中身を取得する。数MB以上のものは時間がかかるので、右下の通知に進み具合を出す。 */
 async function ensureBlob(node, path, projectId) {
   if (!node || node.t === 'dir' || node.blob) return node;
-  const { blob } = await Api.files.raw(projectId, path);
+  const name = String(path).split('/').pop(), big = (node.size || 0) >= 1048576;
+  const fetchIt = onProgress => Api.files.raw(projectId, path, onProgress ? { onProgress } : undefined);
+  const { blob } = big
+    ? await Task.run({ title: `${name} を読み込み中（${kb(node.size)}）`, icon: 'download', delay: 0 }, t => fetchIt((got, total) => t.set({ pct: total ? got / total : null, msg: total ? `${kb(got)} / ${kb(total)}` : kb(got) })))
+    : await fetchIt();
   node.blob = blob;
   if (!node.size) node.size = blob.size;
   return node;

@@ -105,6 +105,7 @@
       <div class="row" data-set="license"><span class="ms">description</span><span class="nm">ライセンス</span></div></div></section>
     <section class="lp" id="sm10"><h2>アカウント</h2><div class="sync" hidden></div>
       <div class="pnote sk-list" id="acct"></div>
+      <div class="pnote" id="acct-untrusted" hidden>この端末は信頼端末ではありません。信頼端末の管理や、QR・コードでの承認は、信頼端末でログインしたときに使えます。</div>
       <div class="row" data-acc="devices"><span class="ms">devices</span><span class="nm">信頼端末</span></div>
       <div class="row" data-acc="scanqr"><span class="ms">qr_code_scanner</span><span class="nm">QR読み取りでログイン</span></div>
       <div class="row" data-acc="entercode"><span class="ms">pin</span><span class="nm">コード入力でログイン</span></div>
@@ -284,6 +285,12 @@
   <button data-hm="diff">差分を見る</button><button data-hm="restore">このコミットに復元</button><button data-hm="branch">ここから新しいプロジェクトを作る</button><button data-hm="publish">このコミットをアプリとして公開</button><button data-hm="prune">これより古い履歴を削除</button>
 </div>
 <dialog id="d-own"><h3>所有者を移動</h3><p>移動先を選んでください。あなたは編集権限になります。</p><select id="own-sel" style="width:100%"></select><div class="dnote" id="own-note"></div><div class="btns"><button data-close>キャンセル</button><button class="primary" id="own-go">Go</button></div></dialog>
+<dialog id="d-bulk" class="wide"><h3>共有の一括設定</h3>
+  <p class="dnote">部員を1人選ぶと、あなたのプロジェクトごとに、その部員への共有を ON / OFF で切り替えられます。まとめて反映します。</p>
+  <div class="sform"><div class="fld"><span class="ms">person_search</span><input id="bk-m" list="bk-dl" placeholder="部員を検索して選ぶ" autocomplete="off"><datalist id="bk-dl"></datalist><button class="o" id="bk-load">この部員で設定</button></div></div>
+  <div class="tools" id="bk-tools" hidden><button class="o" id="bk-on">すべて ON</button><button class="o" id="bk-off">すべて OFF</button><span class="dnote" id="bk-sum"></span></div>
+  <div id="bk-list" style="max-height:46vh;max-height:46dvh;overflow:auto"></div>
+  <div class="btns"><button data-close>閉じる</button><button class="primary" id="bk-go" disabled>反映する</button></div></dialog>
 <dialog id="d-sv"><h3>確認</h3><p>保存されていない変更があります。保存しますか？</p><div class="btns"><button data-close>キャンセル</button><button class="primary" id="sv-ok">保存</button></div></dialog>
 <dialog id="d-in"><h3 id="in-t"></h3><input id="in-v"><p class="err" id="in-e" style="color:var(--danger);min-height:22px"></p><div class="btns"><button data-close>キャンセル</button><button class="primary" id="in-ok">OK</button></div></dialog>
 <dialog id="d-pick"><h3>システムのファイルから選ぶ</h3><div id="pick-l" style="max-height:50vh;max-height:50dvh;overflow:auto"></div><div class="btns"><button data-close>閉じる</button></div></dialog>

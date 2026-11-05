@@ -10,27 +10,27 @@ let usageMember = '';
 const usageTotal = cats => cats.reduce((s, c) => s + num(c.mb, 0), 0);
 function tipHtml(u) { // 上位5件 + その他（内訳つき）
   const it = itemsOf(u), top = it.slice(0, 5), rest = it.slice(5), rs = rest.reduce((a, x) => a + x[1], 0);
-  return `<b>${u.name}　${u.mb}MB</b>` + top.map(([n, v]) => `<div><span>${n}</span><span>${v}MB</span></div>`).join('') +
-    (rest.length ? `<div><span>その他（${rest.length}件）</span><span>${rs}MB</span></div><span class="rest">${rest.map(([n, v]) => n + ' ' + v + 'MB').join(' / ')}</span>` : '');
+  return `<b>${esc(u.name)}　${fmtMB(u.mb)}MB</b>` + top.map(([n, v]) => `<div><span>${esc(n)}</span><span>${fmtMB(v)}MB</span></div>`).join('') +
+    (rest.length ? `<div><span>その他（${rest.length}件）</span><span>${fmtMB(rs)}MB</span></div><span class="rest">${rest.map(([n, v]) => n + ' ' + fmtMB(v) + 'MB').join(' / ')}</span>` : '');
 }
 function renderUsage() {
   const used = usedMB(), pct = used / quotaLimit() * 100, box = $('#u-chart'), warn = pct >= 80, full = pct >= 100;
-  $('#u-sum').innerHTML = `<b>${used}MB</b> / 上限 ${quotaLimit()}MB（${pct.toFixed(0)}%）<div class="dnote" id="u-note">${UNOTE}</div>` + (warn ? `<div class="warnline">${full ? '容量が上限に達しました。書き込みできません。' : '容量が上限に近づいています。'}</div>` : '');
-  $('#h-usage').innerHTML = `<b>${used}MB</b> / ${quotaLimit()}MB（${pct.toFixed(0)}%）`; $('#hl-usage').textContent = '使用量 ' + used + '/' + quotaLimit() + 'MB';
+  $('#u-sum').innerHTML = `<b>${fmtMB(used)}MB</b> / 上限 ${fmtMB(quotaLimit())}MB（${pct.toFixed(0)}%）<div class="dnote" id="u-note">${UNOTE}</div>` + (warn ? `<div class="warnline">${full ? '容量が上限に達しました。書き込みできません。' : '容量が上限に近づいています。'}</div>` : '');
+  $('#h-usage').innerHTML = `<b>${fmtMB(used)}MB</b> / ${fmtMB(quotaLimit())}MB（${pct.toFixed(0)}%）`; $('#hl-usage').textContent = '使用量 ' + fmtMB(used) + '/' + fmtMB(quotaLimit()) + 'MB';
   $('#h-meter').style.width = Math.min(100, pct) + '%'; $('#h-meterbox').className = 'meter' + (full ? ' danger' : warn ? ' warn' : ''); $('#h-usage-note').textContent = warn ? '容量が上限に近づいています。' : '';
   const W = Math.max(box.clientWidth || 236, 224), H = 280, top = 26, bw = 44, base = top + H; let cum = 0;
   const segs = stackOf().map(u => { const h = u.mb / quotaLimit() * H, y = base - (cum + u.mb) / quotaLimit() * H; cum += u.mb; return { u, h, y, mid: y + h / 2 }; });
   const lab = [...segs].sort((a, b) => b.mid - a.mid); let lim = base + 4; lab.forEach(s => { s.ly = Math.min(s.mid, lim - 26); lim = s.ly; }); const dy = Math.max(0, top + 8 - Math.min(...lab.map(s => s.ly))); lab.forEach(s => s.ly += dy); // 上にはみ出すときだけ下へずらす
   const edge = full ? 'var(--danger)' : warn ? 'var(--warn)' : 'var(--border)', lx = bw + 38;
-  box.innerHTML = `<svg width="${W}" height="${base + 8}" viewBox="0 0 ${W} ${base + 8}"><text x="0" y="16" class="sub">上限 ${quotaLimit()}MB</text>
+  box.innerHTML = `<svg width="${W}" height="${base + 8}" viewBox="0 0 ${W} ${base + 8}"><text x="0" y="16" class="sub">上限 ${fmtMB(quotaLimit())}MB</text>
     <defs><clipPath id="bar-r"><rect x="0" y="${top}" width="${bw}" height="${H}" rx="10"/></clipPath></defs>
     <rect x="0" y="${top}" width="${bw}" height="${H}" rx="10" fill="var(--active)"/><g clip-path="url(#bar-r)">` +
-    segs.map(s => `<rect class="seg1" data-u="${s.u.name}" x="0" y="${s.y}" width="${bw}" height="${Math.max(s.h, 1)}" fill="${UCOL[s.u.name]}"/>`).join('') + `</g>
+    segs.map(s => `<rect class="seg1" data-u="${esc(s.u.name)}" x="0" y="${s.y}" width="${bw}" height="${Math.max(s.h, 1)}" fill="${UCOL[s.u.name]}"/>`).join('') + `</g>
     <rect x="0" y="${top}" width="${bw}" height="${H}" rx="10" fill="none" stroke="${edge}" stroke-width="${warn ? 2 : 1}" pointer-events="none"/>` +
-    segs.map(s => `<polyline points="${bw + 2},${s.mid} ${bw + 18},${s.ly} ${lx - 4},${s.ly}" fill="none" stroke="var(--fg-dim)" stroke-width="1"/><circle cx="${bw + 2}" cy="${s.mid}" r="2" fill="var(--fg-dim)"/><text x="${lx}" y="${s.ly + 5}">${s.u.name}<tspan class="sub" dx="8">${s.u.mb}MB</tspan></text>`).join('') + '</svg>';
+    segs.map(s => `<polyline points="${bw + 2},${s.mid} ${bw + 18},${s.ly} ${lx - 4},${s.ly}" fill="none" stroke="var(--fg-dim)" stroke-width="1"/><circle cx="${bw + 2}" cy="${s.mid}" r="2" fill="var(--fg-dim)"/><text x="${lx}" y="${s.ly + 5}">${esc(s.u.name)}<tspan class="sub" dx="8">${fmtMB(s.u.mb)}MB</tspan></text>`).join('') + '</svg>';
   const P = itemsOf(catOf('プロジェクト')), pt = P.slice(0, 5), pr = P.slice(5);
-  $('#u-rank').innerHTML = '<div class="pnote">プロジェクトの容量ランキング（上位5）</div>' + pt.map(([n, v], i) => `<div class="rank"><span>${i + 1}.</span><span class="rank-name" title="${esc(n)}">${esc(n)}</span><b>${v}MB</b></div>`).join('') +
-    (pr.length ? `<div class="rank dim"><span></span>その他（${pr.length}件）<b>${+pr.reduce((a, x) => a + x[1], 0).toFixed(1)}MB</b></div>` : '');
+  $('#u-rank').innerHTML = '<div class="pnote">プロジェクトの容量ランキング（上位5）</div>' + pt.map(([n, v], i) => `<div class="rank"><span>${i + 1}.</span><span class="rank-name" title="${esc(n)}">${esc(n)}</span><b>${fmtMB(v)}MB</b></div>`).join('') +
+    (pr.length ? `<div class="rank dim"><span></span>その他（${pr.length}件）<b>${fmtMB(pr.reduce((a, x) => a + x[1], 0))}MB</b></div>` : '');
 }
 /* ホバー（マウス）/ タップ（タッチ）で内訳を表示 */
 const tip = () => { let t = $('#u-tip'); if (!t) { t = document.createElement('div'); t.id = 'u-tip'; t.hidden = true; document.body.appendChild(t); } return t; };
@@ -49,15 +49,15 @@ function rUsage() {
   const cats = usageCats(), used = usageTotal(cats), showMembers = S.role === 'admin' && DATA.members.length;
   const grp = (u, title) => {
     const list = itemsOf(u), c = UCOL[u.name];
-    return `<section class="ug"><div class="ug-h"><span class="sw" style="background:${c}"></span><b>${title}（${list.length}件）</b><span>${u.mb}MB ・ ${(used ? u.mb / used * 100 : 0).toFixed(1)}%</span></div>` +
+    return `<section class="ug"><div class="ug-h"><span class="sw" style="background:${c}"></span><b>${title}（${list.length}件）</b><span>${fmtMB(u.mb)}MB ・ ${(used ? u.mb / used * 100 : 0).toFixed(1)}%</span></div>` +
       list.map(([n, v]) => {
         const actions = (u.name === 'プロジェクト' ? `<button class="o" data-usage-open="${esc(n)}" title="プロジェクトを開く">${ico('open_in_new')}</button>` : '') +
           (u.name === '履歴' ? `<button class="o" data-usage-history="${esc(n)}" title="履歴を削除">${ico('delete')}</button>` : '') +
           (u.name === 'アプリ' ? `<button class="o" data-usage-open-app="${esc(n)}" title="アプリを開く">${ico('open_in_new')}</button><button class="o" data-usage-delete-app="${esc(n)}" title="アプリを削除">${ico('delete')}</button>` : '');
-        return `<div class="urow"><span title="${esc(n)}">${esc(n)}</span><span class="ubar"><i style="width:${v / u.mb * 100}%;background:${c}"></i></span><b>${v}MB</b>${actions ? `<span class="u-actions">${actions}</span>` : ''}</div>`;
+        return `<div class="urow"><span title="${esc(n)}">${esc(n)}</span><span class="ubar"><i style="width:${v / u.mb * 100}%;background:${c}"></i></span><b>${fmtMB(v)}MB</b>${actions ? `<span class="u-actions">${actions}</span>` : ''}</div>`;
       }).join('') + '</section>';
   };
-  return `<h2>使用状況の詳細</h2><div class="tools"><label>部員<select id="usage-member"><option value="">${S.role === 'admin' ? '全体' : '全体'}</option>${showMembers ? DATA.members.map(m => `<option value="${m.id}" ${usageMember === m.id ? 'selected' : ''}>${esc(m.name)}</option>`).join('') : ''}</select></label></div><p>使用 ${used}MB / 上限 ${quotaLimit()}MB</p><p class="dnote" id="u-note2">${UNOTE}</p>` + cats.map(u => grp(u, u.name === 'その他' ? 'その他すべて（システム設定・キャッシュ・ログ）' : u.name + 'すべて')).join('');
+  return `<h2>使用状況の詳細</h2><div class="tools"><label>部員<select id="usage-member"><option value="">${S.role === 'admin' ? '全体' : '全体'}</option>${showMembers ? DATA.members.map(m => `<option value="${m.id}" ${usageMember === m.id ? 'selected' : ''}>${esc(m.name)}</option>`).join('') : ''}</select></label></div><p>使用 ${fmtMB(used)}MB / 上限 ${fmtMB(quotaLimit())}MB</p><p class="dnote" id="u-note2">${UNOTE}</p>` + cats.map(u => grp(u, u.name === 'その他' ? 'その他すべて（システム設定・キャッシュ・ログ）' : u.name + 'すべて')).join('');
 }
 const findUsageProject = name => allProjects().find(p => p.name === name) || DATA.adminProjects.find(p => p.name === name);
 async function refreshUsageAfter() {
@@ -96,7 +96,7 @@ document.addEventListener('click', async e => {
   if (hist) {
     const p = findUsageProject(name.replace(/ の履歴$/, ''));
     if (!p) return showToast('プロジェクトが見つかりません');
-    confirmDlg('履歴を削除', `${name} の履歴を削除します。`, async () => {
+    confirmDlg('履歴を削除', `${p.name} の履歴を削除します。`, async () => {
       try {
         const list = await Api.history.log(p.id);
         const commits = Array.isArray(list) ? list : (list.commits || []);

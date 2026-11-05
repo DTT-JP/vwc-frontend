@@ -9,20 +9,20 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 PUBLIC = os.path.join(ROOT, 'public')
 
 LIMITS = [
-    {"key":"quota_mb","name":"部員ごとの容量上限","description":"1人あたりの使用量の上限","value":500,"min":10,"max":10000,"default":500,"unit":"MB"},
-    {"key":"max_upload_mb","name":"最大アップロードサイズ","description":"これを超えるファイルは、システムに保存・アップロードできません","value":200,"min":1,"max":2000,"default":200,"unit":"MB"},
-    {"key":"track_limit_mb","name":"履歴の追跡上限","description":"これを超えるファイルは、履歴に入れません（未追跡）","value":5,"min":1,"max":100,"default":5,"unit":"MB"},
+    {"key":"quota_mb","name":"部員ごとの容量上限","description":"1人あたりの使用量の上限","value":2048,"min":10,"max":10000,"default":2048,"unit":"MB"},
+    {"key":"max_upload_mb","name":"最大アップロードサイズ","description":"これを超えるファイルは、システムに保存・アップロードできません","value":256,"min":1,"max":8192,"default":256,"unit":"MB"},
+    {"key":"track_limit_mb","name":"履歴の追跡上限","description":"これ以下のテキストは行の差分で、これを超えるファイルは形式を問わずハッシュ・名前・サイズで追跡します","value":5,"min":1,"max":100,"default":5,"unit":"MB"},
     {"key":"device_days","name":"信頼端末の有効日数","description":"期限後は、もう一度承認が必要です","value":90,"min":1,"max":365,"default":90,"unit":"日"},
     {"key":"code_ttl_sec","name":"ログイン用コードの有効秒数","description":"QR・数字コードが使える時間","value":300,"min":60,"max":900,"default":300,"unit":"秒"},
     {"key":"code_max_fail","name":"ログイン承認の失敗上限","description":"承認コードを間違えられる回数。超えるとロックされます","value":5,"min":3,"max":10,"default":5,"unit":"回"},
-    {"key":"max_publish_mb","name":"アプリの最大サイズ","description":"1つのアプリとして公開できる大きさ","value":200,"min":1,"max":2000,"default":200,"unit":"MB"},
-    {"key":"max_projects_per_member","name":"部員ごとのプロジェクト数","description":"1人が持てるプロジェクトの数","value":50,"min":1,"max":500,"default":50,"unit":"個"},
+    {"key":"max_publish_mb","name":"アプリの最大サイズ","description":"1つのアプリとして公開できる大きさ","value":1024,"min":1,"max":8192,"default":1024,"unit":"MB"},
+    {"key":"max_projects_per_member","name":"部員ごとのプロジェクト数","description":"1人が持てるプロジェクトの数","value":100,"min":1,"max":1000,"default":100,"unit":"個"},
     {"key":"app_code_max_fail","name":"アクセスコードの失敗上限","description":"アプリの入口でコードを間違えられる回数","value":5,"min":3,"max":10,"default":5,"unit":"回"},
     {"key":"gate_private_minutes","name":"非公開アプリのアクセス有効分","description":"非公開アプリを開いてから、ログインを求め直すまでの時間","value":60,"min":5,"max":1440,"default":60,"unit":"分"},
     {"key":"gate_unlisted_hours","name":"限定公開アプリのアクセス有効時間","description":"アクセスコードを入れてから、入れ直しを求めるまでの時間","value":24,"min":1,"max":168,"default":24,"unit":"時間"},
     {"key":"stale_app_days","name":"放置アプリの通知までの日数（提案）","description":"この日数、更新のないアプリを「忘れていませんか？」で知らせます","value":90,"min":7,"max":730,"default":90,"unit":"日"},
     {"key":"audit_retention_days","name":"監査ログの保持日数（提案）","description":"これより古い監査ログは削除されます","value":365,"min":30,"max":3650,"default":365,"unit":"日"},
-    {"key":"zip_max_mb","name":"ZIPの最大サイズ","description":"ZIPでまとめてダウンロードできる上限","value":1000,"min":10,"max":10000,"default":1000,"unit":"MB"},
+    {"key":"zip_max_mb","name":"ZIPの最大サイズ","description":"ZIPでまとめてダウンロードできる上限","value":2048,"min":10,"max":8192,"default":2048,"unit":"MB"},
 ]
 
 STATE = {
@@ -145,7 +145,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # meta
         if r == "meta/version": return {"api_version":1,"server_version":"1.0.0","features":["zip","announcements"]}
         if r == "me": return {"member":{"id":STATE["user"]["id"],"name":STATE["user"]["name"],"position":STATE["user"]["position"],"isAdmin":STATE["user"]["isAdmin"],"reauthUntil":STATE["user"]["reauthUntil"]},"csrf":STATE["csrf"],"quota":{"limitMB":STATE["quota"]["limitMB"],"usedMB":STATE["quota"]["usedMB"]},
-               "max_upload_mb":200,"track_limit_mb":5,"code_ttl_sec":300,"device_days":90,"zip_max_mb":1000,"settings":{}}
+               "max_upload_mb":256,"track_limit_mb":5,"code_ttl_sec":300,"device_days":90,"zip_max_mb":2048,"quota_mb":2048,"max_publish_mb":1024,"max_projects_per_member":100,"settings":{}}
         if r == "auth/start": return {"id":"fake-id","poll_secret":"fake-secret","code":"123456","ttl_sec":300}
         if r == "auth/poll": return {"status":"approved"}
         if r == "auth/approve": return {"ok":True}
@@ -244,7 +244,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
             pid=body.get("project")
             return {"commits": STATE["commits"].get(pid,[])}
         if r == "history/diff":
-            return {"files":[]}
+            # 本物と同じ形：path なし＝変更の一覧だけ／path あり＝そのファイルの行差分
+            files=[{"path":"index.html","status":"modified","kind":"text","before":40,"after":52},
+                   {"path":"logo.png","status":"modified","kind":"bin","before":3000,"after":3100},
+                   {"path":"movie.mp4","status":"added","kind":"large","before":None,"after":9000000}]
+            out={"hash":body.get("hash"),"parent":None,"added":["movie.mp4"],"modified":["index.html","logo.png"],"deleted":[],"renamed":[],"files":files,"diffs":{}}
+            p=body.get("path")
+            if p=="index.html":
+                out["diffs"][p]={"type":"modified","add":1,"del":1,"truncated":False,"encoding":"UTF-8","before":40,"after":52,
+                    "diff":[{"op":"eq","line":"<!doctype html>"},{"op":"del","line":"<h1>Hello</h1>"},{"op":"add","line":"<h1>Hello, world</h1>"},{"op":"skip","count":12}]}
+            elif p=="logo.png":
+                out["diffs"][p]={"type":"bin","binary":True,"before":3000,"after":3100,"beforeHash":"aaaaaaaaaaaa","afterHash":"bbbbbbbbbbbb"}
+            elif p=="movie.mp4":
+                out["diffs"][p]={"type":"large","binary":True,"before":None,"after":9000000,"afterHash":"cccccccccccc"}
+            return out
         if r == "history/restore":
             return {"ok":True}
         if r == "history/delete":

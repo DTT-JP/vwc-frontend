@@ -9,7 +9,7 @@
 | auth/approve | 信頼端末 | code | ok。失敗は残り回数、ロックは429 |
 | auth/logout | ログイン | untrust? | ok（untrust=true でこの端末の信頼も解除） |
 | auth/devices, device_revoke | ログイン | id | 自分の信頼端末 |
-| me | ログイン | — | member(position, isAdmin, reauthUntil), csrf, 画面が使う設定値（quota, max_upload_mb, track_limit_mb, code_ttl_sec, device_days, zip_max_mb など） |
+| me | ログイン | — | member(position, isAdmin, reauthUntil), csrf, 画面が使う設定値（quota_mb, max_upload_mb, max_publish_mb, max_projects_per_member, track_limit_mb, code_ttl_sec, device_days, zip_max_mb など。`limits` に全制限値） |
 | usage/me | ログイン | — | 4区分の合計と全件（プロジェクト・アプリ・履歴・その他） |
 | notices/list | ログイン | — | 「忘れていませんか？」（放置アプリ・容量80%超・端末期限7日前・孤立アプリ［管理者のみ］）。サーバーが生成 |
 | announcements/list | ログイン | — | 表示期間内・対象に合うお知らせ |
@@ -30,10 +30,10 @@
 | files/zip_prepare | 閲覧以上 | project, path? | 合計サイズ、短期トークン。`too_large` |
 | files/zip (GET) | トークン | token | 無圧縮ZIPをストリーム配信 |
 | files/search | 閲覧以上 | project, query, case, regex | 内容検索（最大200件） |
-| history/status | 閲覧以上 | project | パスごとの状態（新/更/未追跡）と件数（追加・変更・削除） |
+| history/status | 閲覧以上 | project | パスごとの状態（new / modified / deleted / unchanged）と件数（追加・変更・削除）。ファイルのハッシュは前回の値をキャッシュして再利用するため、ファイルが多くても速い |
 | history/commit | 編集以上 | project, message | 変更なしは `invalid` |
 | history/log | 閲覧以上 | project | 新しい順、親・分岐点・関連（分岐/公開） |
-| history/diff | 閲覧以上 | project, hash | テキスト/バイナリ |
+| history/diff | 閲覧以上 | project, hash, path（省略可） | `path` なし＝変更の一覧だけ（`added` `modified` `deleted` `renamed` と、ファイルごとの `files[{path,status,kind,before,after,from?}]`。内容は読まない）。`path` あり＝そのファイルの差分を `diffs[path]` に返す（テキストは `type: modified/added/deleted`・`diff`（`eq` `del` `add` と、変更のない行をまとめた `skip`）・`add` `del` 行数・`encoding`。バイナリは `bin`、追跡上限超は `large`、巨大テキストは `toolarge`。名前の変更のみは `renamed`）。計算結果はサーバーが覚えておく |
 | history/restore | 編集以上 | project, hash | 復元前と復元後にコミットを作る（06） |
 | history/delete | 所有者 | project, before_hash | 選んだコミットより古い履歴を削除（06） |
 | apps/check_name | ログイン | name | 使用可否と理由（形式・予約語・重複） |

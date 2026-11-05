@@ -92,6 +92,17 @@ const Api = (() => {
       try { data = await res.json(); } catch { /* バイナリ応答の失敗 */ }
       throw new ApiError(data.error || `http_${res.status}`, res.status, data);
     }
+    /* 大きいファイルは、受け取った量を onProgress(受け取った, 全体) で知らせる（全体が分からなければ 0） */
+    const total = +res.headers.get('content-length') || 0;
+    if (opts.onProgress && res.body && res.body.getReader) {
+      const reader = res.body.getReader(), parts = []; let got = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        parts.push(value); got += value.length; opts.onProgress(got, total);
+      }
+      return { blob: new Blob(parts, { type: res.headers.get('content-type') || '' }), headers: res.headers };
+    }
     return { blob: await res.blob(), headers: res.headers };
   }
 
@@ -163,11 +174,11 @@ const Api = (() => {
     uploadInit: (project, dir, name, size, chunks) => call('files/upload_init', { project, path: dir || '', name, size, chunks }),
     uploadChunk: (uploadId, index, data) => call('files/upload_chunk', { upload_id: uploadId, index, data }),
     uploadDone: uploadId => call('files/upload_done', { upload_id: uploadId }),
-    raw: (project, path) => getBlob('files/raw', { project, path }),
+    raw: (project, path, opts) => getBlob('files/raw', { project, path }, opts),
     rawUrl: (project, path) => query('files/raw', { project, path }),
     previewToken: (project, path) => call('files/preview_token', { project, path }),
     zipPrepare: (project, path) => call('files/zip_prepare', path ? { project, path } : { project }),
-    zip: token => getBlob('files/zip', { token }),
+    zip: (token, opts) => getBlob('files/zip', { token }, opts),
     search: (project, search, caseSensitive, regex) => call('files/search', { project, query: search, case: !!caseSensitive, regex: !!regex })
   };
 
@@ -175,7 +186,7 @@ const Api = (() => {
     status: project => call('history/status', { project }),
     commit: (project, message) => call('history/commit', { project, message }),
     log: (project, opts = {}) => call('history/log', { project, ...opts }),
-    diff: (project, hash) => call('history/diff', { project, hash }),
+    diff: (project, hash, path) => call('history/diff', path === undefined ? { project, hash } : { project, hash, path }),
     restore: (project, hash) => call('history/restore', { project, hash }),
     remove: (project, beforeHash) => call('history/delete', { project, before_hash: beforeHash })
   };

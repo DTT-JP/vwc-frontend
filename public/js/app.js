@@ -8,7 +8,8 @@ const S = { role: 'member', proj: null, tabs: [], act: { g1: null, g2: null }, g
 const showToast = (m, ms) => { const t = $('#toast'); if (!t) return; t.textContent = m; t.hidden = false; clearTimeout(showToast.t); showToast.t = setTimeout(() => t.hidden = true, ms || Math.min(12000, Math.max(2500, String(m).length * 130))); };
 const ico = (ms, c) => `<span class="ms${c ? ' ' + c : ''}">${ms}</span>`;
 const fico = n => { const i = fileIcon(n); return ico(i, 'ft-' + i); }; // 種類ごとに色を変えたファイルアイコン
-const esc = s => String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+/* 画面に出す文字列は、必ず esc を通す（ファイル名・プロジェクト名は部員が自由に付けられるため）。属性の中でも安全なよう、引用符も変換する */
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 /* エラー表示：「何が原因か」「何をすればいいか」を短く、末尾に原因ごとに一意のコード（E-…）を付ける。
    コードは README の「エラーコード一覧」と対応する。サーバーのログにも同じ E-A…（認証）が残る。 */
@@ -131,7 +132,7 @@ $$('.abtn').forEach(b => b.onclick = () => showPanel(b.dataset.p));
 /* SM01 プロジェクト一覧 */
 function renderProjects() {
   for (const k of ['mine', 'shared']) {
-    $('#list-' + k).innerHTML = S.fold[k] ? '' : DATA.projects[k].map(p => { const ownerName = p.ownerLabel || (DATA.members.find(m => m.id === p.owner) || {}).name || (p.orphan ? '（なし）' : ''), permLabel = k === 'mine' ? '所有者' : ({ edit: '編集', view: '閲覧' }[p.perm] || p.perm); return `<div class="row" data-id="${p.id}"><span class="nm">${esc(p.name)}<small class="project-meta">${esc(ownerName)} ${k === 'mine' || p.perm ? `<span class="badge">${esc(permLabel)}</span>` : ''}${p.updatedAt ? ` <span>${fmtDate(p.updatedAt)}</span>` : ''}${p.sizeMB ? ` <span>${p.sizeMB}MB</span>` : ''}${p.parent ? ` <span>（${esc(p.parent)} から分岐）</span>` : ''}</small></span>` +
+    $('#list-' + k).innerHTML = S.fold[k] ? '' : DATA.projects[k].map(p => { const ownerName = p.ownerLabel || (DATA.members.find(m => m.id === p.owner) || {}).name || (p.orphan ? '（なし）' : ''), permLabel = k === 'mine' ? '所有者' : ({ edit: '編集', view: '閲覧' }[p.perm] || p.perm); return `<div class="row" data-id="${p.id}"><span class="nm">${esc(p.name)}<small class="project-meta">${esc(ownerName)} ${k === 'mine' || p.perm ? `<span class="badge">${esc(permLabel)}</span>` : ''}${p.updatedAt ? ` <span>${fmtDate(p.updatedAt)}</span>` : ''}${p.sizeMB ? ` <span>${fmtMB(p.sizeMB)}MB</span>` : ''}${p.parent ? ` <span>（${esc(p.parent)} から分岐）</span>` : ''}</small></span>` +
       `<span class="acts"><button title="ZIPでダウンロード" data-zip="${p.id}">${ico('folder_zip')}</button>${k === 'mine' ? `<button title="名前変更" data-ren="${p.id}">${ico('edit')}</button><button title="削除" data-del="${p.id}">${ico('delete')}</button>` : ''}<button title="開く" data-open="${p.id}">${ico('open_in_new')}</button></span></div>`; }).join('');
     $(`[data-fold=${k}] .fi`).textContent = S.fold[k] ? 'keyboard_arrow_down' : 'keyboard_arrow_up';
   }
@@ -174,7 +175,7 @@ async function openProject(id) {
   S.tabs = []; S.msel = new Set(); S.mmode = false; S.hov = null; S.anchor = null;
   S.loading++;
   renderTabs(); renderTree(); updateStatus(); showPanel('sm02');
-  try { await loadProject(id); }
+  try { await Task.run({ title: `「${S.proj.name}」を読み込み中`, icon: 'inbox' }, t => { t.set({ msg: 'ファイル・履歴を取得しています' }); return loadProject(id); }); }
   catch (e) { showApiError(e, { silent: true }); showToast('プロジェクトを読み込めませんでした'); }
   finally { S.loading--; }
   if (window.applyRoleForProject) applyRoleForProject();
@@ -196,6 +197,8 @@ function closeTabsSequential(tabs) {
 
 /* SM02 ファイルツリー */
 const files = () => (S.proj && DATA.files[S.proj.id]) || [];
+/* 追跡上限を超えるファイル（行の差分ではなく、ハッシュ・名前・サイズで追跡する） */
+const isLargeNode = f => f.t !== 'dir' && (f.size ?? (f.blob ? f.blob.size : 0)) > limitVal('track_limit_mb') * 1048576;
 /* ファイルの状態：青=システム未保存（ページを閉じると失われる）/ 灰=隠しファイル / 緑 / オレンジ。優先順位は 青 > 灰 > 緑 > オレンジ */
 const unsaved = t => t.dirty || (t.f && t.f.saved === false); // 編集済み、または新規作成でまだ保存していないタブ
 const isDirtyNode = f => S.tabs.some(t => t.f === f && t.dirty);
@@ -214,7 +217,7 @@ function getCommitStatus() {
   if (server) return { add: num(server.add, 0), mod: num(server.mod, 0), del: num(server.del, 0) };
   const status = { add: 0, mod: 0, del: (S.proj && S.deletedPaths[S.proj.id]?.count) || 0 };
   walkNodes(files(), f => {
-    if (f.t === 'dir' || f.untracked || f.saved === false || isDirtyNode(f)) return;
+    if (f.t === 'dir' || f.saved === false || isDirtyNode(f)) return;
     if (f.inBase === false) status.add++;
     else if (f.mod || (f.text !== undefined && f.bt !== undefined && f.text !== f.bt)) status.mod++;
   });
@@ -244,11 +247,11 @@ function renderTree() {
   $('#proj-root').textContent = S.proj.name + '/'; const ax = actRow();
   const walk = (list, path, depth) => list.map(f => {
     const p = path + f.n, pad = `style="padding-left:${12 + depth * 16}px"`, s = nodeState(f), m = MARK[s.c], on = S.msel.has(p), cls = [s.c ? 'st-' + s.c : '', on ? 'pk' : '', p === ax ? 'ax' : ''].join(' '), stm = m && m[0] ? `<span class="stm" title="${m[1]}">${m[0]}</span>` : '';
-    const acts = `<span class="acts"><button title="名前変更" data-rn="${p}">${ico('edit')}</button><button title="${f.t === 'dir' ? 'ダウンロード(ZIP)' : 'ダウンロード'}" data-dl="${f.n}">${ico('download')}</button><button title="削除" data-df="${f.n}">${ico('delete')}</button></span>`;
+    const acts = `<span class="acts"><button title="名前変更" data-rn="${esc(p)}">${ico('edit')}</button><button title="${f.t === 'dir' ? 'ダウンロード(ZIP)' : 'ダウンロード'}" data-dl="${esc(f.n)}">${ico('download')}</button><button title="削除" data-df="${esc(f.n)}">${ico('delete')}</button></span>`;
     const ck = S.mmode ? ico(on ? 'check_circle' : 'radio_button_unchecked', 'ck') : ''; /* 複数選択モード：右端に選択マーク */
     if (f.t === 'dir') { const closed = S.closed.has(p);
-      return `<div class="row ${cls} ${S.sel === p ? 'sel' : ''}" ${pad} data-dir="${p}">${ico('folder', 'ft-folder')}<span class="nm">${f.n}</span>${stm}${acts}<button class="tg" title="${closed ? '開く' : '閉じる'}">${ico(closed ? 'keyboard_arrow_down' : 'keyboard_arrow_up')}</button>${ck}</div>` + (closed ? '' : walk(f.c, p + '/', depth + 1)); }
-    return `<div class="row ${cls}" ${pad} data-file="${p}">${fico(f.n)}<span class="nm">${f.n}</span>${f.untracked ? `<span class="stm ut" title="未追跡：${limitVal('track_limit_mb')}MBを超えるため、履歴に入りません">未追跡</span>` : ''}${stm}${acts}${ck}</div>`;
+      return `<div class="row ${cls} ${S.sel === p ? 'sel' : ''}" ${pad} data-dir="${esc(p)}">${ico('folder', 'ft-folder')}<span class="nm">${esc(f.n)}</span>${stm}${acts}<button class="tg" title="${closed ? '開く' : '閉じる'}">${ico(closed ? 'keyboard_arrow_down' : 'keyboard_arrow_up')}</button>${ck}</div>` + (closed ? '' : walk(f.c, p + '/', depth + 1)); }
+    return `<div class="row ${cls}" ${pad} data-file="${esc(p)}">${fico(f.n)}<span class="nm">${esc(f.n)}</span>${isLargeNode(f) ? `<span class="stm lg" title="追跡上限（${limitVal('track_limit_mb')}MB）を超えるため、行の差分ではなく、ハッシュ・名前・サイズで追跡します">大</span>` : ''}${stm}${acts}${ck}</div>`;
   }).join('');
   $('#tree').innerHTML = walk(files(), '', 0);
   $('#sm02').classList.toggle('multi', S.mmode); $('#msb-n').textContent = S.msel.size + '件選択中';
@@ -297,15 +300,18 @@ function must(fn) { fn().catch(e => showApiError(e)); }
 function renameNode(path) {
   if (readOnly()) return; const node = findFile(path), dir = path.split('/').slice(0, -1).join('/'), parent = listOf(dir);
   askName('名前変更', node.n, v => { if (v === node.n) return ''; const e = badName(v, parent, node); if (e) return e; const np = (dir ? dir + '/' : '') + v;
-    must(async () => { await Api.files.rename(S.proj.id, path, np); retarget(path, np); dotHint(v); await reloadTree(); renderTabs(); showToast('名前を変更しました'); }); return ''; });
+    must(async () => { await busy(`${node.n} の名前を変更中`, 'drive_file_rename_outline', () => Api.files.rename(S.proj.id, path, np)); retarget(path, np); dotHint(v); await reloadTree(); renderTabs(); showToast('名前を変更しました'); }); return ''; });
 }
 const readText = f => f.text ? f.text() : new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsText(f); });
 function uniqName(list, name) { const m = name.match(/^(.+?)(\.[^.]*)?$/); /* .env のようなドットファイルは、全体を名前として扱う（.env (1)） */ let n = name, i = 1; while (list.some(f => f.n === n)) n = `${m[1]} (${i++})${m[2] || ''}`; return n; }
 /* アップロード：最大アップロードサイズを超えるものは保存しない。進捗とキャンセルは転送トレイ（transfer.js） */
+async function uploadItems(items, dir) {
+  const r = await Upl.start(items);
+  if (r.done.length) { await reloadTree(); refreshStatus(); showToast(r.done.length + '件をアップロードしました' + (dir ? `（${dir}）` : '')); }
+}
 async function uploadFiles(fl) {
   if (readOnly()) return; const t = newTarget();
-  const items = fl.map(f => ({ name: f.webkitRelativePath || f.name, size: f.size, file: f, dir: t.dir }));
-  const r = await Upl.start(items); if (r.done.length) { await reloadTree(); showToast(r.done.length + '件をアップロードしました'); }
+  await uploadItems(fl.map(f => ({ name: f.webkitRelativePath || f.name, size: f.size, file: f, dir: t.dir })), t.dir);
 }
 /* ダウンロード：ファイルは端末へ保存（上限なし）、フォルダは ZIP（サーバーで作る） */
 async function downloadNode(path) {
@@ -337,8 +343,8 @@ async function openFile(path) {
 }
 function tabBar(g) {
   const el = $('#' + g), ts = S.tabs.filter(t => t.g === g), act = S.act[g], sl = $('.ts', el) ? $('.ts', el).scrollLeft : 0; /* 作り直しても、タブ欄の横スクロール位置は保つ */
-  $('.tabs', el).innerHTML = '<div class="ts">' + ts.map(t => `<div class="tab ${t === act ? (g === S.grp ? 'on' : 'on dim') : ''}" data-p="${t.path}">${t.icon ? ico(t.icon) : fico(t.name)}<span>${t.name}</span>${unsaved(t) ? '<button class="dirty-btn" data-sv title="未保存：押すと保存します"><i class="dirty"></i></button>' : ''}<button class="x" title="閉じる">${ico('close')}</button></div>`).join('') + '</div>' +
-    (g === 'g1' ? `<span class="tools"><button id="b-find" title="ファイル内を検索">${ico('find_in_page')}</button><button id="b-save" title="保存">${ico('save')}</button><button id="b-saveall" title="すべて保存">${ico('save_as')}</button><button id="b-sub" title="サブ画面を開く／閉じる">${ico(isPhone() ? 'dock_to_bottom' : 'dock_to_right')}</button></span>` : '');
+  $('.tabs', el).innerHTML = '<div class="ts">' + ts.map(t => `<div class="tab ${t === act ? (g === S.grp ? 'on' : 'on dim') : ''}" data-p="${esc(t.path)}">${t.icon ? ico(t.icon) : fico(t.name)}<span>${esc(t.name)}</span>${unsaved(t) ? '<button class="dirty-btn" data-sv title="未保存：押すと保存します"><i class="dirty"></i></button>' : ''}<button class="x" title="閉じる">${ico('close')}</button></div>`).join('') + '</div>' +
+    (g === toolHost() ? `<span class="tools"><button id="b-find" title="ファイル内を検索">${ico('find_in_page')}</button><button id="b-save" title="保存">${ico('save')}</button><button id="b-saveall" title="すべて保存">${ico('save_as')}</button><button id="b-sub" title="サブ画面を開く／閉じる">${ico(isPhone() ? 'dock_to_bottom' : 'dock_to_right')}</button></span>` : '');
   const bar = $('.ts', el); bar.scrollLeft = sl; revealTab(el, bar, ts, act);
   $('.crumb', el).textContent = act && !act.render && !act.prev ? (S.proj ? S.proj.name : '') + ' › ' + act.path.replace(/\//g, ' › ') : '';
 }
@@ -360,14 +366,23 @@ const flushReveal = () => ['g1', 'g2'].forEach(g => { const el = $('#' + g); if 
 new ResizeObserver(flushReveal).observe($('#g1')); new ResizeObserver(flushReveal).observe($('#g2')); /* 非表示から表示に変わったとき */
 new MutationObserver(flushReveal).observe($('#app'), { attributes: true, attributeFilter: ['data-view', 'class'] }); /* 画面（左/右）の切替が、描画と同じ処理の中で終わる場合（サイズの変化を観測できない） */
 $('#bench').addEventListener('click', e => { if (e.target.closest('.tab')) { S.noReveal = true; setTimeout(() => S.noReveal = false); } }, true); /* タブ自身の操作では動かさない（描画は同じクリック内で終わる） */
+/* メイン(g1)・サブ(g2)の2画面。タブの移動などで片方が空になったら、空の画面は畳んで1画面にする
+   （縦の区切り線も、保存・検索などのボタンも、1画面用の状態になる）。以前は、サブを開いたまま中身を移すと、空の画面と区切り線、
+   ボタン類が2画面のまま残っていた。 */
+const hasTabs = g => S.tabs.some(t => t.g === g);
+const toolHost = () => ($('#g1').hidden ? 'g2' : 'g1'); /* 保存・検索・サブ画面ボタンを置く画面（いつも、見えている画面） */
 function renderTabs() {
+  const had2 = S.g2Had; S.g2Had = hasTabs('g2');
+  if (had2 && !S.g2Had) $('#g2').dataset.keep = '';   // サブの最後のタブが出ていったら、サブを開いたままにはしない
+  $('#g2').hidden = !hasTabs('g2') && !$('#g2').dataset.keep;
+  $('#g1').hidden = !hasTabs('g1') && hasTabs('g2');   // メインが空で、サブにだけタブがあるときは、サブだけを広く使う
+  if ($('#g1').hidden && S.grp === 'g1') S.grp = 'g2';
   G.forEach(g => {
     const el = $('#' + g), ts = S.tabs.filter(t => t.g === g);
-    if (g === 'g2') el.hidden = !ts.length && !el.dataset.keep;
     if (!ts.includes(S.act[g])) S.act[g] = ts[ts.length - 1] || null;
     tabBar(g); paneFor(el, S.act[g], g);
   });
-  $('#split-g').hidden = $('#g2').hidden;
+  $('#split-g').hidden = $('#g1').hidden || $('#g2').hidden;
   if (!S.tabs.length) $('#home').hidden = false; // タブ全閉じのときはホーム
   renderTree(); updateStatus(); phoneDot(); if (window.fbRefresh && !$('#findbar').hidden) fbRefresh(); // 検索バーを開いたまま別のタブへ移ったら、そのタブで検索し直す
 }
@@ -376,7 +391,7 @@ const phoneDot = () => { const r = $('#bn-ed .red'); if (r) r.hidden = !S.tabs.s
 function paneFor(el, t, g) {
   const pane = $('.pane', el);
   if (!t) return pane.innerHTML = '<div class="empty">開いているタブはありません</div>';
-  if (t.render) { pane.innerHTML = `<div class="adm">${t.render()}</div>`; if (t.after) t.after(pane); return; } // 管理・設定・ヘルプなど
+  if (t.render) { pane.innerHTML = `<div class="adm">${t.render()}</div>`; if (t.after) t.after(pane); if (typeof applyAdminLock === 'function') applyAdminLock(); return; } // 管理・設定・ヘルプなど
   if (t.prev) {
     const src = S.tabs.find(x => x.path === t.prev.srcPath), warning = src && unsaved(src);
     pane.innerHTML = (warning ? '<div class="pv-warning"><span>未保存の変更は反映されていません</span><button data-pv-save>保存して更新</button></div>' : '') +
@@ -407,7 +422,7 @@ async function save(t, opts = {}) {
   try {
     let base = t.f.version;
     if (opts.force) { const latest = await Api.files.read(projectId, path); base = latest.version; }
-    const d = await Api.files.write(projectId, path, t.text ?? '', base);
+    const d = await Task.run({ title: `${t.name} を保存中`, icon: 'save' }, () => Api.files.write(projectId, path, t.text ?? '', base));
     t.f.text = t.text; t.f.saved = true; t.f.version = d.version ?? t.f.version; t.dirty = false;
     refreshStatus();
     renderTabs(); notify('save', '保存しました'); return true;
@@ -527,9 +542,9 @@ $('#s-prev').onclick = preview;
 function updateStatus() {
   const t = S.act[S.grp], used = usedMB();
   if (!S.proj || !S.proj.id) { $('#s-proj').innerHTML = ''; }
-  else { $('#s-proj').innerHTML = `${ico('inbox')} ${S.proj.name}` + (S.proj.parent ? ` (${S.proj.parent} から分岐)` : ''); }
+  else { $('#s-proj').innerHTML = `${ico('inbox')} ${esc(S.proj.name)}` + (S.proj.parent ? ` (${esc(S.proj.parent)} から分岐)` : ''); }
   $('#s-lang').textContent = t && !t.render && !t.prev ? ext(t.name).toUpperCase() : '';
-  $('#s-cap').textContent = `容量 ${used}/${quotaLimit()}MB`;
+  $('#s-cap').textContent = `容量 ${fmtMB(used)}/${fmtMB(quotaLimit())}MB`;
   $('#s-prev').hidden = !(t && !t.prev && ['html', 'md'].includes(ext(t.name))); $('#bn-prev').disabled = $('#s-prev').hidden || S.auth === false;
   $('#s-save').textContent = S.tabs.some(unsaved) ? '未保存' : '保存済み';
 }
@@ -537,7 +552,7 @@ function updateStatus() {
 /* ---- SM06 / SM08 / ホーム / アカウント ---- */
 /* ツール一覧は toolkit.js の Tools.register() が作る */
 function renderHome() {
-  $('#h-recent').innerHTML = DATA.projects.mine.concat(DATA.projects.shared).map(p => `<div class="row" data-open="${p.id}">${ico('inbox')}<span class="nm">${p.name}</span></div>`).join('');
+  $('#h-recent').innerHTML = DATA.projects.mine.concat(DATA.projects.shared).map(p => `<div class="row" data-open="${p.id}">${ico('inbox')}<span class="nm">${esc(p.name)}</span></div>`).join('');
   $('#h-recent').onclick = e => { const r = e.target.closest('[data-open]'); if (r) openProject(r.dataset.open); };
   const roles = { member: '部員', 'shared-view': '共有先（閲覧）', 'shared-edit': '共有先（編集）', admin: '管理者権限あり' };
   $('#hl-recent').innerHTML = $('#h-recent').innerHTML;
@@ -561,7 +576,7 @@ const cloneNodes = list => list.map(f => { const n = { ...f, saved: true, inBase
 const cnpMode = () => $('[name=cnp-mode]:checked').value;
 $('#btn-new').onclick = () => {
   $('#cnp-name').value = ''; $('#cnp-name').placeholder = new Date().toISOString().slice(0, 10) + 'のプロジェクト'; $$('[name=cnp-mode]')[0].checked = true; $('#cnp-br').hidden = true;
-  $('#cnp-src').innerHTML = allProjects().map(p => `<option value="${p.id}">${p.name}${p.perm ? '（共有）' : ''} から分岐</option>`).join('');
+  $('#cnp-src').innerHTML = allProjects().map(p => `<option value="${esc(p.id)}">${esc(p.name)}${p.perm ? '（共有）' : ''} から分岐</option>`).join('');
   fillForkCommits(); $('#d-cnp').showModal();
 };
 function fillForkCommits() {
@@ -578,7 +593,7 @@ $('#cnp-ok').onclick = async () => {
   try {
     const params = n ? { name: n } : {};
     if (cnpMode() === 'branch') { params.from_project = $('#cnp-src').value; const commit = $('#cnp-commit').value; if (commit) params.from_commit = commit; }
-    const d = await Api.projects.create(params);
+    const d = await busy('プロジェクトを作成中', 'add_box', () => Api.projects.create(params));
     const p = fromApi({ projects: { mine: [d.project || d], shared: [] } }).projects.mine[0];
     await loadProjects(); await loadUsage();
     $('#d-cnp').close(); renderProjects(); renderUsage(); renderHome();
@@ -606,7 +621,7 @@ $('#del-ok').onclick = () => {
   const p = delTarget;
   const remove = async () => {
     try {
-      await Api.projects.remove(p.id, $('#del-apps').checked);
+      await busy(`「${p.name}」を削除中`, 'delete', () => Api.projects.remove(p.id, $('#del-apps').checked));
       await Promise.allSettled([loadProjects(), loadUsage(), loadApps()]);
       DATA.members.forEach(m => { m.projects = (m.projects || []).filter(x => x.id !== p.id); m.projectCount = m.projects.length; m.apps = (m.apps || []).filter(name => DATA.apps.some(a => a.name === name)); });
       if (S.proj && S.proj.id === p.id) {
@@ -625,7 +640,9 @@ function askDelFile(n) { delF = n; delDone = null; $('#delf-n').textContent = n;
 async function deletePaths(paths) {
   if (readOnly()) return;
   try {
-    for (const path of paths) await Api.files.remove(S.proj.id, path);
+    await Task.run({ title: paths.length === 1 ? `${baseNameOf(paths[0])} を削除中` : `${paths.length}件を削除中`, icon: 'delete' }, async t => {
+      let i = 0; for (const path of paths) { await Api.files.remove(S.proj.id, path); t.set({ pct: ++i / paths.length, msg: `${i}/${paths.length}件` }); }
+    });
     S.tabs = S.tabs.filter(t => !paths.some(p => t.path === p || t.path.startsWith(p + '/')));
     S.msel = new Set(); S.mmode = false; S.anchor = null;
     await Promise.all([reloadTree(), refreshStatus()]);

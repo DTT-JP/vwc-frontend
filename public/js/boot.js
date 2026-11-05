@@ -41,6 +41,7 @@ function applyRoleForProject() {
 }
 
 function renderAll() {
+  if (typeof applyTrustUi === 'function') applyTrustUi();
   applySettings();
   renderProjects(); renderTree(); renderUsage(); renderHome(); renderTabs(); setPanel('sm02'); renderHome(); renderNotices();
 }

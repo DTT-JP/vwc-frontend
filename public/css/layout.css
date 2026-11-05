@@ -579,3 +579,75 @@ dialog:focus{outline:none}
 .seg.login-tabs button.on{background:color-mix(in srgb,var(--accent) 14%,transparent);border-bottom-color:var(--accent);color:var(--fg);font-weight:700}
 .seg.login-tabs button.on .ms{color:var(--accent)}
 .dev-req{font-size:18px;line-height:1.6;margin:12px 0}.dev-req b{font-size:20px}
+
+/* ================= 見た目の調整（2026-11） ================= */
+/* 選ばれているボタンは「青い背景＋白い文字」（青い背景に青い文字は読みにくい） */
+.seg.login-tabs button.on{background:var(--accent);border-bottom-color:var(--accent);color:var(--accent-fg);font-weight:700}
+.seg.login-tabs button.on .ms{color:var(--accent-fg)}
+.seg.login-tabs button:not(.on){color:var(--fg-dim)}
+#tree .row.pk,#tree .row.pk.ax,#tree .row.pk:hover{background:var(--accent);color:var(--accent-fg)}
+#tree .row.pk .nm,#tree .row.pk>.ms,#tree .row.pk .stm,#tree .row.pk .tg,#tree .row.pk>.ck{color:var(--accent-fg)!important}
+#tree .row.pk .stm{border-color:var(--accent-fg)}
+#findbar button.on{background:var(--accent);color:var(--accent-fg)}
+
+/* 角を丸めた枠の「一辺だけの強調線」は、角の丸みで端が細くならないよう、別の部品（直線）で描いて太さを一定にする */
+.tab{position:relative}
+.tab.on,.tab.on.dim,.tab.dz-before,.tab.dz-after{box-shadow:none}
+.tab.on::before{content:'';position:absolute;top:0;left:10px;right:10px;height:2px;border-radius:0 0 2px 2px;background:var(--accent);pointer-events:none}
+.tab.on.dim::before{background:var(--fg-dim)}
+.tab.dz-before::after,.tab.dz-after::after{content:'';position:absolute;top:8px;bottom:8px;width:3px;border-radius:2px;background:var(--accent);pointer-events:none}
+.tab.dz-before::after{left:0}.tab.dz-after::after{right:0}
+.callout{position:relative;border-left:0;padding-left:24px}
+.callout::before{content:'';position:absolute;left:10px;top:12px;bottom:12px;width:4px;border-radius:2px;background:var(--cl,var(--accent))}
+
+/* 管理画面の表：行全体をホバー・選択の単位にする */
+.tbl{table-layout:auto}
+.tbl tbody tr:hover>td,.tbl tbody tr:focus-within>td{background:var(--hover)}
+.tbl td{vertical-align:middle}
+.tbl td.adm-actions{display:table-cell}
+.adm-app-cell{min-width:0;max-width:420px}
+
+/* ホーム：見出しまわりの余白 */
+.hero-sub{margin-bottom:14px}
+.hero h1{margin:0 0 14px}
+.home-wrap.only-out .hero{margin-bottom:32px}
+.home-wrap.only-out .hero p{margin-bottom:0}
+#home-l .only-out>.pnote{padding-bottom:14px}
+
+/* 右下の通知（転送トレイ）：準備中も、動いていることが分かる見た目に */
+.tr-row.run .tr-h>.ms:first-child{color:var(--accent)}
+.tr-row.run .tr-h>.ms.spin{display:inline-block}
+.tr-row .tr-pct{flex:none;color:var(--fg-dim);font-variant-numeric:tabular-nums}
+#s-proc{display:inline-flex;align-items:center;gap:6px;min-width:0;max-width:min(46vw,520px)}
+#s-proc .proc-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+
+/* 差分の表示 */
+.df .dl.skip{color:var(--fg-dim);justify-content:center;background:color-mix(in srgb,var(--fg-dim) 8%,transparent)}
+.df .df-meta{color:var(--fg-dim);font-size:13px;margin:0 0 6px}
+.df .df-wait{display:flex;align-items:center;gap:8px;color:var(--fg-dim);padding:8px 0}
+.df .dl.eq{opacity:.85}
+.diffv .df-sum{display:flex;gap:10px;align-items:center;flex-wrap:wrap;color:var(--fg-dim)}
+.df-add{color:var(--ok)}.df-del{color:var(--danger)}
+
+/* 管理の再認証が切れたとき：画面全体を覆い、認証するまで中身を見せない */
+.adm-lock-host{position:relative}
+.adm-lock{position:absolute;inset:0;z-index:12;display:grid;place-items:center;padding:24px;background:var(--editor);}
+.adm-lock .box{max-width:420px}
+.adm-lock .box .ms.big{font-size:56px!important;color:var(--warn)}
+
+/* 公開：アプリ一覧の行 */
+.app-row-actions .o{display:inline-flex}
+.app-row .app-row-main small{display:block}
+.u-sel{outline:2px solid var(--accent)}
+
+/* 外部からのファイルのドラッグ（ファイル一覧） */
+#sm02.ext-drop #tree{outline:2px dashed var(--accent);outline-offset:-4px;background:color-mix(in srgb,var(--accent) 6%,transparent)}
+.ext-note{padding:6px 14px;color:var(--accent);font-size:13px}
+
+/* 共有：一括の切り替え画面 */
+.bulk-row{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border)}
+.bulk-row .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bulk-row small{display:block;color:var(--fg-dim)}
+.bulk-row label{display:inline-flex;align-items:center;gap:8px}
+
+.row[hidden],.lcard[hidden],.pnote[hidden]{display:none!important}

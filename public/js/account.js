@@ -14,6 +14,7 @@ async function revokeCurrentTrust() {
   if (!d || !d.id) { showToast('この端末の情報を確認できませんでした'); return false; }
   try {
     await Api.auth.deviceRevoke(d.id);
+    DATA.user.trusted = false; applyTrustUi();
     await refreshDevices();
     notify('device', 'この端末の信頼を解除しました');
     return true;
@@ -21,10 +22,20 @@ async function revokeCurrentTrust() {
 }
 let camStop = null;
 const camStop_ = () => { if (camStop) { camStop(); camStop = null; } const c = $('#apq-cam'); if (c) c.hidden = true; };
+/* 信頼していない端末では、「QRを読み取ってログイン」「数字コードを入れてログイン」「信頼端末の管理」は使えない（サーバーも断る）。
+   使えない項目は、押せるのに失敗する状態にせず、最初から表示しない。 */
+const isTrusted = () => !!(DATA.user && DATA.user.trusted);
+const TRUST_ONLY_ACC = ['devices', 'scanqr', 'entercode'];
+function applyTrustUi() {
+  const ok = isTrusted();
+  TRUST_ONLY_ACC.forEach(k => $$(`[data-acc="${k}"]`).forEach(r => { if (r.closest('#sm10')) r.hidden = !ok; }));
+  const note = $('#acct-untrusted'); if (note) note.hidden = ok;
+}
+const needTrust = () => isTrusted() || (showToast('この端末は信頼端末ではないため、利用できません'), false);
 const ACCT = {
-  devices: async () => { try { await loadMyDevices(); } catch (e) { showApiError(e); } openTab('信頼端末', rMyDevices, 'devices'); },
-  scanqr: () => { camStop_(); openTab('QR読み取りでログイン', () => $('#t-apq').innerHTML, 'qr_code_scanner'); },
-  entercode: () => openTab('コード入力でログイン', () => $('#t-apc').innerHTML, 'pin'),
+  devices: async () => { if (!needTrust()) return; try { await loadMyDevices(); } catch (e) { showApiError(e); } openTab('信頼端末', rMyDevices, 'devices'); },
+  scanqr: () => { if (!needTrust()) return; camStop_(); openTab('QR読み取りでログイン', () => $('#t-apq').innerHTML, 'qr_code_scanner'); },
+  entercode: () => { if (!needTrust()) return; openTab('コード入力でログイン', () => $('#t-apc').innerHTML, 'pin'); },
   'revoke-current': () => confirmDlg('この端末の信頼を解除', 'この端末の信頼を解除します。次回から再承認が必要です。', revokeCurrentTrust)
 };
 document.addEventListener('click', e => { const r = e.target.closest('[data-acc]'); if (r) ACCT[r.dataset.acc](); });

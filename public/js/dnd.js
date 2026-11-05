@@ -110,17 +110,66 @@ async function moveMany(paths, t) {
   if (failed) showToast(`${failed}件を移動できませんでした`);
   else showToast(targets.length + '件を移動しました');
 }
+/* ファイル一覧の「どこに落とすか」の判定。ファイルの移動と、外部（エクスプローラーなど）からのアップロードで、同じものを使う。
+   行の上：フォルダの中央＝その中へ、上下の端＝その前後（親フォルダ）。ファイルの行＝その前後（親フォルダ）。行のない所＝一番上の階層 */
+function treeDropTarget(el, y, excluded = []) {
+  const row = el && el.closest ? el.closest('#tree .row') : null;
+  if (!row) return { el: $('#tree'), pos: 'into', root: true };
+  const path = row.dataset.file || row.dataset.dir; if (excluded.some(q => path === q || path.startsWith(q + '/'))) return null;
+  const r = row.getBoundingClientRect(), f = (y - r.top) / (r.height || 1);
+  return { el: row, path, pos: row.dataset.dir ? (f < .25 ? 'before' : f > .75 ? 'after' : 'into') : (f < .5 ? 'before' : 'after') };
+}
+/* 落とした先のフォルダ（移動先の判定 moveNode と同じ規則） */
+const dropDirOf = t => !t || t.root ? '' : (t.pos === 'into' ? t.path : t.path.split('/').slice(0, -1).join('/'));
 dragKit($('#tree'), {
   item: '.row[data-file], .row[data-dir]',
   start: el => { const path = el.dataset.file || el.dataset.dir; return { path, paths: S.msel.size > 1 && S.msel.has(path) ? topOnly(S.msel) : [path] }; },
   label: p => p.paths.length > 1 ? p.paths.length + '件' : p.path.split('/').pop(),
-  target: (el, x, y, p) => { const row = el.closest('#tree .row');
-    if (!row) return el.closest('#tree') ? { el: $('#tree'), pos: 'into', root: true } : null;
-    const path = row.dataset.file || row.dataset.dir; if (p.paths.some(q => path === q || path.startsWith(q + '/'))) return null;
-    const r = row.getBoundingClientRect(), f = (y - r.top) / (r.height || 1);
-    return { el: row, path, pos: row.dataset.dir ? (f < .25 ? 'before' : f > .75 ? 'after' : 'into') : (f < .5 ? 'before' : 'after') }; },
+  target: (el, x, y, p) => el.closest('#tree') ? treeDropTarget(el, y, p.paths) : null,
   drop: (p, t) => moveMany(p.paths, t)
 });
+
+/* 外部（エクスプローラーなど）からファイル・フォルダをドラッグして来たとき：落とした場所へアップロードする */
+(() => {
+  const host = $('#sm02'); let hl = null;
+  const isFiles = e => !!e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files');
+  const clear = () => { if (hl && hl.el && !hl.root) hl.el.classList.remove('dz-before', 'dz-after', 'dz-into'); hl = null; host.classList.remove('ext-drop'); };
+  const targetOf = e => treeDropTarget(document.elementFromPoint(e.clientX, e.clientY), e.clientY);
+  host.addEventListener('dragover', e => {
+    if (!isFiles(e)) return; e.preventDefault();
+    const ro = !S.proj || !S.proj.id || S.role === 'shared-view' || S.proj.perm === 'view';
+    e.dataTransfer.dropEffect = ro ? 'none' : 'copy'; if (ro) return;
+    const t = targetOf(e); clear(); hl = t;
+    if (t.root) host.classList.add('ext-drop'); else t.el.classList.add('dz-' + t.pos);
+  });
+  host.addEventListener('dragleave', e => { if (!host.contains(e.relatedTarget)) clear(); });
+  /* ドロップされた入れ物から、ファイルとフォルダの中身を取り出す（フォルダは中を全部たどる）。ドロップの処理の中で、同期的に集める必要がある */
+  const readAll = reader => new Promise((resolve, reject) => { const out = []; const next = () => reader.readEntries(list => list.length ? (out.push(...list), next()) : resolve(out), reject); next(); });
+  const fileOf = entry => new Promise((resolve, reject) => entry.file(resolve, reject));
+  async function walk(entry, prefix, out) {
+    if (entry.isFile) { const f = await fileOf(entry); out.push({ name: prefix + entry.name, size: f.size, file: f }); }
+    else if (entry.isDirectory) for (const c of await readAll(entry.createReader())) await walk(c, prefix + entry.name + '/', out);
+  }
+  host.addEventListener('drop', async e => {
+    if (!isFiles(e)) return; e.preventDefault();
+    const t = targetOf(e); clear();
+    if (!S.proj || !S.proj.id || readOnly()) return;
+    const entries = [...(e.dataTransfer.items || [])].filter(i => i.kind === 'file').map(i => i.webkitGetAsEntry ? i.webkitGetAsEntry() : null);
+    const plain = [...(e.dataTransfer.files || [])];
+    const dir = dropDirOf(t), items = [];
+    try {
+      if (entries.length && entries.every(Boolean)) await busy('ドロップしたファイルを確認中', 'folder_open', async () => { for (const en of entries) await walk(en, '', items); });
+      else plain.forEach(f => items.push({ name: f.name, size: f.size, file: f }));
+    } catch (err) { return showToast('ドロップしたファイルを読み取れませんでした'); }
+    if (!items.length) return showToast('アップロードするファイルがありません');
+    items.forEach(it => { it.dir = dir; });
+    if (dir) S.closed.delete(dir);
+    await uploadItems(items, dir);
+  });
+  /* ほかの場所に落としても、ブラウザがファイルを開いてしまわないように */
+  const guard = e => { if (isFiles(e) && !e.target.closest('#sm02,.drop')) { e.preventDefault(); if (e.type === 'dragover') e.dataTransfer.dropEffect = 'none'; } };
+  addEventListener('dragover', guard); addEventListener('drop', guard);
+})();
 
 /* タブ：並べ替え・別グループへの移動（上2＋下1）。タッチでも可能。非表示のグループは端のゾーンへドロップして開く */
 dragKit($('#bench'), {

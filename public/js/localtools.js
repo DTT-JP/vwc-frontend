@@ -43,7 +43,7 @@ const EXT = { jpeg: 'jpg', png: 'png', webp: 'webp', bmp: 'bmp', ico: 'ico' };
 function rImg() {
   const i = TL.img;
   if (!i.img) return `<h2>画像リサイズ</h2><p>画像をこの端末で変換します。「保存」でプロジェクトに追加、「ダウンロード」で端末に保存します。</p>` + Tk.input('img', { note: '入力：png・jpeg・webp・gif・bmp・ico・svg など（ブラウザが表示できる形式）' }) + `<div class="err">${i.err}</div>`;
-  return `<h2>画像リサイズ</h2><p>${i.name}（元 ${i.ow}×${i.oh}） <button class="o" data-a="ti-clear">別のファイルを選ぶ</button></p>
+  return `<h2>画像リサイズ</h2><p>${esc(i.name)}（元 ${i.ow}×${i.oh}） <button class="o" data-a="ti-clear">別のファイルを選ぶ</button></p>
   <p>幅 <input id="t-w" type="number" min="1" value="${i.w}" style="width:90px"> 高さ <input id="t-h" type="number" min="1" value="${i.h}" style="width:90px"> <label><input id="t-lock" type="checkbox" ${i.lock ? 'checked' : ''} style="width:auto">縦横比を固定</label></p>
   <p>形式 <select id="t-fmt">${opt(Object.keys(EXT), i.fmt)}</select> 品質 <input id="t-q" type="range" min="10" max="100" value="${i.q}" ${['jpeg', 'webp'].includes(i.fmt) ? '' : 'disabled'}> <span id="t-qv">${i.q}</span></p>
   <div class="err" id="ti-err">${i.err}</div><p>出力サイズ <b id="ti-size">${i.blob ? kb(i.blob.size) : '計算中…'}</b></p>
@@ -180,7 +180,7 @@ function audioOutput(prefix, a) {
 function rAud() {
   const a = TL.aud;
   if (!a.buf) return `<h2>音声カット</h2>` + Tk.input('aud', { note: '入力：ffmpeg が読める形式すべて（mp3・wav・m4a・aac・ogg・opus・flac・wma・aiff など）。動画ファイルの音声も使えます' }) + Tk.status('aud') + (a.err && !a.err.startsWith('読み込み中') ? `<div class="err" id="ta-err">${a.err}</div>` : '');
-  return `<h2>音声カット</h2><p>${a.name}（${mmss(a.dur)}） <button class="o" data-a="ta-clear">別のファイルを選ぶ</button></p><div class="err" id="ta-err">${a.err}</div>
+  return `<h2>音声カット</h2><p>${esc(a.name)}（${mmss(a.dur)}） <button class="o" data-a="ta-clear">別のファイルを選ぶ</button></p><div class="err" id="ta-err">${a.err}</div>
   <div class="track">
     <div class="tr-head">${ico('graphic_eq')}<b>トラック1</b><button class="o" id="ta-rangebtn" data-a="ta-range" title="押してから波形をドラッグすると、その範囲を切り出し範囲にします">${ico('select_all')}範囲指定</button><span id="ta-hint" class="tnote" style="padding:0"></span><span class="sp"></span><span class="tnote" style="padding:0">拡大</span>
       <button data-a="ta-zout" title="縮小">${ico('zoom_out')}</button><b id="ta-zl">×1</b><button data-a="ta-zin" title="拡大">${ico('zoom_in')}</button><button data-a="ta-fit" title="全体を表示">${ico('fit_screen')}</button></div>
@@ -200,7 +200,7 @@ const preInfo = a => AOUT[a.fmt].lossy ? `${a.br}kbps` : `${presetBits(a)}bit`;
 function rVid() {
   const v = TL.vid;
   if (!v.file || !v.dur) return `<h2>動画から音声を取り出す</h2>` + Tk.input('vid', { note: '入力：ffmpeg が読める動画（mp4・webm・mkv・mov・avi・wmv など）。音声ファイルも使えます' }) + Tk.status('vid') + (v.err && !v.err.startsWith('読み込み中') ? `<div class="err" id="tv-err">${v.err}</div>` : '');
-  return `<h2>動画から音声を取り出す</h2><p>${v.name}（${fmtT(v.dur)}・${v.srcCh}ch・${v.hz}Hz） <button class="o" data-a="tv-clear">別のファイルを選ぶ</button></p><div class="err" id="tv-err">${v.err}</div>
+  return `<h2>動画から音声を取り出す</h2><p>${esc(v.name)}（${fmtT(v.dur)}・${v.srcCh}ch・${v.hz}Hz） <button class="o" data-a="tv-clear">別のファイルを選ぶ</button></p><div class="err" id="tv-err">${v.err}</div>
   ${audioOutput('tv', v)}
   <p>推定出力サイズ <b id="tv-est">${kb(estOf(v, 0, v.dur))}</b></p>${Tk.status('vid')}` + Tk.output('vid');
 }
