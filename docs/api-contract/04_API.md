@@ -1,4 +1,4 @@
-> 複製元: vwc-backend docs/04_API.md（コミット 20ac273）／複製日: 2026-11-07
+> 複製元: vwc-backend docs/04_API.md（作業ツリー / BE 1.2.x, admin/admins_status 追加）／複製日: 2026-11-08
 > この文書は複製です。直接直さず、複製元を直してから更新してください。
 
 # 04 API定義（v3.3。**FE と BE の契約**。正は BE リポジトリの `docs/04_API.md`。FE は写しを `docs/api-contract/04_API.md` に置く。規則は `docs/rules/04_API規則.md` が正）
@@ -15,7 +15,7 @@
 | auth/logout | ログイン (login) | untrust? | ok（untrust=true でこの端末の信頼も解除） |
 | auth/devices, device_revoke | ログイン (login) | id | 自分の信頼端末 |
 | auth/trust | ログイン (login) | label | この端末を信頼端末として登録し、端末Cookieを発行 |
-| me | ログイン (login) | — | member(position, isAdmin, reauthUntil), csrf, 画面が使う設定値（quota_mb, max_upload_mb, max_publish_mb, max_projects_per_member, track_limit_mb, code_ttl_sec, device_days, zip_max_mb など。`limits` に全制限値） |
+| me | ログイン (login) | — | member(position, isAdmin, reauthUntil, idp_linked), csrf, 画面が使う設定値（quota_mb, max_upload_mb, max_publish_mb, max_projects_per_member, track_limit_mb, code_ttl_sec, device_days, zip_max_mb など。`limits` に全制限値）。`idp_linked` は BE 1.2+（IdP 結び付き） |
 | usage/me | ログイン (login) | — | 4区分の合計と全件（プロジェクト・アプリ・履歴・その他） |
 | notices/list | ログイン (login) | — | 「忘れていませんか？」（放置アプリ・容量80%超・端末期限7日前・孤立アプリ［管理者のみ］）。サーバーが生成 |
 | announcements/list | ログイン (login) | — | 表示期間内・対象に合うお知らせ |
@@ -52,7 +52,8 @@
 | apps/open | ログイン (login, 閲覧可能な人) | name | ゲートトークン発行 |
 | apps/gate_verify | 不要 (none) | name, code | 限定公開のコードを検証し、アクセストークンの Cookie を発行。誤りは `bad_code`（残り回数）、ロックは `rate`（解除までの秒数） |
 | apps/unpublish | ログイン (login, 公開権限者) | name | 削除 |
-| admin/members_list, add, update, import_csv | 管理者+再認証 (admin_reauth) | add: id? (省略時は自動採番), name, mail, position, is_admin; update: member または id/member_id と変更項目。※`member_id`/`email`/`isAdmin` は `admin/members_add,update` の別名、`member_id` は `admin/members_delete` の別名（2.0で削除） | 役職・管理者権限・メール・名前・有効/無効の編集。CSV列は `部員ID,名前,メール,役職,管理者権限` |
+| admin/admins_status | 管理者+再認証 (admin_reauth) | — | 管理者2人要件の状態（BE 1.2+）。`adminCount`（指定管理者数: 有効かつ `idp_admin_designated`、非IdP結び付きの旧`role=admin`も含む）`executableAdminCount`（有効かつ執行可能`role=admin`）`hasMinimumAdmins`（`adminCount>=minimumRequired`）`minimumRequired`(2)。IdPが正（D-09）のためBEミラーに基づく集計。FEが管理者人数を確認する用途 |
+| admin/members_list, add, update, import_csv | 管理者+再認証 (admin_reauth) | add: id? (省略時は自動採番), name, mail, position, is_admin; update: member または id/member_id と変更項目。※`member_id`/`email`/`isAdmin` は `admin/members_add,update` の別名、`member_id` は `admin/members_delete` の別名（2.0で削除） | 役職・管理者権限・メール・名前・有効/無効の編集。CSV列は `部員ID,名前,メール,役職,管理者権限`。`members_list` 各部員に `idp_linked`（BE 1.2+）。`login_providers` に `idp` があるとき: `members_add` の `mail` は任意（空なら NULL、重複検査は値があるときのみ）/`is_admin=true` は `managed_by_idp` 409、`members_update` で結び付いた部員の管理者フラグを変える要求は `managed_by_idp` 409（同値は可）、`members_import_csv` は管理者権限列を無視し応答に `ignored_admin` を返す |
 | admin/members_delete | 管理者+再認証 (admin_reauth) | member, projects[{id, action(keep/transfer/delete), to?}], apps[{name, action(keep/private/unlisted/delete)}] | 既定は keep |
 | admin/devices_list | 管理者+再認証 (admin_reauth) | member? | 端末一覧 |
 | admin/devices_revoke | 管理者+再認証 (admin_reauth) | id | 端末の失効（正規名） |
@@ -85,6 +86,7 @@
 | `invalid` | 400 | 入力不正・未知の入力キー（未知キーは拒否）・許可されない操作 |
 | `limit` | 409 | 制限超過（件数など） |
 | `locked` | 423 | 占有・ロック中 |
+| `managed_by_idp` | 409 | IdP が正の項目（結び付いた部員の管理者フラグ等）を BE から変更しようとした（BE 1.2+）。現在の値と同じ場合は拒否しない |
 | `method_not_allowed` | 405 | メソッド不許可 |
 | `not_admin` | 403 | 管理者権限なし |
 | `not_found` | 404 | 対象なし |
@@ -108,9 +110,10 @@ URL契約の正は **`docs/rules/04_API規則.md` §11**。本書では BE が�
 | URL | 意味 | 発行元 |
 |---|---|---|
 | `…/editor/?approve=<6桁>` | 承認画面（S02）を開く。QRの中身 | FE |
-| `…/editor/system/auth/microsoft.php?mode=…` | Microsoft ログイン開始（BE 1.x） | FE |
-| `…/editor/?auth=done&mode=register\|direct\|reauth` | ログイン成功。FE は `me` を呼ぶ | BE（`microsoft.php` / 将来 `idp.php`） |
-| `…/editor/?auth=error&reason=<分類>&detail=<詳細>&code=<E-A..>` | ログイン失敗。`detail` は省略されることがある。`reason` は分類、`code` は FE の表示用（例: `E-A01`〜`E-A15`、`E-A99`。IdP由来は `E-A20`〜`E-A24` を BE 1.2+ で追加） | BE（現行は `auth/microsoft.php` の `authFail()` が `reason`・`detail`・`code` を付与） |
+| `…/editor/system/auth/microsoft.php?mode=…` | Microsoft ログイン開始（BE 1.x、並走中） | FE |
+| `…/editor/system/auth/idp.php?mode=direct\|register\|reauth\|logout` | IdP ログイン/再認証/ログアウト開始（BE 1.2+、`login_providers` に `idp` があるとき） | FE（画面遷移） |
+| `…/editor/?auth=done&mode=register\|direct\|reauth` | ログイン/再認証成功。FE は `me` を呼ぶ | BE（`microsoft.php` / `idp.php`） |
+| `…/editor/?auth=error&reason=<分類>&detail=<詳細>&code=<E-A..>` | ログイン失敗。`detail` は省略されることがある。`reason` は分類、`code` は FE の表示用（例: `E-A01`〜`E-A15`、`E-A99`。IdP由来は `E-A20`〜`E-A24` を BE 1.2+ で追加） | BE（`auth/microsoft.php` / `auth/idp.php` の `authFail()` が `reason`・`detail`・`code` を付与） |
 | `…/editor/?gate=<名前>&need=code&return=<パス>` | 限定公開のコード入力（S19） | BE（`gate.php`） |
 | `…/editor/?gate=<名前>&need=login&return=<パス>` | 非公開でログインが必要（S19） | BE（`gate.php`） |
 | `…/editor/?gate=<名前>&need=denied` | 非公開で権限なし（S19） | BE（`gate.php`） |
