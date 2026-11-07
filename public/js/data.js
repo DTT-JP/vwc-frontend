@@ -386,7 +386,9 @@ function markStates(projectId, states) {
 }
 
 /* ---- 読み込み ---- */
-async function loadProjects() { applyProjects(await Api.projects.list()); }
+/* 同時に何度か呼ばれても、いちばん新しい応答だけを反映する（古い応答が後から届いて上書きするのを防ぐ） */
+let projectsSeq = 0;
+async function loadProjects() { const seq = ++projectsSeq, d = await Api.projects.list(); if (seq === projectsSeq) applyProjects(d); }
 async function loadUsage() { applyUsage(await Api.call('usage/me', {})); }
 async function loadAnnouncements() { applyAnnouncements(await Api.call('announcements/list', {})); }
 async function loadAdminAnnouncements() { applyAnnouncements(await Api.admin.announcementsList()); }
@@ -432,7 +434,9 @@ async function ensureText(node, path, projectId) {
   if (!node || node.t === 'dir' || node.text !== undefined || !textPath(node.n)) return node;
   const name = String(path).split('/').pop(), big = (node.size || 0) >= 1048576;
   const read = () => Api.files.read(projectId, path);
-  const d = big ? await Task.run({ title: `${name} を読み込み中（${kb(node.size)}）`, icon: 'description', delay: 0 }, read) : await read();
+  /* 1MB以上は、すぐに右下の通知を出す。それ未満・サイズ不明でも、0.35秒以上かかったら通知を出す（通信が遅いとき） */
+  const label = node.size ? `${name} を読み込み中（${kb(node.size)}）` : `${name} を読み込み中`;
+  const d = await Task.run({ title: label, icon: 'description', ...(big ? { delay: 0 } : {}) }, read);
   node.text = d.content ?? d.text ?? '';
   if (d.version !== undefined) node.version = d.version;
   if (node.bt === undefined) node.bt = node.text;
@@ -443,9 +447,10 @@ async function ensureBlob(node, path, projectId) {
   if (!node || node.t === 'dir' || node.blob) return node;
   const name = String(path).split('/').pop(), big = (node.size || 0) >= 1048576;
   const fetchIt = onProgress => Api.files.raw(projectId, path, onProgress ? { onProgress } : undefined);
-  const { blob } = big
-    ? await Task.run({ title: `${name} を読み込み中（${kb(node.size)}）`, icon: 'download', delay: 0 }, t => fetchIt((got, total) => t.set({ pct: total ? got / total : null, msg: total ? `${kb(got)} / ${kb(total)}` : kb(got) })))
-    : await fetchIt();
+  const label = node.size ? `${name} を読み込み中（${kb(node.size)}）` : `${name} を読み込み中`;
+  /* 小さいファイルでも、遅ければ（0.35秒を超えたら）通知を出し、受け取った量を進み具合に出す */
+  const { blob } = await Task.run({ title: label, icon: 'download', ...(big ? { delay: 0 } : {}) },
+    t => fetchIt((got, total) => t.set({ pct: total ? got / total : null, msg: total ? `${kb(got)} / ${kb(total)}` : kb(got) })));
   node.blob = blob;
   if (!node.size) node.size = blob.size;
   return node;

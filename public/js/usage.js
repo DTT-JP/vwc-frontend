@@ -49,7 +49,7 @@ function rUsage() {
   const cats = usageCats(), used = usageTotal(cats), showMembers = S.role === 'admin' && DATA.members.length;
   const grp = (u, title) => {
     const list = itemsOf(u), c = UCOL[u.name];
-    return `<section class="ug"><div class="ug-h"><span class="sw" style="background:${c}"></span><b>${title}（${list.length}件）</b><span>${fmtMB(u.mb)}MB ・ ${(used ? u.mb / used * 100 : 0).toFixed(1)}%</span></div>` +
+    return `<section class="ug"><div class="ug-h"><span class="sw" style="background:${c}"></span><b>${esc(title)}（${list.length}件）</b><span>${fmtMB(u.mb)}MB ・ ${(used ? u.mb / used * 100 : 0).toFixed(1)}%</span></div>` +
       list.map(([n, v]) => {
         const actions = (u.name === 'プロジェクト' ? `<button class="o" data-usage-open="${esc(n)}" title="プロジェクトを開く">${ico('open_in_new')}</button>` : '') +
           (u.name === '履歴' ? `<button class="o" data-usage-history="${esc(n)}" title="履歴を削除">${ico('delete')}</button>` : '') +

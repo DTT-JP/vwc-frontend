@@ -576,8 +576,6 @@ dialog:focus{outline:none}
 .seg.login-tabs button{flex:1 1 0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:56px;padding:6px 4px;background:transparent;border:0;border-bottom:3px solid transparent;border-radius:8px 8px 0 0;color:var(--fg-dim);font-weight:500;cursor:pointer}
 .seg.login-tabs button .ms{font-size:22px}
 .seg.login-tabs button:hover{background:var(--hover)}
-.seg.login-tabs button.on{background:color-mix(in srgb,var(--accent) 14%,transparent);border-bottom-color:var(--accent);color:var(--fg);font-weight:700}
-.seg.login-tabs button.on .ms{color:var(--accent)}
 .dev-req{font-size:18px;line-height:1.6;margin:12px 0}.dev-req b{font-size:20px}
 
 /* ================= 見た目の調整（2026-11） ================= */
@@ -651,3 +649,18 @@ dialog:focus{outline:none}
 .bulk-row label{display:inline-flex;align-items:center;gap:8px}
 
 .row[hidden],.lcard[hidden],.pnote[hidden]{display:none!important}
+
+/* ログイン／ライセンスの上のタブ：選ばれているものは「青い背景＋白い文字」（古い薄い青の規則は削除した） */
+.seg.login-tabs button.on,.seg.login-tabs button.on:hover{background:var(--accent);color:var(--accent-fg)}
+
+/* 表（スマホ幅）：項目名が1文字ずつ折り返されないよう、項目名は縮めず、内容側を縮める */
+#app.w-phone .tbl td{gap:12px;align-items:center}
+#app.w-phone .tbl td::before{flex:none;white-space:nowrap}
+#app.w-phone .tbl td>*{min-width:0}
+#app.w-phone .tbl td:has(>.adm-app-cell){flex-direction:column;align-items:stretch;gap:4px}
+#app.w-phone .adm-app-cell{max-width:none}
+#app.w-phone .tbl td.adm-actions{width:auto;justify-content:flex-end}
+#app.w-phone .tbl td[colspan]::before{content:none}
+
+/* hidden 属性は、他の display 指定より必ず優先する（畳んだ画面・区切り線が残らないように） */
+#g1[hidden],#g2[hidden],#split-g[hidden],.dz[hidden]{display:none!important}

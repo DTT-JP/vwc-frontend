@@ -1,10 +1,22 @@
 DirectoryIndex index.html
 Options -Indexes
-php_value upload_max_filesize 4096M
-php_value post_max_size 4096M
-php_value memory_limit 4096M
-php_value max_execution_time 300
-php_value max_input_vars 3000
+# PHP の上限設定。php_value / php_flag は「mod_php」のときだけ使える指示。
+# PHP-FPM・CGI では未定義コマンドになり、IfModule で囲まないと全URLが 500 になる。
+# （FPM・CGI で上限を上げたい場合は、同じ値を .user.ini か ホスティングの PHP 設定に書く）
+<IfModule mod_php.c>
+  php_value upload_max_filesize 4096M
+  php_value post_max_size 4096M
+  php_value memory_limit 4096M
+  php_value max_execution_time 300
+  php_value max_input_vars 3000
+</IfModule>
+<IfModule mod_php7.c>
+  php_value upload_max_filesize 4096M
+  php_value post_max_size 4096M
+  php_value memory_limit 4096M
+  php_value max_execution_time 300
+  php_value max_input_vars 3000
+</IfModule>
 
 <FilesMatch "^\.">
   Require all denied
@@ -15,8 +27,18 @@ php_value max_input_vars 3000
   AddType text/javascript .js .mjs
 </IfModule>
 
-<IfModule mod_php.c>
-  php_flag engine off
+# 注意: ここに「php_flag engine off」を書いてはいけない。
+# .htaccess の設定はサブディレクトリへ継承されるため、editor/ 直下で engine off にすると
+# system/api/・system/auth/ の PHP まで実行されず、ソースコードがそのまま表示される。
+# PHP の実行拒否が必要なのは app/ だけで、editor/app/.htaccess が個別に行っている。
+
+# 画面（HTML・JS・CSS・ヘルプ）は、表示のたびにサーバーへ「更新があるか」を確認させる。
+# 更新が無ければ 304 で済むので重くならない。これが無いと、デプロイ後もブラウザが古い CSS・JS を使い続け、
+# 直したはずの見た目（タブの色など）が実機に反映されないことがある。
+<IfModule mod_headers.c>
+  <FilesMatch "\.(html|js|css|md)$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
 </IfModule>
 
 <IfModule mod_headers.c>

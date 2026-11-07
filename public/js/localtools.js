@@ -179,8 +179,8 @@ function audioOutput(prefix, a) {
 }
 function rAud() {
   const a = TL.aud;
-  if (!a.buf) return `<h2>音声カット</h2>` + Tk.input('aud', { note: '入力：ffmpeg が読める形式すべて（mp3・wav・m4a・aac・ogg・opus・flac・wma・aiff など）。動画ファイルの音声も使えます' }) + Tk.status('aud') + (a.err && !a.err.startsWith('読み込み中') ? `<div class="err" id="ta-err">${a.err}</div>` : '');
-  return `<h2>音声カット</h2><p>${esc(a.name)}（${mmss(a.dur)}） <button class="o" data-a="ta-clear">別のファイルを選ぶ</button></p><div class="err" id="ta-err">${a.err}</div>
+  if (!a.buf) return `<h2>音声カット</h2>` + Tk.input('aud', { note: '入力：ffmpeg が読める形式すべて（mp3・wav・m4a・aac・ogg・opus・flac・wma・aiff など）。動画ファイルの音声も使えます' }) + Tk.status('aud') + (a.err && !a.err.startsWith('読み込み中') ? `<div class="err" id="ta-err">${esc(a.err)}</div>` : '');
+  return `<h2>音声カット</h2><p>${esc(a.name)}（${mmss(a.dur)}） <button class="o" data-a="ta-clear">別のファイルを選ぶ</button></p><div class="err" id="ta-err">${esc(a.err)}</div>
   <div class="track">
     <div class="tr-head">${ico('graphic_eq')}<b>トラック1</b><button class="o" id="ta-rangebtn" data-a="ta-range" title="押してから波形をドラッグすると、その範囲を切り出し範囲にします">${ico('select_all')}範囲指定</button><span id="ta-hint" class="tnote" style="padding:0"></span><span class="sp"></span><span class="tnote" style="padding:0">拡大</span>
       <button data-a="ta-zout" title="縮小">${ico('zoom_out')}</button><b id="ta-zl">×1</b><button data-a="ta-zin" title="拡大">${ico('zoom_in')}</button><button data-a="ta-fit" title="全体を表示">${ico('fit_screen')}</button></div>
@@ -199,8 +199,8 @@ function rAud() {
 const preInfo = a => AOUT[a.fmt].lossy ? `${a.br}kbps` : `${presetBits(a)}bit`;
 function rVid() {
   const v = TL.vid;
-  if (!v.file || !v.dur) return `<h2>動画から音声を取り出す</h2>` + Tk.input('vid', { note: '入力：ffmpeg が読める動画（mp4・webm・mkv・mov・avi・wmv など）。音声ファイルも使えます' }) + Tk.status('vid') + (v.err && !v.err.startsWith('読み込み中') ? `<div class="err" id="tv-err">${v.err}</div>` : '');
-  return `<h2>動画から音声を取り出す</h2><p>${esc(v.name)}（${fmtT(v.dur)}・${v.srcCh}ch・${v.hz}Hz） <button class="o" data-a="tv-clear">別のファイルを選ぶ</button></p><div class="err" id="tv-err">${v.err}</div>
+  if (!v.file || !v.dur) return `<h2>動画から音声を取り出す</h2>` + Tk.input('vid', { note: '入力：ffmpeg が読める動画（mp4・webm・mkv・mov・avi・wmv など）。音声ファイルも使えます' }) + Tk.status('vid') + (v.err && !v.err.startsWith('読み込み中') ? `<div class="err" id="tv-err">${esc(v.err)}</div>` : '');
+  return `<h2>動画から音声を取り出す</h2><p>${esc(v.name)}（${fmtT(v.dur)}・${v.srcCh}ch・${v.hz}Hz） <button class="o" data-a="tv-clear">別のファイルを選ぶ</button></p><div class="err" id="tv-err">${esc(v.err)}</div>
   ${audioOutput('tv', v)}
   <p>推定出力サイズ <b id="tv-est">${kb(estOf(v, 0, v.dur))}</b></p>${Tk.status('vid')}` + Tk.output('vid');
 }

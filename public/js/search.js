@@ -66,7 +66,7 @@ let palSel = 0;
 function palList() {
   const q = $('#pal-in').value.toLowerCase(), all = []; (function w(l, p) { l.forEach(f => f.t === 'dir' ? w(f.c, p + f.n + '/') : all.push(p + f.n)); })(files(), '');
   const m = all.filter(x => x.toLowerCase().includes(q)); palSel = 0;
-  $('#pal-l').innerHTML = m.map((x, i) => `<div class="row ${i === 0 ? 'sel' : ''}" data-pf="${x}">${fico(x.split('/').pop())}<span class="nm">${x}</span></div>`).join('') || '<div class="pnote">該当するファイルがありません</div>';
+  $('#pal-l').innerHTML = m.map((x, i) => `<div class="row ${i === 0 ? 'sel' : ''}" data-pf="${esc(x)}">${fico(x.split('/').pop())}<span class="nm">${esc(x)}</span></div>`).join('') || '<div class="pnote">該当するファイルがありません</div>';
 }
 function openPalette() { $('#pal-in').value = ''; palList(); $('#d-pal').showModal(); $('#pal-in').focus(); }
 $('#pal-open').onclick = openPalette; $('#pal-in').oninput = palList;

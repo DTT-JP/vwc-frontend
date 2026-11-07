@@ -30,6 +30,8 @@ function roleForProject() {
   if (DATA.user.isAdmin) return 'admin';
   const p = S.proj;
   if (!p) return 'member';
+  /* サーバーが「自分の」として返したプロジェクトは、perm の値にかかわらず所有者として扱う */
+  if (DATA.projects.mine.some(x => x.id === p.id)) return 'member';
   if (p.owner && p.owner === DATA.user.id) return 'member';
   if (!p.perm || p.perm === 'owner') return 'member';
   return p.perm === 'view' ? 'shared-view' : 'shared-edit';

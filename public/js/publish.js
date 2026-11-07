@@ -123,9 +123,13 @@ $('#pub-list').onclick = e => { const open = e.target.closest('[data-open-app]')
 
 /* ---- 新しく公開（3ステップ：入力 → 確認 → 結果） ---- */
 const pubStep = n => $$('#d-pub [data-pstep]').forEach(s => s.hidden = s.dataset.pstep !== String(n));
-function pubOpen() {
+async function pubOpen() {
+  /* プロジェクトの一覧が古い・空のままだと候補が出ないので、開くたびに取り直す（失敗しても、いまある一覧で続ける）。
+     以前は S.proj が空だとここで例外になり、ダイアログ自体が開かなかった */
+  try { await loadProjects(); } catch { /* 手元の一覧で続行 */ }
   const ps = pubProjects(); $('#pub-name').value = ''; $('#pub-chk').textContent = ''; $('#pub-chk').className = 'dnote';
-  $('#pub-proj').innerHTML = ps.map(p => `<option value="${p.id}">${esc(p.label)}</option>`).join(''); if (ps.some(p => p.id === S.proj.id)) $('#pub-proj').value = S.proj.id;
+  $('#pub-proj').innerHTML = ps.length ? ps.map(p => `<option value="${esc(p.id)}">${esc(p.label)}</option>`).join('') : '<option value="">公開できるプロジェクトがありません</option>';
+  const cur = S.proj && S.proj.id; if (cur && ps.some(p => p.id === cur)) $('#pub-proj').value = cur;
   fillPubCommits(); $('input[name=ps][value=公開]').checked = true;
   $('#pub-next').disabled = true; pubStep(1); $('#d-pub').showModal();
 }
@@ -244,7 +248,7 @@ async function fillUpdInfo() {
   const a = curApp(); if (!a) return;
   const to = $('#ap-commit').value, target = commitsForProject(a.proj).find(c => c.hash === to), s = target && changeSummary(a.proj, a.commit, to), pr = await appJson(a.proj);
   $('#ap-sum').innerHTML = (s ? `現在 ${commitCode(a.commit, a.proj, a.commitMessage)} → ${commitCode(to, a.proj)}：${s.newer ? '新しい版へ' : '古い版へ'}（${s.n}件のコミット分。追加 ${s.add}・変更 ${s.mod}・削除 ${s.del} ファイル）` : `現在と同じ版です（${commitCode(a.commit, a.proj, a.commitMessage)}）`);
-  $('#ap-pres').innerHTML = '更新で引き継ぐファイル（app.json の preserve）：' + (pr.err ? `<span class="err">${pr.err}</span>` : pr.list.length ? pr.list.map(x => `<code>${esc(x)}</code>`).join(' ') : 'なし');
+  $('#ap-pres').innerHTML = '更新で引き継ぐファイル（app.json の preserve）：' + (pr.err ? `<span class="err">${esc(pr.err)}</span>` : pr.list.length ? pr.list.map(x => `<code>${esc(x)}</code>`).join(' ') : 'なし');
   $('#ap-upd').disabled = !s || !s.newer; $('#ap-rb').disabled = !s || s.newer;
 }
 $('#ap-sel').onchange = () => fillApp(); $('#ap-commit').onchange = () => fillUpdInfo();
@@ -363,7 +367,8 @@ historyMenu.addEventListener('click', async e => {
     $('#cnp-src').value = S.proj.id; $('#cnp-commit').value = hash; return;
   }
   if (action === 'publish') {
-    pubOpen(); $('#pub-proj').value = S.proj.id; fillPubCommits(hash); return;
+    pubOpen().then(() => { if (S.proj && $('#pub-proj').querySelector(`option[value="${S.proj.id}"]`)) $('#pub-proj').value = S.proj.id; fillPubCommits(hash); });
+    return;
   }
   if (action === 'prune') pruneHistory(hash);
 });

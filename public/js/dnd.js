@@ -182,8 +182,10 @@ dragKit($('#bench'), {
     const tab = el.closest('.tab'); if (tab) { if (tab.dataset.p === p.tab.path) return null; return { el: tab, pos: (() => { const r = tab.getBoundingClientRect(); return x < r.left + r.width / 2 ? 'before' : 'after'; })(), tab: S.tabs.find(t => t.path === tab.dataset.p) }; }
     const z = el.closest('.dz'); if (z) return { el: z, pos: 'into', zone: z.dataset.z };
     const g = el.closest('.group'); return g ? { el: g, pos: 'into', g: g.dataset.g } : null; },
-  drop: (p, t) => { const tab = p.tab; tab.fromSub = false; S.tabs = S.tabs.filter(x => x !== tab);
+  drop: (p, t) => { const tab = p.tab, from = tab.g; tab.fromSub = false; S.tabs = S.tabs.filter(x => x !== tab);
     if (t.tab) { tab.g = t.tab.g; S.tabs.splice(S.tabs.indexOf(t.tab) + (t.pos === 'after' ? 1 : 0), 0, tab); }
-    else { tab.g = t.zone ? 'g2' : t.g; const el = $('#' + tab.g); el.dataset.keep = 1; el.hidden = false; S.tabs.push(tab); }
+    else { tab.g = t.zone ? 'g2' : t.g; const el = $('#' + tab.g); if (tab.g === 'g2') { el.dataset.keep = 1; el.hidden = false; } S.tabs.push(tab); }
+    /* 元の画面が空になったなら「開いたままにする」印を外して1画面に畳む（区切り線・ボタン類が2画面のまま残らないように） */
+    if (from !== tab.g && !S.tabs.some(x => x.g === from)) $('#' + from).dataset.keep = '';
     S.act[tab.g] = tab; S.grp = tab.g; renderTabs(); navPush(); }
 });

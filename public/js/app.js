@@ -170,8 +170,11 @@ $('#left').addEventListener('click', e => {
 });
 async function openProject(id) {
   if (S.tabs.some(unsaved) && S.proj && S.proj.id !== id) return closeUnsavedSequential([...S.tabs], () => openProject(id));
-  S.proj = [...DATA.projects.mine, ...DATA.projects.shared].find(p => p.id === id);
+  /* 「自分の」を先に探す（同じ id が両方にあっても、所有者として開く） */
+  S.proj = DATA.projects.mine.find(p => p.id === id) || DATA.projects.shared.find(p => p.id === id);
   if (!S.proj) return showToast('プロジェクトが見つかりません');
+  /* 読み込みを待つ間、前に開いていたプロジェクトの権限（共有・閲覧）が残らないよう、権限はいますぐ切り替える */
+  if (window.applyRoleForProject) applyRoleForProject();
   S.tabs = []; S.msel = new Set(); S.mmode = false; S.hov = null; S.anchor = null;
   S.loading++;
   renderTabs(); renderTree(); updateStatus(); showPanel('sm02');
