@@ -1,7 +1,7 @@
 {
   "version": "1.1.0",
-  "build": "d6f92cb",
-  "build_full": "d6f92cb902dae36c6ca0cf6b7e33b8d3b65d57f14dee8a862de008b45548b492",
+  "build": "095f104",
+  "build_full": "095f104823340a250d9b98b34c7197f62176f4b687da31f8768dced86444381d",
   "files": {
     "LICENSE": "bf248b023b2aeac9100aff7c6b76776847076f7f9dd89d23ebe4ceaf9d261069",
     "NOTICE.md": "3b5faa454b2b5e29f54240125e953c3225d0be4465f591c426378875a4070de2",
@@ -68,7 +68,7 @@
     "js/touchui.js": "9910385bfb24198063d708b794bf6d3be193fe95ba8abf0a68c3699d99615b5a",
     "js/transfer.js": "cf4593bf2e1354507bbc3f45196d5c701b8c5f10aba56549f220bb78e24e8085",
     "js/usage.js": "1c062381df7664abde5c731666fe8b69b2615ec4c0f9c92fee9d9ef7050a9be5",
-    "js/version.js": "ada453ac4afde723f3add1fbb2de36b9922a02afca424e397cfb7b1bbefef6ee",
+    "js/version.js": "bd0868b28c01bf4b47d40ac3a8e40845cdd6a11f8c523fcef87bd63f68139bb7",
     "licenses.html": "a49eda304a9ecd03fea487c46a0a26c8454a28243fecf770cedb941c1258423f",
     "mermaid-frame.html": "9d02c1423ff2ae085e2bc7454097fad2b5a2bb156ead762bffe7ad1f42667627"
   },

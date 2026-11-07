@@ -14,10 +14,62 @@
     }
     return new Uint8Array(out);
   }
+  /* SHA-256: crypto.subtle が使える環境では WebCrypto、非セキュアコンテキスト(HTTP等)ではJSフォールバック。 */
+  function sha256HexFallback(bytes) {
+    const u8 = (bytes instanceof Uint8Array) ? bytes : new Uint8Array(bytes);
+    function rotr(n, x) { return (x >>> n) | (x << (32 - n)); }
+    const K = new Uint32Array([
+      0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+      0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+      0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+      0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+      0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+      0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+      0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+      0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
+    ]);
+    let h0=0x6a09e667,h1=0xbb67ae85,h2=0x3c6ef372,h3=0xa54ff53a,h4=0x510e527f,h5=0x9b05688c,h6=0x1f83d9ab,h7=0x5be0cd19;
+    const bitLen = u8.length * 8;
+    const withOne = u8.length + 1;
+    const padLen = (withOne % 64 <= 56 ? 56 - (withOne % 64) : 120 - (withOne % 64));
+    const total = withOne + padLen + 8;
+    const m = new Uint8Array(total);
+    m.set(u8, 0); m[u8.length] = 0x80;
+    const hi = Math.floor(bitLen / 0x100000000), lo = bitLen >>> 0;
+    m[total-8]=(hi>>>24)&255; m[total-7]=(hi>>>16)&255; m[total-6]=(hi>>>8)&255; m[total-5]=hi&255;
+    m[total-4]=(lo>>>24)&255; m[total-3]=(lo>>>16)&255; m[total-2]=(lo>>>8)&255; m[total-1]=lo&255;
+    const w = new Uint32Array(64);
+    for (let off = 0; off < total; off += 64) {
+      for (let i = 0; i < 16; i++) { const j = off + i*4; w[i] = ((m[j]<<24)|(m[j+1]<<16)|(m[j+2]<<8)|m[j+3])>>>0; }
+      for (let i = 16; i < 64; i++) {
+        const s0 = (rotr(7,w[i-15]) ^ rotr(18,w[i-15]) ^ (w[i-15]>>>3))>>>0;
+        const s1 = (rotr(17,w[i-2]) ^ rotr(19,w[i-2]) ^ (w[i-2]>>>10))>>>0;
+        w[i] = (w[i-16] + s0 + w[i-7] + s1)>>>0;
+      }
+      let a=h0,b=h1,c=h2,d=h3,e=h4,f=h5,g=h6,h=h7;
+      for (let i = 0; i < 64; i++) {
+        const S1 = (rotr(6,e)^rotr(11,e)^rotr(25,e))>>>0;
+        const ch = ((e&f)^(~e&g))>>>0;
+        const t1 = (h + S1 + ch + K[i] + w[i])>>>0;
+        const S0 = (rotr(2,a)^rotr(13,a)^rotr(22,a))>>>0;
+        const maj = ((a&b)^(a&c)^(b&c))>>>0;
+        const t2 = (S0 + maj)>>>0;
+        h=g; g=f; f=e; e=(d+t1)>>>0; d=c; c=b; b=a; a=(t1+t2)>>>0;
+      }
+      h0=(h0+a)>>>0; h1=(h1+b)>>>0; h2=(h2+c)>>>0; h3=(h3+d)>>>0; h4=(h4+e)>>>0; h5=(h5+f)>>>0; h6=(h6+g)>>>0; h7=(h7+h)>>>0;
+    }
+    function hex32(x){return (x>>>0).toString(16).padStart(8,'0');}
+    return hex32(h0)+hex32(h1)+hex32(h2)+hex32(h3)+hex32(h4)+hex32(h5)+hex32(h6)+hex32(h7);
+  }
   async function sha256Hex(bytes) {
     const ab = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
-    const d = await crypto.subtle.digest('SHA-256', ab);
-    return Array.from(new Uint8Array(d)).map(b => b.toString(16).padStart(2, '0')).join('');
+    if (typeof crypto !== 'undefined' && crypto.subtle && typeof crypto.subtle.digest === 'function') {
+      try {
+        const d = await crypto.subtle.digest('SHA-256', ab);
+        return Array.from(new Uint8Array(d)).map(b => b.toString(16).padStart(2, '0')).join('');
+      } catch (e) { /* フォールバックへ */ }
+    }
+    return sha256HexFallback(new Uint8Array(ab));
   }
   async function fetchTextNoStore(url) {
     const r = await fetch(url, { cache: 'no-store', credentials: 'same-origin' });
@@ -55,7 +107,7 @@
   };
 
   window.runIntegrityCheck = async function runIntegrityCheck(statusEl, diffEl, linesEl) {
-    if (!crypto || !crypto.subtle) { statusEl.textContent = '確認できません（この環境ではハッシュ計算を利用できません）'; return; }
+    const useFallback = !(typeof crypto !== 'undefined' && crypto.subtle && typeof crypto.subtle.digest === 'function');
     let manifest;
     try { manifest = await fetchJsonNoStore('build-manifest.json'); } catch { statusEl.textContent = '確認できません（build-manifest.json を取得できませんでした）'; return; }
     const files = manifest && manifest.files ? Object.keys(manifest.files) : [];
@@ -85,11 +137,11 @@
     }
     await Promise.all(Array.from({length: Math.min(concurrency, files.length)}, worker));
     if (diffs.length) {
-      statusEl.textContent = `不一致・欠落が ${diffs.length} 件あります（build ${manifest.build || ''} *）`;
+      statusEl.textContent = `不一致・欠落が ${diffs.length} 件あります（build ${manifest.build || ''} *）` + (useFallback ? '（JS計算）' : '');
       if (linesEl) linesEl.textContent = linesEl.textContent.replace(/\(build ([0-9a-f]{7})\)/, '(build $1 *)');
       diffEl.innerHTML = '<ul style="margin:4px 0 0 16px">' + diffs.map(d=>'<li><code>'+esc(d)+'</code></li>').join('') + '</ul>';
     } else {
-      statusEl.textContent = `一致しました（${files.length} ファイル）`;
+      statusEl.textContent = `一致しました（${files.length} ファイル）` + (useFallback ? '（JS計算）' : '');
     }
   };
 
