@@ -1,4 +1,4 @@
-> 複製元: vwc-backend P1/C3追補後（コミット未反映・作業中）／複製日: 2026-11-07
+> 複製元: vwc-backend docs/04_API.md（コミット 20ac273）／複製日: 2026-11-07
 > この文書は複製です。直接直さず、複製元を直してから更新してください。
 
 # 04 API定義（v3.3。**FE と BE の契約**。正は BE リポジトリの `docs/04_API.md`。FE は写しを `docs/api-contract/04_API.md` に置く。規則は `docs/rules/04_API規則.md` が正）
