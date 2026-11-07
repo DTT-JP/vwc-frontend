@@ -1,0 +1,19 @@
+# テキストの改行を LF に統一する（rules/03 §7.1）
+* text=auto
+
+*.php text eol=lf
+*.js  text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.json text eol=lf
+*.md  text eol=lf
+*.txt text eol=lf
+*.svg text eol=lf
+*.xml text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.sh  text eol=lf
+*.py  text eol=lf
+VERSION text eol=lf
+.htaccess text eol=lf
+.gitattributes text eol=lf

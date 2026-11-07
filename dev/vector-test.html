@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="ja"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VWC build vector test (FE JS)</title>
+<style>body{font:14px/1.5 system-ui,sans-serif;padding:16px;max-width:900px} pre{background:#111;color:#eee;padding:12px;border-radius:8px;overflow:auto} .ok{color:#1a7f37}.ng{color:#b42318}</style>
+</head><body>
+<h1>build 適合テストベクタ（rules/03 §8, FE JS）</h1>
+<p><code>public/js/version.js</code> の <code>VWCBuildVector.check()</code> を実行します。</p>
+<button id="run">実行</button>
+<pre id="out">未実行</pre>
+<script src="../public/js/version.js"></script>
+<script>
+document.getElementById('run').onclick = async () => {
+  const out = document.getElementById('out');
+  try {
+    const r = await VWCBuildVector.check();
+    out.textContent = JSON.stringify(r, null, 2) + '\n' + (r.ok ? 'ALL PASS' : 'FAIL');
+    out.className = r.ok ? 'ok' : 'ng';
+  } catch (e) { out.textContent = String(e); out.className = 'ng'; }
+};
+</script>
+</body></html>

@@ -97,11 +97,29 @@ async function boot() {
   let version;
   try { version = await Api.version(); }
   catch (e) { showBootError(e); $('#app').classList.remove('skel'); return; }
-  DATA.meta = version || {};
+  DATA.meta = Object.assign({ backend: null, login_providers: [] }, version || {});
+  /* FE指示書 B1: BE MAJOR は backend.version 優先、なければ api_version。MAJOR不一致は全体停止。 */
+  let feVer = '';
+  try { feVer = (await (await fetch('VERSION', { cache: 'no-store' })).text()).trim(); } catch {}
+  const feMaj = window.VWCCompat ? VWCCompat.feMajor(feVer) : null;
+  const beMaj = window.VWCCompat ? VWCCompat.beMajor(version) : Number(version.api_version);
+  if (feMaj != null && beMaj != null && feMaj !== beMaj) {
+    VWC.set('state', 'version', 'app');
+    st20('version'); show('s20'); $('#app').classList.remove('skel');
+    return;
+  }
+  /* FE 1.x の間は requiredApi と api_version の比較も併用（旧 BE 互換） */
   if (Number(version.api_version) !== EDITOR_CONFIG.requiredApi) {
     VWC.set('state', 'version', 'app');
     st20('version'); show('s20'); $('#app').classList.remove('skel');
     return;
+  }
+  /* 部分互換: 使うAPIが無ければ該当機能を無効化して警告。取得失敗時は止めない（B1-6）。 */
+  if (window.VWCCompat && version && version.backend && version.backend.apis) {
+    const miss = VWCCompat.missingApis(version);
+    const dep = VWCCompat.deprecatedUsed(version);
+    if (miss.length) { window.VWC_MISSING_APIS = miss; console.warn('missing APIs', miss); showToast('一部の機能はこのサーバーでは使えません（' + miss.map(m=>m.feature).slice(0,3).join('・') + (miss.length>3?'…':'') + '）', 8000); }
+    if (dep.length) console.warn('deprecated APIs in use', dep);
   }
 
   let loggedIn = false;

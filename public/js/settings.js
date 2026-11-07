@@ -27,14 +27,23 @@ const SET = {
     row('ログイン後に案内を表示する', 'オンにすると、ヘルプを一度開くまで、ログインのたびに案内を表示します（「今後表示しない」を取り消します）', `<input type=\"checkbox\" data-hw=\"on\" ${on ? 'checked' : ''} style=\"width:22px;height:22px\">`) +
     row('いま案内を表示する', '設定は変えず、案内をいちど表示します', `<button class=\"o\" data-hw=\"now\">${ico('school')}表示する</button>`); }],
   notify: ['通知', () => { const n = DATA.settings.notify; return `<h2>通知</h2><p class="dnote">ここで切り替えるのは、画面の中に出る通知（トースト）です。ブラウザのプッシュ通知は行いません。</p><div class="set-st ok" id="set-st" role="status">保存済み</div>` + [['save', '保存', '保存が完了したとき'], ['share', '共有', '共有・権限が変わったとき'], ['publish', '公開', '公開・更新・ロールバックしたとき'], ['device', '端末', '端末の失効など、端末が変わったとき'], ['usage', '容量', '容量が上限に近づいたとき']].map(([k, t, d]) => row(t, d, `<input type="checkbox" data-n="${k}" ${n[k] ? 'checked' : ''} style="width:22px;height:22px">`)).join('') +
-    `<h3>通知の文言一覧</h3><table class="tbl"><thead><tr><th>種類</th><th>文言（○○ は名前や数値）</th></tr></thead><tbody>${Object.values(NOTIFY_TEXT).map(v => `<tr><td data-l="種類">${v[0]}</td><td data-l="文言">${v.slice(1).map(esc).join('<br>')}</td></tr>`).join('')}</tbody></table>`; }]
+    `<h3>通知の文言一覧</h3><table class="tbl"><thead><tr><th>種類</th><th>文言（○○ は名前や数値）</th></tr></thead><tbody>${Object.values(NOTIFY_TEXT).map(v => `<tr><td data-l="種類">${v[0]}</td><td data-l="文言">${v.slice(1).map(esc).join('<br>')}</td></tr>`).join('')}</tbody></table>`; }],
+  about: ['バージョン情報', () => `<h2>バージョン情報</h2><div id="ver-panel" class="dnote">読み込み中…</div>`]
 };
-$('#sm09').onclick = e => {
+$('#sm09').onclick = async e => {
   const r = e.target.closest('[data-set]'); if (!r) return;
   if (r.dataset.set === 'license') { openLicense(); return; } // 右エリアのタブ（license.js。バックエンド不要）
   const entry = SET[r.dataset.set]; if (!entry) return;
   const [n, f] = entry; openTab('設定: ' + n, f, 'settings');
+  if (r.dataset.set === 'about' && window.renderAboutVersion) {
+    const panel = $('#bench #ver-panel') || $('#ver-panel');
+    if (panel) panel.outerHTML = await renderAboutVersion();
+  }
 };
+$('#bench').addEventListener('click', e => {
+  const b = e.target.closest('#ver-check'); if (!b || !window.runIntegrityCheck) return;
+  runIntegrityCheck($('#ver-result'), $('#ver-diff'), $('#ver-lines'));
+});
 $('#bench').addEventListener('change', e => { const t = e.target, k = t.dataset.s, nk = t.dataset.n; if (!k && !nk) return; const s = DATA.settings;
   if (nk) { s.notify[nk] = t.checked; saveSettings(); saveState(nk, 'run'); clearTimeout(saveTimer); saveTimer = setTimeout(() => saveState(nk, 'ok'), 300); return; }
   const v = t.type === 'checkbox' ? t.checked : t.type === 'number' ? +t.value : isNaN(+t.value) ? t.value : +t.value;

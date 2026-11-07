@@ -35,8 +35,9 @@ Options -Indexes
 # 画面（HTML・JS・CSS・ヘルプ）は、表示のたびにサーバーへ「更新があるか」を確認させる。
 # 更新が無ければ 304 で済むので重くならない。これが無いと、デプロイ後もブラウザが古い CSS・JS を使い続け、
 # 直したはずの見た目（タブの色など）が実機に反映されないことがある。
+# VERSION / build-manifest.json も版表示の正なので no-cache（rules/03, FE指示書 A5）。
 <IfModule mod_headers.c>
-  <FilesMatch "\.(html|js|css|md)$">
+  <FilesMatch "\.(html|js|css|md)$|^(VERSION|build-manifest\.json)$">
     Header set Cache-Control "no-cache"
   </FilesMatch>
 </IfModule>

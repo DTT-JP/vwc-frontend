@@ -26,8 +26,8 @@ const LIMIT_META = [
 ];
 
 const DATA = {
-  meta: { api_version: null, server_version: '', features: [] },
-  user: { id: '', name: '', position: '', isAdmin: false, reauthUntil: 0, trusted: false },
+  meta: { api_version: null, server_version: '', features: [], backend: null, login_providers: [] },
+  user: { id: '', name: '', position: '', isAdmin: false, reauthUntil: 0, trusted: false, idpLinked: false },
   quota: { limitMB: 0, usedMB: 0 },
   projects: { mine: [], shared: [] },
   files: {},
@@ -175,7 +175,8 @@ function applyMe(d) {
     id: u.id || u.member_id || '', name: u.name || '', position: u.position || '',
     isAdmin: bool(first(u, ['isAdmin', 'is_admin'], u.role === 'admin'), false),
     reauthUntil: reauth,
-    trusted: bool(first(d, ['trusted'], false), false)
+    trusted: bool(first(d, ['trusted'], false), false),
+    idpLinked: bool(first(u, ['idpLinked', 'idp_linked'], false), false)
   };
   const q = d.quota || {};
   DATA.quota = { limitMB: num(q.limitMB ?? q.limit_mb ?? d.quota_mb ?? (d.limits || {}).quota_mb, 0), usedMB: roundMB(num(q.usedMB ?? q.used_mb, 0)) };
