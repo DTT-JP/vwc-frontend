@@ -31,14 +31,43 @@ VWC.on('screen', (id, src) => { if (src !== 'app') show(id); });
 $$('[data-go]').forEach(a => a.onclick = e => { e.preventDefault(); show(a.dataset.go); });
 $('#btn-logout').onclick = requestLogout;
 
-/* ---- ログイン（タブ）：QR / 数字コード / Microsoft ---- */
+/* ---- ログイン（タブ）：QR / 数字コード / 部活アカウント(IdP) / MSアカウント ---- */
 let loginMethod = 'qr', loginSecLeft = limitVal('code_ttl_sec') || 300, loginTimer = 0, loginPoll = 0, loginReq = null, loginPending = false;
 const loginTabOpen = () => S.tabs.some(t => t.path === '#ログイン');
 const loginMsg = (m, cls = 'msg') => { const e = $('#s01-msg'); if (e) { e.textContent = m; e.className = cls; } };
+function loginProviders() {
+  const p = (DATA.meta && DATA.meta.login_providers);
+  return Array.isArray(p) && p.length ? p : ['microsoft'];
+}
+function defaultLoginTab() {
+  const first = loginProviders()[0];
+  if (first === 'idp') return 'idp';
+  if (first === 'microsoft') return 'ms';
+  return 'qr';
+}
+function idpBaseUrl() {
+  const cfg = window.EDITOR_CONFIG || {};
+  const base = (cfg.idpBase != null && String(cfg.idpBase).trim() !== '') ? String(cfg.idpBase).trim() : '../auth/';
+  try { return new URL(base, location.href).href; } catch { return base; }
+}
+function applyLoginProvidersUi() {
+  const providers = loginProviders();
+  const hasIdp = providers.includes('idp');
+  const hasMs = providers.includes('microsoft');
+  $$('[data-login-provider="idp"]').forEach(el => el.hidden = !hasIdp);
+  $$('[data-login-provider="ms"]').forEach(el => el.hidden = !hasMs);
+  const a = $('#adm-idp-link'); if (a) { a.hidden = !hasIdp; a.href = idpBaseUrl(); }
+}
 
 function applyLogin() {
+  applyLoginProvidersUi();
+  const providers = loginProviders();
+  const hasIdp = providers.includes('idp');
+  const hasMs = providers.includes('microsoft');
+  $$('[data-seg=login] [data-t="idp"]').forEach(b => b.hidden = !hasIdp);
+  $$('[data-seg=login] [data-t="ms"]').forEach(b => b.hidden = !hasMs);
   $$('[data-seg=login] button').forEach(b => { const on = b.dataset.t === loginMethod; b.classList.toggle('on', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
-  $$('#t-none, .seg-p').forEach(p => p.hidden = p.dataset.p !== loginMethod);
+  $$('.seg-p').forEach(p => p.hidden = p.dataset.p !== loginMethod);
   $$('.cd').forEach(e => e.textContent = Math.max(0, loginSecLeft));
   const q = $('#qr-login'); if (q) { q.innerHTML = DATA.login.approveUrl ? QR.svg(DATA.login.approveUrl) : ''; q.classList.toggle('exp', loginSecLeft <= 0); }
   const c = $('#login-code'); if (c) { c.textContent = DATA.login.code ? DATA.login.code.replace(/(\d{3})(\d{3})/, '$1 $2') : '－'; c.classList.toggle('exp', loginSecLeft <= 0); }
@@ -105,7 +134,7 @@ async function startLogin(kind) {
 }
 
 function openLogin(m) {
-  loginMethod = m || 'qr';
+  loginMethod = m || defaultLoginTab();
   openTab('ログイン', () => $('#t-login').innerHTML, 'login', applyLogin);
   applyLogin();
   if (loginMethod === 'qr' || loginMethod === 'code') {
@@ -119,8 +148,10 @@ document.addEventListener('click', e => { const r = e.target.closest('[data-logi
 $('#bench').addEventListener('click', e => {
   const t = e.target.closest('[data-seg=login] [data-t]');
   if (t) { loginMethod = t.dataset.t; applyLogin(); if ((loginMethod === 'qr' || loginMethod === 'code') && (!loginReq || loginReq.kind !== loginMethod || loginSecLeft <= 0)) startLogin(loginMethod); return; }
-  if (e.target.closest('[data-renew]')) { if (!loginPending) startLogin(loginMethod === 'ms' ? 'qr' : loginMethod); return; }
+  if (e.target.closest('[data-renew]')) { if (!loginPending) startLogin((loginMethod === 'ms' || loginMethod === 'idp') ? 'qr' : loginMethod); return; }
   if (e.target.closest('#ms-login')) { location.href = Api.microsoftUrl('direct'); return; }
+  if (e.target.closest('#idp-login')) { location.href = Api.idpUrl('direct'); return; }
+  if (e.target.closest('#idp-register')) { location.href = Api.idpUrl('register'); return; }
   if (e.target.closest('[data-lg]')) { acceptTrust(e.target.closest('[data-lg]').dataset.lg); }
 });
 

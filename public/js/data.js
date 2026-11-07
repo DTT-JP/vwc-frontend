@@ -303,6 +303,7 @@ function applyMembers(d) {
     ...m, id: String(m.id ?? m.member_id ?? ''), name: m.name || '', mail: m.mail ?? m.email ?? '-',
     position: m.position || '部員', isAdmin: bool(first(m, ['isAdmin', 'is_admin'], m.role === 'admin'), false),
     active: bool(first(m, ['active'], true), true),
+    idpLinked: bool(first(m, ['idpLinked', 'idp_linked'], false), false),
     usedMB: roundMB(num(m.usedMB ?? m.used_mb, 0)),
     projects: Array.isArray(m.projects) ? m.projects.map(p => typeof p === 'string' ? { id: p, name: p } : p) : [],
     apps: Array.isArray(m.apps) ? m.apps.map(a => typeof a === 'string' ? a : (a.name || a)) : []

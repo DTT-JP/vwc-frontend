@@ -9,7 +9,8 @@ function openTab(name, render, icon, after) {
 const bd = (t, c = '') => `<span class="badge ${c}">${t}</span>`;
 const redo = () => renderTabs();
 /* 管理の再認証（M04）：管理画面の「更新」操作は、ログイン（または再認証）から10分以内に限る。
-   user.reauthUntil（API が返す）を過ぎていたら、Microsoft の直接ログインをポップアップで行い、成功後に元の操作を続ける。
+   user.reauthUntil（API が返す）を過ぎていたら、認証システムの再認証をポップアップで行い、成功後に元の操作を続ける。
+   IdP 結び付き部員は idp.php、そうでなければ microsoft.php を使う（並走）。
    残り時間は管理画面の上に常に表示する。 */
 const REAUTH_MS = 10 * 60 * 1000;
 const reauthLeft = () => Math.max(0, DATA.user.reauthUntil - Date.now()), mmssL = ms => { const s = Math.ceil(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
@@ -35,9 +36,15 @@ async function pollReauth(started) {
   if (Date.now() - started > 120000) { settleReauth(false); showToast('再認証を確認できませんでした'); }
   else if (reauthWin && reauthWin.closed && reauthLeft() <= 0) { stopReauthPoll(); reauthWin = null; showToast('再認証を確認できませんでした'); }
 }
+function reauthUrl() {
+  const linked = DATA.user && (DATA.user.idpLinked || DATA.user.idp_linked);
+  const providers = (DATA.meta && DATA.meta.login_providers) || [];
+  if (linked || (providers.includes('idp') && !providers.includes('microsoft'))) return Api.idpUrl('reauth');
+  return Api.microsoftUrl('reauth');
+}
 function startReauth() {
   if (reauthWin && !reauthWin.closed) { try { reauthWin.focus(); } catch { /* noop */ } return; }
-  reauthWin = window.open(Api.microsoftUrl('reauth'), 'vwc-reauth', 'width=520,height=720');
+  reauthWin = window.open(reauthUrl(), 'vwc-reauth', 'width=520,height=720');
   if (!reauthWin) { showToast('ポップアップがブロックされました。ブラウザの設定で許可してください'); return; }
   const started = Date.now();
   stopReauthPoll();
@@ -102,8 +109,14 @@ $('#u-more').onclick = () => openTab('使用状況の詳細', rUsage, 'data_usag
 
 /* S14 部員 */
 function rMembers() {
-  const rows = DATA.members.map(m => { const pc = memberProjects(m).length, ac = memberApps(m).length; return `<tr><td data-l="ID">${m.id}</td><td data-l="名前">${esc(m.name)}</td><td data-l="メール">${esc(m.mail)}</td><td data-l="役職"><select data-a="mem-pos" data-id="${m.id}">${['顧問', '部長', '副部長', '部員'].map(p => `<option ${m.position === p ? 'selected' : ''}>${p}</option>`).join('')}</select></td><td data-l="管理者権限"><label><input type="checkbox" data-a="mem-adm" data-id="${m.id}" ${m.isAdmin ? 'checked' : ''} style="width:auto"> ${m.isAdmin ? bd('あり', 'b-warn') : 'なし'}</label></td><td data-l="状態">${bd(m.active ? '有効' : '無効', m.active ? 'b-ok' : 'b-ng')}</td><td data-l="使用量">${fmtMB(m.usedMB)}MB<small class="dnote">（P${pc} / A${ac}）</small></td>` +
-    `<td class="adm-actions"><div class="adm-actions-in"><button data-a="mem-edit" data-id="${m.id}" title="編集">${ico('edit')}</button><button data-a="mem-tog" data-id="${m.id}" title="無効化/有効化">${ico('block')}</button><button data-a="mem-del" data-id="${m.id}" title="削除">${ico('delete')}</button></div></td></tr>`; });
+  const rows = DATA.members.map(m => {
+    const pc = memberProjects(m).length, ac = memberApps(m).length;
+    const admCell = m.idpLinked
+      ? `<span title="管理者の変更は認証システム（IdP）の管理画面で行います">${m.isAdmin ? bd('あり', 'b-warn') : 'なし'} <small class="dnote">IdP</small></span>`
+      : `<label><input type="checkbox" data-a="mem-adm" data-id="${m.id}" ${m.isAdmin ? 'checked' : ''} style="width:auto"> ${m.isAdmin ? bd('あり', 'b-warn') : 'なし'}</label>`;
+    return `<tr><td data-l="ID">${m.id}</td><td data-l="名前">${esc(m.name)}</td><td data-l="メール">${esc(m.mail)}</td><td data-l="役職"><select data-a="mem-pos" data-id="${m.id}">${['顧問', '部長', '副部長', '部員'].map(p => `<option ${m.position === p ? 'selected' : ''}>${p}</option>`).join('')}</select></td><td data-l="管理者権限">${admCell}</td><td data-l="状態">${bd(m.active ? '有効' : '無効', m.active ? 'b-ok' : 'b-ng')}</td><td data-l="使用量">${fmtMB(m.usedMB)}MB<small class="dnote">（P${pc} / A${ac}）</small></td>` +
+    `<td class="adm-actions"><div class="adm-actions-in"><button data-a="mem-edit" data-id="${m.id}" title="編集">${ico('edit')}</button><button data-a="mem-tog" data-id="${m.id}" title="無効化/有効化">${ico('block')}</button><button data-a="mem-del" data-id="${m.id}" title="削除">${ico('delete')}</button></div></td></tr>`;
+  });
   return `<h2>部員</h2>${admReauthBar()}<div class="tools"><input placeholder="検索" id="adm-q"><button class="o" data-a="mem-add">${ico('person_add')} 追加</button><button class="o" data-a="csv">${ico('upload_file')} CSV一括登録</button></div>
   <table class="tbl"><thead><tr><th>ID</th><th>名前</th><th>メール</th><th>役職</th><th>管理者権限</th><th>状態</th><th>使用量</th><th></th></tr></thead><tbody>` + (rows.join('') || '<tr><td colspan="8">部員はいません</td></tr>') + '</tbody></table>';
 }
@@ -235,8 +248,31 @@ $('#an-save').onclick = () => {
 /* 共通アクション。管理の「更新」操作は、すべて reauth() を通す */
 $('#bench').addEventListener('click', e => { const b = e.target.closest('[data-a]'); if (!b || ['SELECT', 'INPUT'].includes(b.tagName)) return; const a = b.dataset.a, id = b.dataset.id, nm = b.dataset.n;
   if (a === 're-now') { if (reauthLeft() > 0) showToast('再認証はまだ有効です'); else { reauthCb = null; $('#re-t').textContent = '切れています'; $('#d-re').showModal(); } return; }
-  if (a === 'mem-add') { editM = null; $('#mem-h').textContent = '部員を追加'; $('#mem-ok').textContent = '追加'; $('#mem-id').value = ''; $('#mem-id').disabled = false; $('#mem-name-row').hidden = true; $('#mem-note').hidden = false; $('#mem-name').value = ''; $('#mem-mail').value = ''; $('#mem-pos').value = '部員'; $('#mem-adm').checked = false; $('#d-mem').showModal(); }
-  if (a === 'mem-edit') { const m = DATA.members.find(x => x.id === id); editM = m; $('#mem-h').textContent = '部員を編集'; $('#mem-ok').textContent = '保存'; $('#mem-id').value = m.id; $('#mem-id').disabled = true; $('#mem-name-row').hidden = false; $('#mem-note').hidden = true; $('#mem-name').value = m.named === false ? '' : m.name; $('#mem-mail').value = m.mail; $('#mem-pos').value = m.position; $('#mem-adm').checked = m.isAdmin; $('#d-mem').showModal(); }
+  if (a === 'mem-add') {
+    editM = null;
+    const idpOn = ((DATA.meta && DATA.meta.login_providers) || []).includes('idp');
+    $('#mem-h').textContent = '部員を追加'; $('#mem-ok').textContent = '追加';
+    $('#mem-id').value = ''; $('#mem-id').disabled = false;
+    $('#mem-name-row').hidden = true; $('#mem-note').hidden = false;
+    $('#mem-name').value = ''; $('#mem-mail').value = ''; $('#mem-pos').value = '部員';
+    $('#mem-adm').checked = false; $('#mem-adm').disabled = false;
+    if ($('#mem-idp-note')) $('#mem-idp-note').hidden = true;
+    $('#mem-mail').required = !idpOn;
+    $('#mem-mail').placeholder = idpOn ? 'メールアドレス（任意）' : 'メールアドレス';
+    $('#d-mem').showModal();
+  }
+  if (a === 'mem-edit') {
+    const m = DATA.members.find(x => x.id === id); editM = m;
+    const linked = !!(m && m.idpLinked);
+    $('#mem-h').textContent = '部員を編集'; $('#mem-ok').textContent = '保存';
+    $('#mem-id').value = m.id; $('#mem-id').disabled = true;
+    $('#mem-name-row').hidden = false; $('#mem-note').hidden = true;
+    $('#mem-name').value = m.named === false ? '' : m.name; $('#mem-mail').value = m.mail; $('#mem-pos').value = m.position;
+    $('#mem-adm').checked = m.isAdmin; $('#mem-adm').disabled = linked;
+    if ($('#mem-idp-note')) $('#mem-idp-note').hidden = !linked;
+    $('#mem-mail').required = true; $('#mem-mail').placeholder = 'メールアドレス';
+    $('#d-mem').showModal();
+  }
   if (a === 'csv') { $('#csv-in').value = CSV_SAMPLE; $('#csv-out').innerHTML = ''; $('#csv-ok').disabled = true; $('#d-csv').showModal(); }
   if (a === 'mem-tog') { const m = DATA.members.find(x => x.id === id); if (!m) return; reauth(async () => {
     try { await Api.admin.membersUpdate({ member: m.id, name: m.name, mail: m.mail, position: m.position, is_admin: m.isAdmin, active: !m.active }); await loadMembers(); redo(); showToast(m.active ? '部員を有効化しました' : '部員を無効化しました'); }
@@ -303,13 +339,20 @@ let editM = null;
 $('#mem-ok').onclick = () => {
   const n = $('#mem-name').value.trim(), mail = $('#mem-mail').value.trim(), position = $('#mem-pos').value, isAdmin = $('#mem-adm').checked;
   const mid = $('#mem-id').value.trim();
+  const idpOn = ((DATA.meta && DATA.meta.login_providers) || []).includes('idp');
   if (!editM && (!mid || mid.length > 64 || !/^[A-Za-z0-9._@-]+$/.test(mid))) return showToast('部員IDは、半角の英数字と . _ @ - だけで入力してください');
-  if (!mail || !$('#mem-mail').checkValidity()) return showToast('有効なメールアドレスを入力してください');
+  if (editM ? (!mail || !$('#mem-mail').checkValidity()) : (!idpOn && (!mail || !$('#mem-mail').checkValidity()))) return showToast('有効なメールアドレスを入力してください');
+  if (!editM && idpOn && mail && !$('#mem-mail').checkValidity()) return showToast('メールアドレスの形式を確認してください');
   const current = editM;
   reauth(async () => {
     try {
       if (current) await Api.admin.membersUpdate({ member: current.id, name: n, mail, position, is_admin: isAdmin });
-      else await Api.admin.membersAdd({ id: mid, mail, position, is_admin: isAdmin });
+      else {
+        const payload = { id: mid, name: n, position, is_admin: isAdmin };
+        if (mail) payload.mail = mail; else if (!idpOn) payload.mail = mail;
+        if (idpOn && !mail) { /* mail 任意 */ } else { payload.mail = mail; }
+        await Api.admin.membersAdd(idpOn ? { id: mid, name: n, position, is_admin: isAdmin, ...(mail ? { mail } : {}) } : { id: mid, name: n, mail, position, is_admin: isAdmin });
+      }
       $('#d-mem').close(); await loadMembers(); redo(); showToast(current ? '部員を更新しました' : '部員を追加しました');
     } catch (e) {
       if (e instanceof ApiError && e.code === 'conflict' && !current) showToast('その部員ID、またはメールアドレスは、すでに登録されています');
@@ -354,7 +397,13 @@ $('#csv-ok').onclick = () => {
   const csv = '部員ID,名前,メール,役職,管理者権限\n' + csvOk.map(m => [m.id, m.name, m.mail, m.role, m.admin ? 'あり' : 'なし'].join(',')).join('\n');
   const count = csvOk.length;
   reauth(async () => {
-    try { await Api.admin.membersImportCsv(csv); $('#d-csv').close(); await loadMembers(); redo(); showToast(count + '件を登録しました'); }
+    try {
+      const res = await Api.admin.membersImportCsv(csv);
+      $('#d-csv').close(); await loadMembers(); redo();
+      let msg = count + '件を登録しました';
+      if (res && Number(res.ignored_admin) > 0) msg += '（管理者権限の列は無視しました。認証システムで設定してください）';
+      showToast(msg, 8000);
+    }
     catch (e) { showApiError(e); }
   });
 };

@@ -98,6 +98,7 @@ async function boot() {
   try { version = await Api.version(); }
   catch (e) { showBootError(e); $('#app').classList.remove('skel'); return; }
   DATA.meta = Object.assign({ backend: null, login_providers: [] }, version || {});
+  if (typeof applyLoginProvidersUi === 'function') applyLoginProvidersUi();
   /* FE指示書 B1: BE MAJOR は backend.version 優先、なければ api_version。MAJOR不一致は全体停止。 */
   let feVer = '';
   try { feVer = (await (await fetch('VERSION', { cache: 'no-store' })).text()).trim(); } catch {}
@@ -157,11 +158,12 @@ async function boot() {
     const auth = q.get('auth'), reason = q.get('reason') || '';
     if (auth === 'done' && loggedIn) completeLogin(q.get('mode'));
     else if (auth === 'done') {
-      openLogin('ms'); showToast('ログインを確認できませんでした。もう一度お試しください');
+      openLogin(); showToast('ログインを確認できませんでした。もう一度お試しください');
     } else if (auth === 'error') {
       /* サーバーが付けたエラーコード（E-A…）で、原因と対処を示す。古い形式（reason / detail）にも対応。 */
       const KEY = { denied: 'E-A01', state: 'E-A02', token: 'E-A03', claims: 'E-A04', configuration: 'E-A05', invalid: 'E-A06', unauthorized: 'E-A15',
-        not_registered: 'E-A10', inactive: 'E-A11', oid_mismatch: 'E-A12', other_account: 'E-A13', no_oid: 'E-A14' };
+        not_registered: 'E-A10', inactive: 'E-A11', oid_mismatch: 'E-A12', other_account: 'E-A13', no_oid: 'E-A14',
+        contract: 'E-A20', connect: 'E-A21', verify: 'E-A22', sub_mismatch: 'E-A23', inactive_idp: 'E-A24' };
       const code = q.get('code') || KEY[q.get('detail') || ''] || KEY[reason] || 'E-A99';
       showToast(errorText(ERROR_CATALOG[code] ? code : 'E-A99'), 12000);
     }
