@@ -1,4 +1,4 @@
-> 複製元: vwc-backend be-v1.1.0 相当（コミット f82dad7）／複製日: 2026-11-07
+> 複製元: vwc-backend P1/C3追補後（コミット未反映・作業中）／複製日: 2026-11-07
 > この文書は複製です。直接直さず、複製元を直してから更新してください。
 
 # 04 API定義（v3.3。**FE と BE の契約**。正は BE リポジトリの `docs/04_API.md`。FE は写しを `docs/api-contract/04_API.md` に置く。規則は `docs/rules/04_API規則.md` が正）
@@ -31,10 +31,10 @@
 | files/write | ログイン/編集以上 (login, perm=edit) | project, path, content, base_version | 競合は409、占有は423 |
 | files/create, mkdir, rename, delete | ログイン/編集以上 (login, perm=edit) | project, path, to | ok（移動は rename） |
 | files/upload_init, upload_chunk, upload_done | ログイン/編集以上 (login, perm=edit) | upload_id, index, データ | ok |
-| files/raw (GET) | ログイン/閲覧以上 (login, perm=view) | project, path | `Content-Type` 固定で配信 |
 | files/preview_token | ログイン/閲覧以上 (login, perm=view) | project, path | `preview.php` 用URL（15分） |
 | files/zip_prepare | ログイン/閲覧以上 (login, perm=view) | project, path? | 合計サイズ、短期トークン。`too_large` |
-| files/zip (GET) | トークン (token) | token | 無圧縮ZIPをストリーム配信 |
+
+**別扱い（`index.php` の GET 分岐。`routes.php` には載せない。指示書 B1/C1 整合）**: `files/raw`（GET, ログイン/閲覧以上, `project,path`）、`files/zip`（GET, トークン, `token`）。
 | files/search | ログイン/閲覧以上 (login, perm=view) | project, query, case, regex | 内容検索（最大200件） |
 | history/status | ログイン/閲覧以上 (login, perm=view) | project | パスごとの状態（new / modified / deleted / unchanged）と件数（追加・変更・削除）。ファイルのハッシュは前回の値をキャッシュして再利用するため、ファイルが多くても速い |
 | history/commit | ログイン/編集以上 (login, perm=edit) | project, message | 変更なしは `invalid` |
