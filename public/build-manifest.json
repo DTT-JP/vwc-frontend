@@ -1,7 +1,7 @@
 {
   "version": "1.1.0",
-  "build": "095f104",
-  "build_full": "095f104823340a250d9b98b34c7197f62176f4b687da31f8768dced86444381d",
+  "build": "c6b21be",
+  "build_full": "c6b21bef0406cbdbc6d6a599dc745de00f7cb2e5cbaf9b54330a193c1997c1c2",
   "files": {
     "LICENSE": "bf248b023b2aeac9100aff7c6b76776847076f7f9dd89d23ebe4ceaf9d261069",
     "NOTICE.md": "3b5faa454b2b5e29f54240125e953c3225d0be4465f591c426378875a4070de2",
@@ -69,6 +69,13 @@
     "js/transfer.js": "cf4593bf2e1354507bbc3f45196d5c701b8c5f10aba56549f220bb78e24e8085",
     "js/usage.js": "1c062381df7664abde5c731666fe8b69b2615ec4c0f9c92fee9d9ef7050a9be5",
     "js/version.js": "bd0868b28c01bf4b47d40ac3a8e40845cdd6a11f8c523fcef87bd63f68139bb7",
+    "license/01-overview.md": "9f1dd6dad51f185d135cd625f609fd0a7a9dbeb50d2f262c76587e967887cfe3",
+    "license/02-gpl-3.0.md": "a655690e5473cf7c401d703642fe38d80ef40dc03e05d93966e4bee1827d5ca1",
+    "license/03-third-party.md": "0b89aa8c188b21ad430ae3e2eb333087b244bce62ffce351e2e35b77a54757ff",
+    "license/04-ffmpeg.md": "680c4cc7452349e01277a946b7868bc6928453b795cc9e42c3cc4c42a5050559",
+    "license/05-notices.md": "155d8e16e7f324c92179a3fb2f1fffd0e27eeae850cebcc11269fff956a0dc2c",
+    "license/_index.md": "d6baf61a2d32a7c43cb75fb9658eb54fe36d12947936e6b11fa5d4703cdc73b5",
+    "license/bundle.js": "9a8934a6ff765d309183ae7b7939f84e15d3d0d12ff3d1e7bd498fbd81a1ad3d",
     "licenses.html": "a49eda304a9ecd03fea487c46a0a26c8454a28243fecf770cedb941c1258423f",
     "mermaid-frame.html": "9d02c1423ff2ae085e2bc7454097fad2b5a2bb156ead762bffe7ad1f42667627"
   },
