@@ -115,14 +115,8 @@ const Api = (() => {
     const clean = String(path || '').split('/').map(encodeURIComponent).join('/');
     return previewBase().replace(/\/?$/, '/') + encodeURIComponent(token) + '/' + clean;
   }
-  function microsoftUrl(mode) {
-    /* index.php と同じ system/ の下にある auth/microsoft.php。 */
-    const u = new URL('../auth/microsoft.php', new URL(base(), location.href));
-    u.searchParams.set('mode', mode || 'direct');
-    return u.href;
-  }
   function idpUrl(mode) {
-    /* index.php と同じ system/ の下にある auth/idp.php（BE 1.2+, rules/04 §11）。 */
+    /* index.php と同じ system/ の下にある auth/idp.php（BE 2.0+, rules/04 §11）。FE 2.0: microsoftUrl 廃止 */
     const u = new URL('../auth/idp.php', new URL(base(), location.href));
     u.searchParams.set('mode', mode || 'direct');
     return u.href;
@@ -248,7 +242,7 @@ const Api = (() => {
   }
 
   return {
-    ApiError, call, getBlob, query, previewBase, previewUrl, microsoftUrl, idpUrl,
+    ApiError, call, getBlob, query, previewBase, previewUrl, idpUrl,
     version, me, setCsrf, getMeta, auth, projects, share, files, history, apps, admin,
     searchMembers,
     get csrf() { return csrf; }

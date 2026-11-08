@@ -26,7 +26,7 @@ const LIMIT_META = [
 ];
 
 const DATA = {
-  meta: { api_version: null, server_version: '', features: [], backend: null, login_providers: [] },
+  meta: { api_version: null, server_version: '', backend: null, login_providers: [] },
   user: { id: '', name: '', position: '', isAdmin: false, reauthUntil: 0, trusted: false, idpLinked: false },
   quota: { limitMB: 0, usedMB: 0 },
   projects: { mine: [], shared: [] },

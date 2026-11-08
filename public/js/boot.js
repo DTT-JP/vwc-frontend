@@ -2,8 +2,8 @@
 /* 起動時の初期化（全スクリプトの読み込み後に実行）。
    1. meta/version で API 版を確認  2. me でログイン状態と設定値  3. 一覧を読み込み
    4. URL契約（approve / auth / gate）を処理。読み込み中は画面を出さず、失敗時は S20 を出す。 */
-const EDITOR_CONFIG = window.EDITOR_CONFIG || { apiBase: 'system/api/index.php', requiredApi: 1 };
-if (!String(EDITOR_CONFIG.apiBase || '').trim() || !Number.isInteger(EDITOR_CONFIG.requiredApi)) console.warn('EDITOR API configuration is incomplete');
+const EDITOR_CONFIG = window.EDITOR_CONFIG || { apiBase: 'system/api/index.php' };
+if (!String(EDITOR_CONFIG.apiBase || '').trim()) console.warn('EDITOR API configuration is incomplete');
 
 const VWC_APP_ROOT = (() => { try { return new URL('app/', document.baseURI).pathname; } catch { return '/editor/app/'; } })();
 window.VWC_APP_URL = name => { try { return new URL('app/' + encodeURIComponent(name) + '/', document.baseURI).href; } catch { return 'app/' + name + '/'; } };
@@ -109,12 +109,6 @@ async function boot() {
     st20('version'); show('s20'); $('#app').classList.remove('skel');
     return;
   }
-  /* FE 1.x の間は requiredApi と api_version の比較も併用（旧 BE 互換） */
-  if (Number(version.api_version) !== EDITOR_CONFIG.requiredApi) {
-    VWC.set('state', 'version', 'app');
-    st20('version'); show('s20'); $('#app').classList.remove('skel');
-    return;
-  }
   /* 部分互換: 使うAPIが無ければ該当機能を無効化して警告。取得失敗時は止めない（B1-6）。 */
   if (window.VWCCompat && version && version.backend && version.backend.apis) {
     const miss = VWCCompat.missingApis(version);
@@ -160,9 +154,9 @@ async function boot() {
     else if (auth === 'done') {
       openLogin(); showToast('ログインを確認できませんでした。もう一度お試しください');
     } else if (auth === 'error') {
-      /* サーバーが付けたエラーコード（E-A…）で、原因と対処を示す。古い形式（reason / detail）にも対応。 */
-      const KEY = { denied: 'E-A01', state: 'E-A02', token: 'E-A03', claims: 'E-A04', configuration: 'E-A05', invalid: 'E-A06', unauthorized: 'E-A15',
-        not_registered: 'E-A10', inactive: 'E-A11', oid_mismatch: 'E-A12', other_account: 'E-A13', no_oid: 'E-A14',
+      /* サーバーが付けたエラーコード（E-A…）で、原因と対処を示す。古い形式（reason / detail）にも対応。FE 2.0: MS固有コード削除 */
+      const KEY = { denied: 'E-A01', state: 'E-A02', invalid: 'E-A06', unauthorized: 'E-A15',
+        inactive: 'E-A11', other_account: 'E-A13',
         contract: 'E-A20', connect: 'E-A21', verify: 'E-A22', sub_mismatch: 'E-A23', inactive_idp: 'E-A24' };
       const code = q.get('code') || KEY[q.get('detail') || ''] || KEY[reason] || 'E-A99';
       showToast(errorText(ERROR_CATALOG[code] ? code : 'E-A99'), 12000);

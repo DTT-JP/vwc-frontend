@@ -2,7 +2,7 @@
 
 - `members/search` が無い環境では、FE が既知の部員（`DATA.members`）から絞り込む（`Api.searchMembers`）。
 - 信頼端末の確定（S03）は、選択時に `auth/trust` へ `label` を送る。一時ログインでは端末登録APIを呼ばない。
-- 管理の再認証は専用エンドポイントが無いので、認証システムの再認証（ポップアップ）後に `me` を呼び、`reauthUntil` の更新を待つ。IdP 結び付き部員は `idp.php?mode=reauth`、それ以外は `microsoft.php?mode=reauth`（1.2.0 並走中）。
+- 管理の再認証は専用エンドポイントが無いので、認証システム（IdP）の再認証（ポップアップ、`idp.php?mode=reauth`）後に `me` を呼び、`reauthUntil` の更新を待つ（FE 2.0+）。
 - ファイルのコピーは `files/read` + `files/create`/`files/write`（テキスト）または `files/raw` + `files/upload_*`（バイナリ）で合成する。
 - 部員追加・編集は `admin/members_add` / `admin/members_update` に `name, mail, position, is_admin, active` を送る。
 - お知らせ管理の日付項目は `from` / `to` で送る。

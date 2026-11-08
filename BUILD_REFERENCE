@@ -1,7 +1,5 @@
-# FE build 基準値（rules/03 §7.1, V-R6）
-# 配備時に build_full を public/build-manifest.json と整合させる。
-version=1.1.0
-build=c6b21be
-build_full=c6b21bef0406cbdbc6d6a599dc745de00f7cb2e5cbaf9b54330a193c1997c1c2
-date=2026-11-07
-tag=fe-v1.1.0 (予定)
+# BUILD_REFERENCE (generated reference; keep in sync with calc-build-hash.py output)
+version=2.0.0
+build=8cc93c8
+build_full=8cc93c8c4978b090b1f41ccec35bec437e58e08b4e8dc7564fb9b795a5c06bf9
+tag=fe-v2.0.0 (予定・利用者承諾後)

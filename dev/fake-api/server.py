@@ -79,8 +79,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         qs = urllib.parse.parse_qs(parsed.query)
         r = qs.get("r", [""])[0]
-        if parsed.path.endswith("index.php") or parsed.path.endswith("microsoft.php") or parsed.path == "/system/auth/microsoft.php":
-            if "microsoft" in parsed.path:
+        if parsed.path.endswith("index.php") or parsed.path.endswith("idp.php") or parsed.path == "/system/auth/idp.php":
+            if "idp.php" in parsed.path:
                 self.send_response(302); self.send_header("Location", "/?auth=done&mode=direct"); self.end_headers(); return
             if r == "files/raw":
                 pid = qs.get("project",[""])[0]; path = qs.get("path",[""])[0]
@@ -146,10 +146,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if r == "meta/version":
             # rules/04 §9 の形。backend.apis は契約の写しから作る（簡易: 主要API名）
             apis = {}
-            for name in ["meta/version","auth/start","auth/poll","auth/approve","auth/lookup","auth/logout","auth/devices","auth/device_revoke","auth/trust","me","usage/me","notices/list","announcements/list","projects/list","projects/create","projects/rename","projects/delete","projects/reorder","projects/transfer","share/list","share/set","share/remove","files/tree","files/read","files/write","files/create","files/mkdir","files/rename","files/delete","files/upload_init","files/upload_chunk","files/upload_done","files/preview_token","files/zip_prepare","files/search","history/status","history/commit","history/log","history/diff","history/restore","history/delete","apps/check_name","apps/list","apps/publish","apps/update","apps/set_visibility","apps/code_get","apps/code_regen","apps/viewers_list","apps/viewers_add","apps/viewers_remove","apps/open","apps/gate_verify","apps/unpublish","admin/members_list","admin/members_add","admin/members_update","admin/members_import_csv","admin/members_delete","admin/devices_list","admin/devices_revoke","admin/device_revoke","admin/settings_get","admin/settings_set","admin/usage","admin/projects_list","admin/projects_assign","admin/apps_list","admin/announcements_list","admin/announcements_save","admin/announcements_delete","admin/gc","members/search","admin/audit_list"]:
+            for name in ["meta/version","auth/start","auth/poll","auth/approve","auth/lookup","auth/logout","auth/devices","auth/device_revoke","auth/trust","me","usage/me","notices/list","announcements/list","projects/list","projects/create","projects/rename","projects/delete","projects/reorder","projects/transfer","share/list","share/set","share/remove","files/tree","files/read","files/write","files/create","files/mkdir","files/rename","files/delete","files/upload_init","files/upload_chunk","files/upload_done","files/preview_token","files/zip_prepare","files/search","history/status","history/commit","history/log","history/diff","history/restore","history/delete","apps/check_name","apps/list","apps/publish","apps/update","apps/set_visibility","apps/code_get","apps/code_regen","apps/viewers_list","apps/viewers_add","apps/viewers_remove","apps/open","apps/gate_verify","apps/unpublish","admin/members_list","admin/members_add","admin/members_update","admin/members_import_csv","admin/members_delete","admin/devices_list","admin/devices_revoke","admin/settings_get","admin/settings_set","admin/usage","admin/projects_list","admin/projects_assign","admin/apps_list","admin/announcements_list","admin/announcements_save","admin/announcements_delete","admin/gc","members/search","admin/admins_status","admin/audit_list"]:
                 apis[name] = {"since":"1.0"}
-            apis["admin/device_revoke"] = {"since":"1.0","deprecated":True,"remove_in":"2.0","replaced_by":"admin/devices_revoke"}
-            return {"api_version":1,"server_version":"1.1.0","features":["zip","announcements"],"login_providers":["microsoft"],
+            return {"api_version":2,"server_version":"2.0.0","login_providers":["idp"],
                     "backend":{"version":"1.1.0","build":"fake000","build_full":"fake000"+"0"*57,"apis":apis}}
         if r == "me": return {"member":{"id":STATE["user"]["id"],"name":STATE["user"]["name"],"position":STATE["user"]["position"],"isAdmin":STATE["user"]["isAdmin"],"reauthUntil":STATE["user"]["reauthUntil"]},"csrf":STATE["csrf"],"quota":{"limitMB":STATE["quota"]["limitMB"],"usedMB":STATE["quota"]["usedMB"]},
                "max_upload_mb":256,"track_limit_mb":5,"code_ttl_sec":300,"device_days":90,"zip_max_mb":2048,"quota_mb":2048,"max_publish_mb":1024,"max_projects_per_member":100,"settings":{}}
@@ -305,7 +304,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         # admin
         if r == "admin/members_list": return {"members":STATE["members"]}
         if r == "admin/members_add":
-            m={"id":body.get("id") or ("U"+str(len(STATE["members"])+100)),"name":body.get("name"),"mail":body.get("mail"),"position":body.get("position"),"isAdmin":bool(body.get("is_admin")),"active":True,"usedMB":0,"projects":[],"apps":[]}
+            m={"id":body.get("id") or ("U"+str(len(STATE["members"])+100)),"name":body.get("name"),"mail":body.get("mail"),"position":body.get("position"),"isAdmin":False,"active":True,"idp_linked":False,"usedMB":0,"projects":[],"apps":[]}
             STATE["members"].append(m); return {"member":m}
         if r == "admin/members_update":
             for m in STATE["members"]:
@@ -313,7 +312,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     if "name" in body: m["name"]=body["name"]
                     if "mail" in body: m["mail"]=body["mail"]
                     if "position" in body: m["position"]=body["position"]
-                    if "is_admin" in body: m["isAdmin"]=bool(body["is_admin"])
                     if "active" in body: m["active"]=bool(body["active"])
             return {"ok":True}
         if r == "admin/members_import_csv": return {"ok":True}
@@ -323,7 +321,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
             devs=STATE["adminDevices"] if not mem else [d for d in STATE["adminDevices"] if d.get("member")==mem]
             return {"devices":devs}
         if r == "admin/devices_revoke": return {"ok":True}
-        if r == "admin/device_revoke": return {"ok":True}
         if r == "admin/settings_get": return {"settings":{l["key"]:l["value"] for l in LIMITS}}
         if r == "admin/settings_set":
             for l in LIMITS:

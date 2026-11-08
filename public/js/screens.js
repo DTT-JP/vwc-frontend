@@ -31,18 +31,17 @@ VWC.on('screen', (id, src) => { if (src !== 'app') show(id); });
 $$('[data-go]').forEach(a => a.onclick = e => { e.preventDefault(); show(a.dataset.go); });
 $('#btn-logout').onclick = requestLogout;
 
-/* ---- ログイン（タブ）：QR / 数字コード / 部活アカウント(IdP) / MSアカウント ---- */
+/* ---- ログイン（タブ）：QR / 数字コード / 部活アカウント(IdP)。FE 2.0: MS廃止 ---- */
 let loginMethod = 'qr', loginSecLeft = limitVal('code_ttl_sec') || 300, loginTimer = 0, loginPoll = 0, loginReq = null, loginPending = false;
 const loginTabOpen = () => S.tabs.some(t => t.path === '#ログイン');
 const loginMsg = (m, cls = 'msg') => { const e = $('#s01-msg'); if (e) { e.textContent = m; e.className = cls; } };
 function loginProviders() {
   const p = (DATA.meta && DATA.meta.login_providers);
-  return Array.isArray(p) && p.length ? p : ['microsoft'];
+  return Array.isArray(p) && p.length ? p : ['idp'];
 }
 function defaultLoginTab() {
   const first = loginProviders()[0];
   if (first === 'idp') return 'idp';
-  if (first === 'microsoft') return 'ms';
   return 'qr';
 }
 function idpBaseUrl() {
@@ -53,9 +52,7 @@ function idpBaseUrl() {
 function applyLoginProvidersUi() {
   const providers = loginProviders();
   const hasIdp = providers.includes('idp');
-  const hasMs = providers.includes('microsoft');
   $$('[data-login-provider="idp"]').forEach(el => el.hidden = !hasIdp);
-  $$('[data-login-provider="ms"]').forEach(el => el.hidden = !hasMs);
   const a = $('#adm-idp-link'); if (a) { a.hidden = !hasIdp; a.href = idpBaseUrl(); }
 }
 
@@ -63,9 +60,7 @@ function applyLogin() {
   applyLoginProvidersUi();
   const providers = loginProviders();
   const hasIdp = providers.includes('idp');
-  const hasMs = providers.includes('microsoft');
   $$('[data-seg=login] [data-t="idp"]').forEach(b => b.hidden = !hasIdp);
-  $$('[data-seg=login] [data-t="ms"]').forEach(b => b.hidden = !hasMs);
   $$('[data-seg=login] button').forEach(b => { const on = b.dataset.t === loginMethod; b.classList.toggle('on', on); b.setAttribute('aria-selected', on ? 'true' : 'false'); });
   $$('.seg-p').forEach(p => p.hidden = p.dataset.p !== loginMethod);
   $$('.cd').forEach(e => e.textContent = Math.max(0, loginSecLeft));
@@ -149,7 +144,6 @@ $('#bench').addEventListener('click', e => {
   const t = e.target.closest('[data-seg=login] [data-t]');
   if (t) { loginMethod = t.dataset.t; applyLogin(); if ((loginMethod === 'qr' || loginMethod === 'code') && (!loginReq || loginReq.kind !== loginMethod || loginSecLeft <= 0)) startLogin(loginMethod); return; }
   if (e.target.closest('[data-renew]')) { if (!loginPending) startLogin((loginMethod === 'ms' || loginMethod === 'idp') ? 'qr' : loginMethod); return; }
-  if (e.target.closest('#ms-login')) { location.href = Api.microsoftUrl('direct'); return; }
   if (e.target.closest('#idp-login')) { location.href = Api.idpUrl('direct'); return; }
   if (e.target.closest('#idp-register')) { location.href = Api.idpUrl('register'); return; }
   if (e.target.closest('[data-lg]')) { acceptTrust(e.target.closest('[data-lg]').dataset.lg); }

@@ -1,13 +1,13 @@
-> 複製元: vwc-backend docs/04_API.md（作業ツリー / BE 1.2.x, admin/admins_status 追加）／複製日: 2026-11-08
+> 複製元: vwc-backend (workspace/P5 2026-11-08) / 複製日: 2026-11-08
 > この文書は複製です。直接直さず、複製元を直してから更新してください。
 
-# 04 API定義（v3.3。**FE と BE の契約**。正は BE リポジトリの `docs/04_API.md`。FE は写しを `docs/api-contract/04_API.md` に置く。規則は `docs/rules/04_API規則.md` が正）
-共通: `POST system/api/index.php?r=<名前>`、JSON応答（`GET` は `files/raw`, `files/zip` のみ）。認証済みAPIは `X-CSRF-Token` 必須。ただし `me`・`meta/version` はトークン不要（`auth/start`・`auth/poll`・`apps/gate_verify` は未ログイン時のみ免除）。すべてのPOSTで `Origin` が同一、または `Sec-Fetch-Site: same-origin`。エラーは `{"error":"コード"}`。
-別入口: `system/api/gate.php`（アプリの配信ゲート。302 とプレーンテキストだけ。07）、`system/api/preview.php`（プレビュー配信。05）、`system/auth/microsoft.php`（OAuth。02）。定義の正は `editor/system/api/routes.php`（rules/04）。
+# 04 API定義（BE 2.0.0。**FE と BE の契約**。正は BE リポジトリの `docs/04_API.md`。FE は写しを `docs/api-contract/04_API.md` に置く。規則は `docs/rules/04_API規則.md` が正）
+共通: `POST system/api/index.php?r=<名前>`、JSON応答（`GET` は `files/raw`, `files/zip` のみ）。認証済みAPIは `X-CSRF-Token` 必須。ただし `me`・`meta/version` はトークン不要（`auth/start`・`auth/poll`・`apps/gate_verify` は未ログイン時のみ免除）。すべてのPOSTで `Origin` が同一、または `Sec-Fetch-Site: same-origin`。エラーは `{"error":"コード"}`。未知の入力キーは `invalid`（別名キーは 2.0 で廃止）。
+別入口: `system/api/gate.php`（アプリの配信ゲート。302 とプレーンテキストだけ。07）、`system/api/preview.php`（プレビュー配信。05）、`system/auth/idp.php`（IdP ログイン/OIDC。02）。定義の正は `editor/system/api/routes.php`（rules/04）。
 
 | r | 認可（rules/04 §5） | 主な入力 | 応答・備考 |
 |---|---|---|---|
-| meta/version | 不要 (none) | — | `api_version`(整数/BE MAJOR), `server_version`(=VERSION), `features`(1.x互換・2.0で削除), `login_providers`(例:`["microsoft"]`), `backend`(`version`,`build`,`build_full`,`apis`=routes由来)。認証不要・CSRF免除 |
+| meta/version | 不要 (none) | — | `api_version`(整数/BE MAJOR=2), `server_version`(=VERSION), `login_providers`(`["idp"]`), `backend`(`version`,`build`,`build_full`,`apis`=routes由来)。`features` は 2.0 で削除。認証不要・CSRF免除 |
 | auth/start | 不要 (none) | kind | id, poll_secret, code(6桁)（QRのURLは FE が組み立てる） |
 | auth/poll | 不要 (none) | id, poll_secret | status |
 | auth/approve | 信頼端末 (trusted_device) | code | ok。失敗は残り回数、ロックは429 |
@@ -52,12 +52,11 @@
 | apps/open | ログイン (login, 閲覧可能な人) | name | ゲートトークン発行 |
 | apps/gate_verify | 不要 (none) | name, code | 限定公開のコードを検証し、アクセストークンの Cookie を発行。誤りは `bad_code`（残り回数）、ロックは `rate`（解除までの秒数） |
 | apps/unpublish | ログイン (login, 公開権限者) | name | 削除 |
-| admin/admins_status | 管理者+再認証 (admin_reauth) | — | 管理者2人要件の状態（BE 1.2+）。`adminCount`（指定管理者数: 有効かつ `idp_admin_designated`、非IdP結び付きの旧`role=admin`も含む）`executableAdminCount`（有効かつ執行可能`role=admin`）`hasMinimumAdmins`（`adminCount>=minimumRequired`）`minimumRequired`(2)。IdPが正（D-09）のためBEミラーに基づく集計。FEが管理者人数を確認する用途 |
-| admin/members_list, add, update, import_csv | 管理者+再認証 (admin_reauth) | add: id? (省略時は自動採番), name, mail, position, is_admin; update: member または id/member_id と変更項目。※`member_id`/`email`/`isAdmin` は `admin/members_add,update` の別名、`member_id` は `admin/members_delete` の別名（2.0で削除） | 役職・管理者権限・メール・名前・有効/無効の編集。CSV列は `部員ID,名前,メール,役職,管理者権限`。`members_list` 各部員に `idp_linked`（BE 1.2+）。`login_providers` に `idp` があるとき: `members_add` の `mail` は任意（空なら NULL、重複検査は値があるときのみ）/`is_admin=true` は `managed_by_idp` 409、`members_update` で結び付いた部員の管理者フラグを変える要求は `managed_by_idp` 409（同値は可）、`members_import_csv` は管理者権限列を無視し応答に `ignored_admin` を返す |
-| admin/members_delete | 管理者+再認証 (admin_reauth) | member, projects[{id, action(keep/transfer/delete), to?}], apps[{name, action(keep/private/unlisted/delete)}] | 既定は keep |
+| admin/admins_status | 管理者+再認証 (admin_reauth) | — | 管理者2人要件の状態。`adminCount`（指定管理者数: 有効かつ `idp_admin_designated`、非IdP結び付きの旧`role=admin`も含む）`executableAdminCount`（有効かつ執行可能`role=admin`）`hasMinimumAdmins`（`adminCount>=minimumRequired`）`minimumRequired`(2)。IdPが正（D-09）のためBEミラーに基づく集計。FEが管理者人数を確認する用途 |
+| admin/members_list, add, update, import_csv | 管理者+再認証 (admin_reauth) | add: `id?`(省略時自動採番), `name`, `mail?`, `position`; update: `member`, `name?`, `mail?`, `position?`, `active?`; import_csv: `csv` | 役職・メール・名前・有効/無効の編集。**管理者フラグは IdP が正**（BE API からの `is_admin` 変更は 2.0 で廃止。別名キー `member_id`/`email`/`isAdmin` も廃止）。CSV列は `部員ID,名前,メール,役職`（管理者権限列は廃止）。`members_list` 各部員に `idp_linked`、`isAdmin`（表示用）等。`members_add` の `mail` は任意（空なら NULL、重複検査は値があるときのみ）。 |
+| admin/members_delete | 管理者+再認証 (admin_reauth) | `member`, `projects`[{id, action(keep/transfer/delete), to?}], `apps`[{name, action(keep/private/unlisted/delete)}] | 既定は keep |
 | admin/devices_list | 管理者+再認証 (admin_reauth) | member? | 端末一覧 |
-| admin/devices_revoke | 管理者+再認証 (admin_reauth) | id | 端末の失効（正規名） |
-| admin/device_revoke | 管理者+再認証 (admin_reauth) | id | **非推奨の別名**（`admin/devices_revoke` と同じ。BE 1.1 から非推奨、2.0 で削除） |
+| admin/devices_revoke | 管理者+再認証 (admin_reauth) | id | 端末の失効。旧別名 `admin/device_revoke` は 2.0 で削除 |
 | admin/settings_get, set | 管理者+再認証 (admin_reauth) | set: key, value（get は入力なし） | get は全設定値、set は範囲検証 |
 | admin/usage | 管理者+再認証 (admin_reauth) | member? | 全部員、部員別の内訳（4区分）。再認証必須（実装に合わせる） |
 | admin/projects_list | 管理者+再認証 (admin_reauth) | member? | 全プロジェクト（孤立を含む）。再認証必須 |
@@ -86,7 +85,7 @@
 | `invalid` | 400 | 入力不正・未知の入力キー（未知キーは拒否）・許可されない操作 |
 | `limit` | 409 | 制限超過（件数など） |
 | `locked` | 423 | 占有・ロック中 |
-| `managed_by_idp` | 409 | IdP が正の項目（結び付いた部員の管理者フラグ等）を BE から変更しようとした（BE 1.2+）。現在の値と同じ場合は拒否しない |
+
 | `method_not_allowed` | 405 | メソッド不許可 |
 | `not_admin` | 403 | 管理者権限なし |
 | `not_found` | 404 | 対象なし |
@@ -110,10 +109,9 @@ URL契約の正は **`docs/rules/04_API規則.md` §11**。本書では BE が�
 | URL | 意味 | 発行元 |
 |---|---|---|
 | `…/editor/?approve=<6桁>` | 承認画面（S02）を開く。QRの中身 | FE |
-| `…/editor/system/auth/microsoft.php?mode=…` | Microsoft ログイン開始（BE 1.x、並走中） | FE |
-| `…/editor/system/auth/idp.php?mode=direct\|register\|reauth\|logout` | IdP ログイン/再認証/ログアウト開始（BE 1.2+、`login_providers` に `idp` があるとき） | FE（画面遷移） |
-| `…/editor/?auth=done&mode=register\|direct\|reauth` | ログイン/再認証成功。FE は `me` を呼ぶ | BE（`microsoft.php` / `idp.php`） |
-| `…/editor/?auth=error&reason=<分類>&detail=<詳細>&code=<E-A..>` | ログイン失敗。`detail` は省略されることがある。`reason` は分類、`code` は FE の表示用（例: `E-A01`〜`E-A15`、`E-A99`。IdP由来は `E-A20`〜`E-A24` を BE 1.2+ で追加） | BE（`auth/microsoft.php` / `auth/idp.php` の `authFail()` が `reason`・`detail`・`code` を付与） |
+| `…/editor/system/auth/idp.php?mode=direct\|register\|reauth\|logout` | IdP ログイン/再認証/ログアウト開始（BE 2.0+、`login_providers=["idp"]`） | FE（画面遷移） |
+| `…/editor/?auth=done&mode=register\|direct\|reauth` | ログイン/再認証成功。FE は `me` を呼ぶ | BE（`auth/idp.php`） |
+| `…/editor/?auth=error&reason=<分類>&detail=<詳細>&code=<E-A..>` | ログイン失敗。`detail` は省略されることがある。`reason` は分類、`code` は FE の表示用（例: `E-A01`〜`E-A15`、`E-A99`。IdP由来は `E-A20`〜`E-A24`） | BE（`auth/idp.php` の `authFail()` が `reason`・`detail`・`code` を付与） |
 | `…/editor/?gate=<名前>&need=code&return=<パス>` | 限定公開のコード入力（S19） | BE（`gate.php`） |
 | `…/editor/?gate=<名前>&need=login&return=<パス>` | 非公開でログインが必要（S19） | BE（`gate.php`） |
 | `…/editor/?gate=<名前>&need=denied` | 非公開で権限なし（S19） | BE（`gate.php`） |
@@ -121,4 +119,4 @@ URL契約の正は **`docs/rules/04_API規則.md` §11**。本書では BE が�
 `return` は `/editor/app/<名前>/…` で始まる同一サイトのパスだけ（生成側・遷移側で検証）。
 
 ## 契約テストの例
-`meta/version` → `api_version`(整数), `server_version`(=VERSION), `features`, `login_providers`, `backend`(`version`,`build`,`build_full`,`apis`) を含む（rules/04 §9）。`api_version` と `backend.version` の MAJOR が一致。`apps/gate_verify`（誤り）→ `{"error":"bad_code","remaining":3}`、（ロック）→ 429 `{"error":"rate","retry_after":540}`。未知の入力キー → 400 `{"error":"invalid"}`。
+`meta/version` → `api_version`(整数/BE MAJOR), `server_version`(=VERSION), `login_providers`(`["idp"]`), `backend`(`version`,`build`,`build_full`,`apis`) を含む（rules/04 §9。`features` は 2.0 で削除）。`api_version` と `backend.version` の MAJOR が一致。`apps/gate_verify`（誤り）→ `{"error":"bad_code","remaining":3}`、（ロック）→ 429 `{"error":"rate","retry_after":540}`。未知の入力キー → 400 `{"error":"invalid"}`。

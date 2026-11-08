@@ -66,7 +66,7 @@ cp public/config.sample.js public/config.js
 
 完成化スクリプトは Python 3.8 以上の標準ライブラリだけを使います。`tools/dependencies.json` に固定された全フォント、アイコン、外部ライブラリをダウンロードし、SHA-256 を確認して `public/` に配置します。ダウンロードした資材は実行時に外部 CDN へ接続せず、配置先の同一オリジンから配信します。完了後の `public/` をデプロイ対象にしてください。
 
-通常は `apiBase: 'system/api/index.php'`, `requiredApi: 1` のまま使います。`config.js` は環境ごとのローカル設定であり、公開リポジトリにコミットしないでください。FE と BE は同一オリジンで動かしてください。別オリジン構成はサポート対象外です。
+通常は `apiBase: 'system/api/index.php'` のまま使います（FE 2.0: `requiredApi` は廃止。任意で `idpBase`）。`config.js` は環境ごとのローカル設定であり、公開リポジトリにコミットしないでください。FE と BE は同一オリジンで動かしてください。別オリジン構成はサポート対象外です。
 
 ## 開発用偽 API
 
@@ -138,7 +138,7 @@ python3 tools/fetch_ffmpeg_source.py --out ffmpeg-source
 4. **未確認:** Mermaid 11.17.2 の `mermaid.min.js` にバンドルされた各依存ライブラリのライセンス・著作権表示を確認してください（アプリ内「第三者ソフトウェア」にも記載）。
 5. **未実施:** 公開前に、専門家による法的確認を受けてください。本 README は法的助言ではありません。
 
-ログイン画面の「Microsoft でサインイン」ボタンは、[Microsoft のブランドガイドライン](https://learn.microsoft.com/ja-jp/entra/identity-platform/howto-add-branding-in-apps)に従っています（ロゴは改変せず、文言は「Microsoft でサインイン」）。寸法・色は公式画像に合わせた値ですが、公式画像との照合は **要確認** です。
+FE 2.0 では Microsoft サインイン UI は廃止し、部活アカウント（IdP）への遷移と QR/数字コード（案A）を提供します。
 
 ## コントリビューション
 

@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* フェーズ4：管理(SM07/S14-S18)・設定(SM09)・利用状況詳細。右エリアのタブとして描画(render関数)する。
-   すべて 04_API.md の admin/* を使う。管理の更新操作は、直近10分以内の Microsoft 直接ログイン（再認証）を通す。 */
+   すべて 04_API.md の admin/* を使う。管理の更新操作は、直近10分以内の再認証（IdP）を通す。FE 2.0: MSログイン廃止。 */
 function openTab(name, render, icon, after) {
   const path = '#' + name; let t = S.tabs.find(x => x.path === path);
   if (!t) { t = { name, path, g: 'g1', f: { text: '' }, render, icon, after }; S.tabs.push(t); } else { t.render = render; t.after = after; }
@@ -37,10 +37,7 @@ async function pollReauth(started) {
   else if (reauthWin && reauthWin.closed && reauthLeft() <= 0) { stopReauthPoll(); reauthWin = null; showToast('再認証を確認できませんでした'); }
 }
 function reauthUrl() {
-  const linked = DATA.user && (DATA.user.idpLinked || DATA.user.idp_linked);
-  const providers = (DATA.meta && DATA.meta.login_providers) || [];
-  if (linked || (providers.includes('idp') && !providers.includes('microsoft'))) return Api.idpUrl('reauth');
-  return Api.microsoftUrl('reauth');
+  return Api.idpUrl('reauth');
 }
 function startReauth() {
   if (reauthWin && !reauthWin.closed) { try { reauthWin.focus(); } catch { /* noop */ } return; }
@@ -60,7 +57,7 @@ const admReauthBar = () => `<div class="adm-re" role="status">${ico('verified_us
 /* 再認証が切れている間は、管理の画面の全体を覆って、操作できなくする。認証するまで、中の情報も見せない（覆いの下の内容は取り除く） */
 const isAdminTab = t => !!t && typeof t.name === 'string' && t.name.startsWith('管理: ');
 function adminLockHtml() {
-  return `<div class="adm-lock" role="alertdialog" aria-labelledby="adm-lock-t"><div class="box"><span class="ms big">lock_clock</span><h2 id="adm-lock-t">管理の再認証が必要です</h2><p>再認証の有効時間（10分）が切れました。Microsoft で再認証すると、続けて管理の操作ができます。</p><button class="primary" data-a="re-now">${ico('verified_user')} 再認証する</button></div></div>`;
+  return `<div class="adm-lock" role="alertdialog" aria-labelledby="adm-lock-t"><div class="box"><span class="ms big">lock_clock</span><h2 id="adm-lock-t">管理の再認証が必要です</h2><p>再認証の有効時間（10分）が切れました。認証システム（IdP）で再認証すると、続けて管理の操作ができます。</p><button class="primary" data-a="re-now">${ico('verified_user')} 再認証する</button></div></div>`;
 }
 function applyAdminLock() {
   const expired = reauthLeft() <= 0;
@@ -111,14 +108,12 @@ $('#u-more').onclick = () => openTab('使用状況の詳細', rUsage, 'data_usag
 function rMembers() {
   const rows = DATA.members.map(m => {
     const pc = memberProjects(m).length, ac = memberApps(m).length;
-    const admCell = m.idpLinked
-      ? `<span title="管理者の変更は認証システム（IdP）の管理画面で行います">${m.isAdmin ? bd('あり', 'b-warn') : 'なし'} <small class="dnote">IdP</small></span>`
-      : `<label><input type="checkbox" data-a="mem-adm" data-id="${m.id}" ${m.isAdmin ? 'checked' : ''} style="width:auto"> ${m.isAdmin ? bd('あり', 'b-warn') : 'なし'}</label>`;
-    return `<tr><td data-l="ID">${m.id}</td><td data-l="名前">${esc(m.name)}</td><td data-l="メール">${esc(m.mail)}</td><td data-l="役職"><select data-a="mem-pos" data-id="${m.id}">${['顧問', '部長', '副部長', '部員'].map(p => `<option ${m.position === p ? 'selected' : ''}>${p}</option>`).join('')}</select></td><td data-l="管理者権限">${admCell}</td><td data-l="状態">${bd(m.active ? '有効' : '無効', m.active ? 'b-ok' : 'b-ng')}</td><td data-l="使用量">${fmtMB(m.usedMB)}MB<small class="dnote">（P${pc} / A${ac}）</small></td>` +
+    const admCell = `<span title="管理者権限は認証システム（IdP）で設定します">${m.isAdmin ? bd('あり', 'b-warn') : 'なし'}</span>`;
+    return `<tr><td data-l="ID">${m.id}</td><td data-l="名前">${esc(m.name)}</td><td data-l="メール">${esc(m.mail)}</td><td data-l="役職"><select data-a="mem-pos" data-id="${m.id}">${['顧問', '部長', '副部長', '部員'].map(p => `<option ${m.position === p ? 'selected' : ''}>${p}</option>`).join('')}</select></td><td data-l="管理者">${admCell}</td><td data-l="状態">${bd(m.active ? '有効' : '無効', m.active ? 'b-ok' : 'b-ng')}</td><td data-l="使用量">${fmtMB(m.usedMB)}MB<small class="dnote">（P${pc} / A${ac}）</small></td>` +
     `<td class="adm-actions"><div class="adm-actions-in"><button data-a="mem-edit" data-id="${m.id}" title="編集">${ico('edit')}</button><button data-a="mem-tog" data-id="${m.id}" title="無効化/有効化">${ico('block')}</button><button data-a="mem-del" data-id="${m.id}" title="削除">${ico('delete')}</button></div></td></tr>`;
   });
   return `<h2>部員</h2>${admReauthBar()}<div class="tools"><input placeholder="検索" id="adm-q"><button class="o" data-a="mem-add">${ico('person_add')} 追加</button><button class="o" data-a="csv">${ico('upload_file')} CSV一括登録</button></div>
-  <table class="tbl"><thead><tr><th>ID</th><th>名前</th><th>メール</th><th>役職</th><th>管理者権限</th><th>状態</th><th>使用量</th><th></th></tr></thead><tbody>` + (rows.join('') || '<tr><td colspan="8">部員はいません</td></tr>') + '</tbody></table>';
+  <table class="tbl"><thead><tr><th>ID</th><th>名前</th><th>メール</th><th>役職</th><th>管理者</th><th>状態</th><th>使用量</th><th></th></tr></thead><tbody>` + (rows.join('') || '<tr><td colspan="8">部員はいません</td></tr>') + '</tbody></table>';
 }
 let delM = null, step = 1;
 function mdStep(n) {
@@ -250,32 +245,26 @@ $('#bench').addEventListener('click', e => { const b = e.target.closest('[data-a
   if (a === 're-now') { if (reauthLeft() > 0) showToast('再認証はまだ有効です'); else { reauthCb = null; $('#re-t').textContent = '切れています'; $('#d-re').showModal(); } return; }
   if (a === 'mem-add') {
     editM = null;
-    const idpOn = ((DATA.meta && DATA.meta.login_providers) || []).includes('idp');
     $('#mem-h').textContent = '部員を追加'; $('#mem-ok').textContent = '追加';
     $('#mem-id').value = ''; $('#mem-id').disabled = false;
     $('#mem-name-row').hidden = true; $('#mem-note').hidden = false;
     $('#mem-name').value = ''; $('#mem-mail').value = ''; $('#mem-pos').value = '部員';
-    $('#mem-adm').checked = false; $('#mem-adm').disabled = false;
-    if ($('#mem-idp-note')) $('#mem-idp-note').hidden = true;
-    $('#mem-mail').required = !idpOn;
-    $('#mem-mail').placeholder = idpOn ? 'メールアドレス（任意）' : 'メールアドレス';
+    $('#mem-mail').required = false;
+    $('#mem-mail').placeholder = 'メールアドレス（任意）';
     $('#d-mem').showModal();
   }
   if (a === 'mem-edit') {
     const m = DATA.members.find(x => x.id === id); editM = m;
-    const linked = !!(m && m.idpLinked);
     $('#mem-h').textContent = '部員を編集'; $('#mem-ok').textContent = '保存';
     $('#mem-id').value = m.id; $('#mem-id').disabled = true;
     $('#mem-name-row').hidden = false; $('#mem-note').hidden = true;
     $('#mem-name').value = m.named === false ? '' : m.name; $('#mem-mail').value = m.mail; $('#mem-pos').value = m.position;
-    $('#mem-adm').checked = m.isAdmin; $('#mem-adm').disabled = linked;
-    if ($('#mem-idp-note')) $('#mem-idp-note').hidden = !linked;
     $('#mem-mail').required = true; $('#mem-mail').placeholder = 'メールアドレス';
     $('#d-mem').showModal();
   }
   if (a === 'csv') { $('#csv-in').value = CSV_SAMPLE; $('#csv-out').innerHTML = ''; $('#csv-ok').disabled = true; $('#d-csv').showModal(); }
   if (a === 'mem-tog') { const m = DATA.members.find(x => x.id === id); if (!m) return; reauth(async () => {
-    try { await Api.admin.membersUpdate({ member: m.id, name: m.name, mail: m.mail, position: m.position, is_admin: m.isAdmin, active: !m.active }); await loadMembers(); redo(); showToast(m.active ? '部員を有効化しました' : '部員を無効化しました'); }
+    try { await Api.admin.membersUpdate({ member: m.id, name: m.name, mail: m.mail, position: m.position, active: !m.active }); await loadMembers(); redo(); showToast(m.active ? '部員を有効化しました' : '部員を無効化しました'); }
     catch (err) { showApiError(err); } }); }
   if (a === 'mem-del') {
     delM = DATA.members.find(x => x.id === id);
@@ -323,9 +312,9 @@ $('#bench').addEventListener('click', e => { const b = e.target.closest('[data-a
 /* 制限値を変えたとき、画面に反映するもの */
 function afterLimits() { loginSecLeft = Math.min(loginSecLeft, limitVal('code_ttl_sec')); if (typeof renderUsage === 'function') renderUsage(); updateStatus(); refreshNotices(); }
 $('#bench').addEventListener('change', e => { const t = e.target, a = t.dataset.a; if (!a) return;
-  if (a === 'mem-pos' || a === 'mem-adm') { const m = DATA.members.find(x => x.id === t.dataset.id); if (!m) return; const next = a === 'mem-pos' ? t.value : t.checked; reauth(async () => {
+  if (a === 'mem-pos') { const m = DATA.members.find(x => x.id === t.dataset.id); if (!m) return; const next = t.value; reauth(async () => {
     try {
-      await Api.admin.membersUpdate({ member: m.id, name: m.name, mail: m.mail, position: a === 'mem-pos' ? next : m.position, is_admin: a === 'mem-adm' ? next : m.isAdmin, active: m.active });
+      await Api.admin.membersUpdate({ member: m.id, name: m.name, mail: m.mail, position: next, active: m.active });
       await loadMembers(); showToast(m.name + ' さんを更新しました'); redo();
     } catch (err) { showApiError(err); redo(); } }); }
   if (a === 'dev-f') { devF = t.value; redo(); }
@@ -337,21 +326,19 @@ $('#bench').addEventListener('change', e => { const t = e.target, a = t.dataset.
 });
 let editM = null;
 $('#mem-ok').onclick = () => {
-  const n = $('#mem-name').value.trim(), mail = $('#mem-mail').value.trim(), position = $('#mem-pos').value, isAdmin = $('#mem-adm').checked;
+  const n = $('#mem-name').value.trim(), mail = $('#mem-mail').value.trim(), position = $('#mem-pos').value;
   const mid = $('#mem-id').value.trim();
-  const idpOn = ((DATA.meta && DATA.meta.login_providers) || []).includes('idp');
   if (!editM && (!mid || mid.length > 64 || !/^[A-Za-z0-9._@-]+$/.test(mid))) return showToast('部員IDは、半角の英数字と . _ @ - だけで入力してください');
-  if (editM ? (!mail || !$('#mem-mail').checkValidity()) : (!idpOn && (!mail || !$('#mem-mail').checkValidity()))) return showToast('有効なメールアドレスを入力してください');
-  if (!editM && idpOn && mail && !$('#mem-mail').checkValidity()) return showToast('メールアドレスの形式を確認してください');
+  if (editM && (!mail || !$('#mem-mail').checkValidity())) return showToast('有効なメールアドレスを入力してください');
+  if (!editM && mail && !$('#mem-mail').checkValidity()) return showToast('メールアドレスの形式を確認してください');
   const current = editM;
   reauth(async () => {
     try {
-      if (current) await Api.admin.membersUpdate({ member: current.id, name: n, mail, position, is_admin: isAdmin });
+      if (current) await Api.admin.membersUpdate({ member: current.id, name: n, mail, position });
       else {
-        const payload = { id: mid, name: n, position, is_admin: isAdmin };
-        if (mail) payload.mail = mail; else if (!idpOn) payload.mail = mail;
-        if (idpOn && !mail) { /* mail 任意 */ } else { payload.mail = mail; }
-        await Api.admin.membersAdd(idpOn ? { id: mid, name: n, position, is_admin: isAdmin, ...(mail ? { mail } : {}) } : { id: mid, name: n, mail, position, is_admin: isAdmin });
+        const payload = { id: mid, name: n, position };
+        if (mail) payload.mail = mail;
+        await Api.admin.membersAdd(payload);
       }
       $('#d-mem').close(); await loadMembers(); redo(); showToast(current ? '部員を更新しました' : '部員を追加しました');
     } catch (e) {
@@ -381,28 +368,26 @@ $('#as-ok').onclick = () => reauth(async () => {
   } catch (e) { showApiError(e); }
 });
 
-/* CSV一括登録：プレビュー（エラー行つき）。列：部員ID,名前,メール,役職,管理者権限 */
+/* CSV一括登録：プレビュー（エラー行つき）。列：部員ID,名前,メール,役職（BE 2.0: 管理者権限列廃止） */
 const POS = ['顧問', '部長', '副部長', '部員'];
-const CSV_SAMPLE = '部員ID,名前,メール,役職,管理者権限\nU101,新人 一郎,ichiro@example.invalid,部員,なし\nU102,新人 二郎,not-an-email,部員,なし\nU001,重複 太郎,dup@example.invalid,部員,なし\nU103,新人 三郎,saburo@example.invalid,副部長,あり\nU104,新人 四郎,shiro@example.invalid,会計,なし';
+const CSV_SAMPLE = '部員ID,名前,メール,役職\nU101,新人 一郎,ichiro@example.invalid,部員\nU102,新人 二郎,not-an-email,部員\nU001,重複 太郎,dup@example.invalid,部員\nU103,新人 三郎,saburo@example.invalid,副部長\nU104,新人 四郎,shiro@example.invalid,会計';
 let csvOk = [];
 $('#csv-pv').onclick = () => {
   const rows = $('#csv-in').value.trim().split('\n').slice(1).map(l => l.split(',').map(s => s.trim())), seen = new Set(DATA.members.map(m => m.id)); csvOk = [];
-  const res = rows.map((r, i) => { const [id, name, mail, role, adm] = r; let err = '';
-    if (r.length < 5 || !id || !name) err = '列が足りません'; else if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) err = 'メールアドレスの形式が正しくありません';
-    else if (!POS.includes(role)) err = '役職は 顧問/部長/副部長/部員 のいずれかです'; else if (!['あり', 'なし'].includes(adm)) err = '管理者権限は「あり」か「なし」です'; else if (seen.has(id)) err = '部員IDが重複しています';
-    if (!err) { seen.add(id); csvOk.push({ id, name, mail, role, admin: adm === 'あり' }); } return `<tr style="${err ? 'color:var(--danger)' : ''}"><td>${i + 2}</td><td>${esc(id || '')}</td><td>${esc(name || '')}</td><td>${err ? bd('エラー', 'b-ng') + ' ' + err : bd('OK', 'b-ok')}</td></tr>`; });
+  const res = rows.map((r, i) => { const [id, name, mail, role] = r; let err = '';
+    if (r.length < 4 || !id || !name) err = '列が足りません'; else if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) err = 'メールアドレスの形式が正しくありません';
+    else if (!POS.includes(role)) err = '役職は 顧問/部長/副部長/部員 のいずれかです'; else if (seen.has(id)) err = '部員IDが重複しています';
+    if (!err) { seen.add(id); csvOk.push({ id, name, mail, role }); } return `<tr style="${err ? 'color:var(--danger)' : ''}"><td>${i + 2}</td><td>${esc(id || '')}</td><td>${esc(name || '')}</td><td>${err ? bd('エラー', 'b-ng') + ' ' + err : bd('OK', 'b-ok')}</td></tr>`; });
   $('#csv-out').innerHTML = `<table class="tbl"><thead><tr><th>行</th><th>ID</th><th>名前</th><th>結果</th></tr></thead><tbody>${res.join('')}</tbody></table><p class="anote">登録できる行：${csvOk.length}件 / エラー行：${rows.length - csvOk.length}件</p>`;
   $('#csv-ok').disabled = !csvOk.length; };
 $('#csv-ok').onclick = () => {
-  const csv = '部員ID,名前,メール,役職,管理者権限\n' + csvOk.map(m => [m.id, m.name, m.mail, m.role, m.admin ? 'あり' : 'なし'].join(',')).join('\n');
+  const csv = '部員ID,名前,メール,役職\n' + csvOk.map(m => [m.id, m.name, m.mail, m.role].join(',')).join('\n');
   const count = csvOk.length;
   reauth(async () => {
     try {
       const res = await Api.admin.membersImportCsv(csv);
       $('#d-csv').close(); await loadMembers(); redo();
-      let msg = count + '件を登録しました';
-      if (res && Number(res.ignored_admin) > 0) msg += '（管理者権限の列は無視しました。認証システムで設定してください）';
-      showToast(msg, 8000);
+      showToast(count + '件を登録しました', 8000);
     }
     catch (e) { showApiError(e); }
   });

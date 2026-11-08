@@ -46,7 +46,6 @@
         <div class="row" data-login="qr"><span class="ms">qr_code_2</span><span class="nm">QRで承認</span></div>
         <div class="row" data-login="code"><span class="ms">pin</span><span class="nm">数字コードで承認</span></div>
         <div class="row" data-login="idp" data-login-provider="idp"><span class="ms">account_circle</span><span class="nm">部活アカウントでログイン</span></div>
-        <div class="row" data-login="ms" data-login-provider="ms"><span class="ms">account_circle</span><span class="nm">Microsoftでログイン</span></div>
         <div class="lic-sep" role="presentation"></div>
         <div class="pnote lic-h">ライセンス</div>
         <div class="row" data-license role="button" tabindex="0"><span class="ms">description</span><span class="nm">ライセンスを開く</span></div></div></section>
@@ -142,7 +141,6 @@
           <div class="lcard" data-login="qr"><h3><span class="ms">qr_code_2</span>QRで承認</h3>登録済みの端末でQRを読み取って承認します。</div>
           <div class="lcard" data-login="code"><h3><span class="ms">pin</span>数字コードで承認</h3>登録済みの端末で6桁のコードを入力して承認します。</div>
           <div class="lcard" data-login="idp" data-login-provider="idp"><h3><span class="ms">account_circle</span>部活アカウントでログイン</h3>認証システム（/auth/）でログインします。</div>
-          <div class="lcard" data-login="ms" data-login-provider="ms"><h3><span class="ms">account_circle</span>Microsoftでログイン</h3>Microsoftアカウントでログインします。</div>
         </div>
         <section class="lic-sec" aria-labelledby="lic-sec-h">
           <h2 id="lic-sec-h">ライセンス</h2>
@@ -204,7 +202,7 @@
 <dialog id="d-cf"><h3>保存できません</h3><p>他の人が先にこのファイルを保存しました。</p><div class="btns"><button id="cf-diff">差分を見る</button><button id="cf-reload">再読み込み（自分の変更は退避）</button><button class="primary" id="cf-over">上書き</button></div></dialog>
 <dialog id="d-cap"><h3>保存できません</h3><p>容量が上限に達しています。大きいファイルや不要なアプリを整理してください。</p><div class="btns"><button class="primary" data-close>はい</button></div></dialog>
 <!-- CSV一括登録 / 閲覧者管理 -->
-<dialog id="d-csv"><h3>CSV一括登録</h3><p class="dnote">列：部員ID,名前,メール,役職（顧問/部長/副部長/部員）,管理者権限（あり/なし）</p>
+<dialog id="d-csv"><h3>CSV一括登録</h3><p class="dnote">列：部員ID,名前,メール,役職（顧問/部長/副部長/部員）。管理者権限は認証システム（IdP）で設定します。</p>
   <textarea id="csv-in" rows="6" style="width:100%;font-family:var(--mono)"></textarea>
   <div class="btns" style="margin-top:8px"><button id="csv-pv">プレビュー</button></div>
   <div id="csv-out" style="max-height:30vh;max-height:30dvh;overflow:auto"></div>
@@ -231,7 +229,7 @@
   <div class="btns"><button data-close>キャンセル</button><button class="primary" id="an-save">保存</button></div></dialog>
 <dialog id="d-assign"><h3>再関連付け</h3><p><b id="as-app"></b> の所有者を選んでください。</p><p id="as-proj-info"></p><select id="as-sel" style="width:100%"></select><div class="btns"><button data-close>キャンセル</button><button class="primary" id="as-ok">関連付ける</button></div></dialog>
 <dialog id="d-logout"><h3>ログアウト</h3><p>ログアウトします。</p><label><input id="logout-untrust" type="checkbox" style="width:auto"> この端末の信頼を解除する</label><div class="btns"><button data-close>キャンセル</button><button class="primary" id="logout-ok">ログアウト</button></div></dialog>
-<dialog id="d-mem"><h3 id="mem-h">部員を追加</h3><input id="mem-id" placeholder="部員ID（半角英数字と . _ @ -）" maxlength="64" autocomplete="off"><br><br><span id="mem-name-row" hidden><input id="mem-name" placeholder="名前（空欄なら今のまま）"><br><br></span><input id="mem-mail" type="email" placeholder="メールアドレス"><p class="dnote" id="mem-note">名前は、本人が最初にログインしたときに自動で入る場合があります。</p><p class="dnote" id="mem-idp-note" hidden>この部員は認証システム（IdP）に結び付いています。管理者の変更は認証システム（IdP）の管理画面で行います。</p><br><select id="mem-pos"><option>顧問</option><option>部長</option><option>副部長</option><option selected>部員</option></select> <label id="mem-adm-wrap"><input type="checkbox" id="mem-adm" style="width:auto"> 管理者権限</label>
+<dialog id="d-mem"><h3 id="mem-h">部員を追加</h3><input id="mem-id" placeholder="部員ID（半角英数字と . _ @ -）" maxlength="64" autocomplete="off"><br><br><span id="mem-name-row" hidden><input id="mem-name" placeholder="名前（空欄なら今のまま）"><br><br></span><input id="mem-mail" type="email" placeholder="メールアドレス"><p class="dnote" id="mem-note">名前は、本人が最初にログインしたときに自動で入る場合があります。</p><p class="dnote">管理者権限は認証システム（IdP）の管理画面で設定します。</p><br><select id="mem-pos"><option>顧問</option><option>部長</option><option>副部長</option><option selected>部員</option></select>
   <div class="btns"><button data-close>キャンセル</button><button class="primary" id="mem-ok">追加</button></div></dialog>
 <!-- エディター内タブとして開く画面（ログイン / 承認 / 端末登録） -->
 <template id="t-login"><div class="box"><h1>ログイン</h1>
@@ -239,12 +237,10 @@
     <button role="tab" data-t="qr" class="on" aria-selected="true"><span class="ms">qr_code_2</span><span>QRコード</span></button>
     <button role="tab" data-t="code" aria-selected="false"><span class="ms">pin</span><span>数字コード</span></button>
     <button role="tab" data-t="idp" aria-selected="false"><span class="ms">account_circle</span><span>部活アカウント</span></button>
-    <button role="tab" data-t="ms" aria-selected="false"><span class="ms">account_circle</span><span>MSアカウント</span></button>
   </div>
   <div class="seg-p" data-p="qr" role="tabpanel"><div class="qrbox" id="qr-login" role="img" aria-label="ログイン用のQRコード"></div><p>ログイン済みの信頼端末で、<b>「QR読み取りでログイン」</b>からこのQRを読み取って承認してください。</p><p>残り <b class="cd">300</b> 秒</p><button class="primary" data-renew>新しいQRを表示</button></div>
   <div class="seg-p" data-p="code" role="tabpanel" hidden><div class="login-code" id="login-code">482 915</div><p>ログイン済みの信頼端末で、<b>「コード入力でログイン」</b>にこの数字を入力して承認してください。</p><p>残り <b class="cd">300</b> 秒</p><button class="primary" data-renew>新しいコードを表示</button></div>
   <div class="seg-p" data-p="idp" role="tabpanel" hidden><p>部活のアカウント（認証システム）でログインします。</p><button type="button" class="ms-signin" id="idp-login" onclick="location.href=Api.idpUrl('direct')"><span class="ms-label">部活アカウントでログイン</span></button> <button type="button" class="o" id="idp-register" onclick="location.href=Api.idpUrl('register')">初めての端末を登録</button><p class="dnote">初めての端末を登録: この端末をエディターの信頼端末として登録する流れでログインします（ログイン後に端末登録の確認が表示されます）。パスワードはこの画面には入力せず、認証システムの画面で行います。</p></div>
-  <div class="seg-p" data-p="ms" role="tabpanel" hidden><p>Microsoft アカウントでログインします。</p><p class="ms-hint">下の<b>「Microsoft でサインイン」</b>ボタンを押してください。</p><button type="button" class="ms-signin" id="ms-login"><svg class="ms-logo" viewBox="0 0 21 21" width="21" height="21" aria-hidden="true" focusable="false"><rect x="0" y="0" width="10" height="10" fill="#F25022"/><rect x="11" y="0" width="10" height="10" fill="#7FBA00"/><rect x="0" y="11" width="10" height="10" fill="#00A4EF"/><rect x="11" y="11" width="10" height="10" fill="#FFB900"/></svg><span class="ms-label">Microsoft でサインイン</span></button><p class="dnote">信頼端末でない端末では、ログイン後にこの端末を信頼端末にするか聞きます。</p></div>
   <p class="msg" id="s01-msg" role="status" aria-live="polite"></p></div></template>
 <template id="t-trust"><div class="box"><h1>この端末を信頼端末にしますか？</h1>
   <input id="dev-name" value="自宅のPC"><p>有効期間：<span id="trust-days">90</span>日</p>
