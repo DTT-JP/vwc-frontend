@@ -1,14 +1,14 @@
 {
-  "version": "2.0.0",
-  "build": "8cc93c8",
-  "build_full": "8cc93c8c4978b090b1f41ccec35bec437e58e08b4e8dc7564fb9b795a5c06bf9",
+  "version": "2.0.1",
+  "build": "d0f2b71",
+  "build_full": "d0f2b71b783a11ee9941b0779e31bed960178cc2b1cf40acd28579c2ddb7382b",
   "files": {
     "LICENSE": "bf248b023b2aeac9100aff7c6b76776847076f7f9dd89d23ebe4ceaf9d261069",
     "NOTICE.md": "3b5faa454b2b5e29f54240125e953c3225d0be4465f591c426378875a4070de2",
-    "VERSION": "c28fcca53637bc88e124af1725df13cb98c69dedefd62fb3cdbe1cdb6b760624",
+    "VERSION": "fe840f52fb5578d3f77eb497115eb02c6036601c3a53e60df7995c7276baa77a",
     "config.sample.js": "e6806bd881fea4f4a3ca29b0aebda7c77a493fe5a3e8cc0f5da0f6a9b912c540",
-    "css/features.css": "1f64799b37d53ac022a2fe6c7eea1384f0019f94e4c455d80c09f16bf35e6f22",
-    "css/layout.css": "010db5eb5190b4f531d94013456c25428feda89abf3c213e0a4d89673db24cc9",
+    "css/features.css": "bfc52fd3052031618084d804941d63101a13fbe00e7e10f5a113835170ae576b",
+    "css/layout.css": "3c72bb484d2c8c1e30b612f8c8113de809e0fa12bf72b5e71c7baa9de2fcaf28",
     "css/tokens.css": "014e0f05f09325f9fcd4f859154aa45bf968ff5f5269c22a68e62e99fb7096b8",
     "favicon.svg": "fd3f7f1590c291fb2e77c7a102740d853cfd740ad7ee2306245836a55a7059df",
     "help/01-start.md": "accd87127a6db6a1c58a7680d9157239487ffd1a48fe291066ac92373460d41b",
@@ -79,5 +79,5 @@
     "licenses.html": "a49eda304a9ecd03fea487c46a0a26c8454a28243fecf770cedb941c1258423f",
     "mermaid-frame.html": "9d02c1423ff2ae085e2bc7454097fad2b5a2bb156ead762bffe7ad1f42667627"
   },
-  "generated": "2026-11-08"
+  "generated": "2026-11-09"
 }

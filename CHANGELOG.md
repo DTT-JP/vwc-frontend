@@ -1,5 +1,9 @@
 # CHANGELOG (vwc-frontend)
 
+## FE 2.0.1 (2026-11-09)
+- 修正(U1準拠): すべてのアイコンの回転アニメーションを例外なく禁止（アップロード中/処理中等を含む）。`public/css/features.css` の `.ms.spin` 回転（`@keyframes msspin`）を無効化し、`public/css/layout.css` の `.dsc-h` 展開矢印は回転トランジションを除去。特定角度への固定回転表示（展開時矢印の180°）は従来どおり維持。
+- 規則: `vwc-rules` 1.0.3 の `rules/06_UI・視覚ルール.md`（`U1`）に準拠。
+
 ## FE 2.0.0 (2026-11-08)
 - 破壊的変更(MAJOR, P5): Entra/Microsoft ログイン UI・経路を廃止（`Api.microsoftUrl`、ログインの `ms` タブ/`#ms-login`/MSカード、`openLogin('ms')`/MSプロバイダ分岐、関連文言を削除）。ログインは部活アカウント（IdP）+ QR/数字コード（案A）。
 - 破壊的変更: `config.sample.js` から `requiredApi` を削除。`boot.js` の `requiredApi`/`api_version` 比較を削除し、MAJOR 比較は `backend.version` と `public/VERSION` のみ。`meta.features` の読み取りを削除。

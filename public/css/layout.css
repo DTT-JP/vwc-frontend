@@ -543,7 +543,7 @@ html[data-input=touch] .vsb{opacity:0}html[data-input=touch] .vsb.vsb-on,html[da
 .pgb{display:inline-block;vertical-align:middle;height:8px;width:200px;max-width:100%;border-radius:4px;background:var(--border);overflow:hidden}
 .pgb>i{display:block;height:100%;width:0;background:var(--accent);border-radius:4px;transition:width .15s}
 .dsc{margin:8px 0}#app .dsc-h{display:inline-flex;align-items:center;gap:4px;padding:0 10px 0 4px;border:0;background:transparent;color:var(--accent)}
-.dsc-h .ms{transition:transform .15s}.dsc-h[aria-expanded=true] .ms{transform:rotate(180deg)}
+/* U1: アイコン回転アニメーション禁止。固定角度の回転表示は許可（従来どおり） */.dsc-h .ms{transition:none}.dsc-h[aria-expanded=true] .ms{transform:rotate(180deg)}
 
 a.prev small,a.next small{display:inline-flex;align-items:center;gap:4px}
 
