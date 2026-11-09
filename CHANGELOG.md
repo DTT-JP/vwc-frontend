@@ -1,3 +1,6 @@
+## FE 2.0.4 (2026-11-09)
+- 修正: 管理画面（SM07）の「認証システム（IdP）の管理を開く」リンク（`<a class="row">`）が周囲のメニュー項目より青いリンク表示で浮いて見える問題を修正。`public/css/layout.css` の `.row` に `color: inherit; text-decoration: none;` を追加し、周囲の `.row` と同じ見た目に統一。
+
 ## FE 2.0.3 (2026-11-09)
 - 修正: `dev/fake-api/server.py` を BE/FE 2.0 実態に対応（`meta/version` の MAJOR/`backend.version` 整合、`login_providers=["idp"]`、`backend.apis` の `since`［`admin/admins_status`=1.2］、`me` の `idp_linked`/`adminDesignated`/`limits`、部員・管理APIの v2 形状、`admin/admins_status` 実装、`members/search` の `[{id,name}]` 応答 等）
 - 訂正: `docs/api-assumptions.md`・`docs/09_UI.md`・`docs/instructions/00_修正指示書_FE.md` を v2 実態に整合（`is_admin` 非送信/BE入力廃止、`requiredApi`/`features` 廃止、IdP専用、MAJOR 判定は `backend.version` と FE `VERSION`。指示書は履歴+現行注記）

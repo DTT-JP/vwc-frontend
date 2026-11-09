@@ -28,7 +28,7 @@ input,select,textarea{font:inherit;color:var(--fg);background:var(--bg);border:1
 @keyframes slide{from{background-position:-40% 0}to{background-position:140% 0}}
 @media(prefers-reduced-motion:reduce){.lp .sync{animation:none}}
 .lp .body{overflow:auto;flex:1;padding:2px 0}
-.row{display:flex;align-items:center;gap:4px;padding:0 6px 0 8px;min-height:28px;cursor:pointer}
+.row{display:flex;align-items:center;gap:4px;padding:0 6px 0 8px;min-height:28px;cursor:pointer;color:inherit;text-decoration:none}
 .row:hover{background:var(--hover)}.row.sel{background:var(--active)}
 .row .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .project-meta{display:block;color:var(--fg-dim);font-size:13px;line-height:1.35;white-space:normal}
