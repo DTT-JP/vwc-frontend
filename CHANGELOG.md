@@ -1,5 +1,9 @@
 # CHANGELOG (vwc-frontend)
 
+## FE 2.0.2 (2026-11-09)
+- 修正: メディアファイルのプレビュー表示（コード表示・MD/HTMLプレビューを除く）で、画像・動画が割り当てエリア（分割表示の各ペイン/非分割）から上下左右にはみ出す問題を修正。`public/js/tools.js` の `mediaPane()` を `.media-preview` / `.media-fit-wrap` / `.media-fit` 構造へ変更し、`public/css/layout.css` に `max-width`/`max-height`/`object-fit: contain`/`min-height:0`/`min-width:0`/`overflow:hidden` による収まり込み用スタイルを追加。
+- 影響範囲: エディタペインで開く非テキストの画像/動画プレビューが対象。既存の `.tl-pv`（ツール用サムネイル等）は維持。MD/HTMLプレビュー（`.md-fig` 等）は対象外。
+
 ## FE 2.0.1 (2026-11-09)
 - 修正(U1準拠): すべてのアイコンの回転アニメーションを例外なく禁止（アップロード中/処理中等を含む）。`public/css/features.css` の `.ms.spin` 回転（`@keyframes msspin`）を無効化し、`public/css/layout.css` の `.dsc-h` 展開矢印は回転トランジションを除去。特定角度への固定回転表示（展開時矢印の180°）は従来どおり維持。
 - 規則: `vwc-rules` 1.0.3 の `rules/06_UI・視覚ルール.md`（`U1`）に準拠。

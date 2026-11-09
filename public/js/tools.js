@@ -2,9 +2,16 @@
 /* メディアプレビューと未保存・保存競合・容量超過のダイアログ */
 function mediaPane(t) {
   const e = ext(t.name), u = t.f.blob ? (t.f.url = t.f.url || URL.createObjectURL(t.f.blob)) : '';
-  if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico'].includes(e)) return u ? `<div class="empty"><img class="tl-pv" src="${u}"><br>${esc(t.name)}<br>${kb(t.f.blob.size)}</div>` : `<div class="empty">${ico('image')}<br>${esc(t.name)}<br>1920×1080 / 240KB（サンプル）</div>`;
-  if (['mp3', 'wav', 'm4a', 'flac', 'ogg'].includes(e)) return `<div class="empty"><audio controls ${u ? `src="${u}"` : ''}></audio><br>${esc(t.name)}</div>`;
-  if (['mp4', 'webm'].includes(e)) return `<div class="empty"><video controls style="max-width:100%" ${u ? `src="${u}"` : ''}></video><br>${esc(t.name)}</div>`;
+  const meta = `<div class="media-meta">${esc(t.name)}${t.f.blob ? ' · ' + kb(t.f.blob.size) : ''}</div>`;
+  if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico'].includes(e)) {
+    return u
+      ? `<div class="media-preview"><div class="media-fit-wrap"><img class="media-fit" src="${u}" alt="${esc(t.name)}"></div>${meta}</div>`
+      : `<div class="media-preview"><div class="media-fit-wrap"><div class="empty">${ico('image')}<br>${esc(t.name)}<br>1920×1080 / 240KB（サンプル）</div></div></div>`;
+  }
+  if (['mp3', 'wav', 'm4a', 'flac', 'ogg'].includes(e)) return `<div class="media-preview audio"><div class="media-fit-wrap"><audio controls ${u ? `src="${u}"` : ''}></audio></div>${meta}</div>`;
+  if (['mp4', 'webm'].includes(e)) {
+    return `<div class="media-preview"><div class="media-fit-wrap"><video controls class="media-fit" ${u ? `src="${u}"` : ''}></video></div>${meta}</div>`;
+  }
   return `<div class="empty">${ico(fileIcon(t.name))}<br>${esc(t.name)}<br>この形式はダウンロードのみできます</div>`;
 }
 

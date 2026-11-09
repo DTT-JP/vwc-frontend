@@ -197,6 +197,15 @@ body.dragging{user-select:none;cursor:grabbing}
 .drop{display:grid;place-items:center;gap:6px;text-align:center;border:2px dashed var(--border);border-radius:var(--r);padding:24px;cursor:pointer;margin:8px 0}
 .drop:hover,.drop.over{border-color:var(--accent);background:var(--hover)}.drop .ms{font-size:36px}
 .tl-pv{max-width:100%;max-height:240px;border:1px solid var(--border);border-radius:8px;background:repeating-conic-gradient(#8883 0 25%,transparent 0 50%) 50%/16px 16px}
+/* メディアファイルプレビュー（画像/動画）：割り当てエリア（分割・非分割）に縦横とも必ず収める */
+.media-preview{flex:1;min-height:0;min-width:0;display:flex;flex-direction:column;overflow:hidden;padding:12px;gap:8px;box-sizing:border-box}
+.media-preview .media-fit-wrap{flex:1;min-height:0;min-width:0;width:100%;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.media-preview .media-fit{display:block;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}
+.media-preview video.media-fit{background:#000;border-radius:8px}
+.media-preview img.media-fit{border-radius:8px;background:repeating-conic-gradient(#8883 0 25%,transparent 0 50%) 50%/16px 16px}
+.media-preview .media-meta{flex:0 0 auto;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;color:var(--fg-dim);font-size:13px}
+.media-preview.audio .media-fit-wrap{align-items:center}
+.media-preview.audio audio{width:min(100%,480px);max-width:100%}
 
 
 .row.st-blue .nm,.row.st-blue>.ms:first-child{color:var(--st-blue)}.row.st-green .nm,.row.st-green>.ms:first-child{color:var(--st-green)}
