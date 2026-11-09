@@ -1,4 +1,4 @@
-> 複製元: vwc-rules rules-v1.0.2（コミット 73965f2）／複製日: 2026-11-07
+> 複製元: vwc-rules rules-v1.0.4（コミット 7cef352）／複製日: 2026-11-09
 > この文書は複製です。直接直さず、複製元を直してから更新してください。
 
 # 04 API 規則
@@ -135,25 +135,24 @@
 
 ```json
 {
-  "api_version": 1,
-  "server_version": "1.1.0",
-  "features": ["zip", "announcements"],
-  "login_providers": ["idp", "microsoft"],
+  "api_version": 2,
+  "server_version": "2.0.0",
+  "login_providers": ["idp"],
   "backend": {
-    "version": "1.1.0",
+    "version": "2.0.0",
     "build": "3a8b123",
     "build_full": "3a8b123…（64文字）",
     "apis": {
       "files/write": { "since": "1.0" },
-      "admin/device_revoke": { "since": "1.0", "deprecated": true, "remove_in": "2.0", "replaced_by": "admin/devices_revoke" },
+      "admin/admins_status": { "since": "1.2" },
       "files/read": { "since": "1.0", "params": { "例のキー": "1.2" } }
     }
   }
 }
 ```
 
-- `api_version` = BE の MAJOR（整数）。`server_version` = `VERSION` と同じ値。`features` は BE 1.x の間だけ残す（非推奨。2.0.0 で削除）。
-- `login_providers`: ログイン画面が出す方式の一覧（`idp` `microsoft`）。ログイン前に FE が読む。BE 2.0.0 では `["idp"]`（キーも残してよい）。
+- `api_version` = BE の MAJOR（整数）。`server_version` = `VERSION` と同じ値。`features` は BE 2.0.0 で削除済み（レスポンスに含めない）。
+- `login_providers`: ログイン画面が出す方式の一覧。BE 2.0.0+ は IdP 専用で `["idp"]`（`microsoft` は 2.0 以前の遷移値であり現行では使わない）。ログイン前に FE が読む。
 - `backend.apis`: レジストリから自動生成（A6）。`params` は `params_since` から。
 - 内部パスや設定値は返さない。
 
@@ -192,8 +191,8 @@
 | `…/editor/system/auth/idp.php?mode=logout` | IdP 側のセッションを終える。BE が IdP の `logout.php` へ送る | FE が遷移、BE が受ける |
 | `…/auth/authorize.php?…` | 認可の要求（認可コード＋PKCE） | BE（`idp.php`）が作る |
 | `…/editor/system/auth/idp.php?code=…&state=…` | 認可コードの受け取り（`redirect_uri` に登録する） | IdP |
-| `…/editor/?auth=done&mode=register\|direct\|reauth` | ログインの成功。FE は `me` を呼ぶ | BE（`idp.php`・`microsoft.php`） |
-| `…/editor/?auth=error&reason=<分類>&detail=<詳細>&code=<E-A..>` | ログインの失敗。`detail` は省略されることがある | BE（`idp.php`・`microsoft.php`） |
+| `…/editor/?auth=done&mode=register\|direct\|reauth` | ログインの成功。FE は `me` を呼ぶ | BE（`auth/idp.php`。`microsoft.php` は 2.0 で廃止） |
+| `…/editor/?auth=error&reason=<分類>&detail=<詳細>&code=<E-A..>` | ログインの失敗。`detail` は省略されることがある | BE（`auth/idp.php`。`microsoft.php` は 2.0 で廃止） |
 | `…/editor/?gate=<名前>&need=code\|login\|denied&return=<パス>` | アプリのゲート（S19） | BE（`gate.php`） |
 | `…/auth/logout.php?client_id=…&post_logout_redirect_uri=…` | IdP のログアウト。戻り先は登録済みのものだけ | BE（`idp.php`） |
 
