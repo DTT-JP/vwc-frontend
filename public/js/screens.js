@@ -270,9 +270,23 @@ function applyErrorTheme() {
   document.documentElement.dataset.theme = theme;
   return theme;
 }
-let bootLoading = false, bootLoadingFade = 0;
+let bootLoading = false, bootLoadingFade = 0, bootLoadingRetry = 0;
+function setS20Action(text, action) {
+  const a = document.getElementById('s20-a');
+  if (!a) return;
+  if (!text) {
+    a.hidden = true; a.textContent = ''; a.onclick = null; a.removeAttribute('role'); a.removeAttribute('tabindex');
+    return;
+  }
+  a.hidden = false;
+  a.textContent = text;
+  a.onclick = action || null;
+  if (action) { a.setAttribute('role', 'button'); a.tabIndex = 0; a.style.cursor = 'pointer'; a.style.textDecoration = 'underline'; }
+  else { a.removeAttribute('role'); a.removeAttribute('tabindex'); a.style.cursor = ''; a.style.textDecoration = ''; }
+}
 function cancelBootLoadingFade() {
   clearTimeout(bootLoadingFade); bootLoadingFade = 0;
+  clearTimeout(bootLoadingRetry); bootLoadingRetry = 0;
   const scr = document.getElementById('screens'); if (scr) scr.classList.remove('loading-fade');
 }
 function showBootLoading() {
@@ -280,17 +294,23 @@ function showBootLoading() {
   bootLoading = true; cancelBootLoadingFade();
   const scr = document.getElementById('screens');
   if (scr) { scr.dataset.error = ''; scr.dataset.loading = '1'; }
-  const i = document.getElementById('s20-i'), t = document.getElementById('s20-t'), m = document.getElementById('s20-m'), a = document.getElementById('s20-a');
+  const i = document.getElementById('s20-i'), t = document.getElementById('s20-t'), m = document.getElementById('s20-m');
   if (i) i.textContent = 'hourglass_top';
   if (t) t.textContent = '読み込み中';
   if (m) m.textContent = '時間がかかる場合はインターネット接続を確認してください。';
-  if (a) { a.hidden = true; a.textContent = ''; }
+  setS20Action('', null);
+  // ネットワーク不安定等で読み込みが進まない場合でも再読み込みできるようにする
+  bootLoadingRetry = setTimeout(() => {
+    if (!bootLoading) return;
+    setS20Action('ページを再読み込み', () => { try { location.reload(); } catch (e) { location.href = location.href; } });
+  }, 8000);
   show('s20');
 }
 function hideBootLoading() {
   const scr = document.getElementById('screens');
-  if (!bootLoading) { if (scr) scr.dataset.loading = ''; return; }
+  if (!bootLoading) { if (scr) scr.dataset.loading = ''; clearTimeout(bootLoadingRetry); bootLoadingRetry = 0; return; }
   bootLoading = false;
+  clearTimeout(bootLoadingRetry); bootLoadingRetry = 0;
   if (!scr || scr.hidden || scr.dataset.error || scr.dataset.loading !== '1') { if (scr) scr.dataset.loading = ''; return; }
   scr.classList.add('loading-fade');
   clearTimeout(bootLoadingFade);
@@ -331,7 +351,12 @@ const st20 = k => {
   $('#s20-i').textContent = u[0];
   $('#s20-t').textContent = u[1];
   $('#s20-m').textContent = (u[2] || '') + (u[3] ? '\n' + u[3] : '');
-  const a = $('#s20-a'); if (a) { a.hidden = true; a.textContent = ''; }
+  const retryable = ['net', 'offline', 'boot', 'maint', 'session'];
+  if (retryable.includes(key) && typeof setS20Action === 'function') {
+    setS20Action('ページを再読み込み', () => { try { location.reload(); } catch (e) { location.href = location.href; } });
+  } else if (typeof setS20Action === 'function') {
+    setS20Action('', null);
+  }
   const scr = document.getElementById('screens'); if (scr) { scr.dataset.error = '1'; scr.dataset.loading = ''; }
 };
 st20('session');
