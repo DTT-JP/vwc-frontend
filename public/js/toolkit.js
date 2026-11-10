@@ -89,9 +89,21 @@ function pickFromSystem(id) {
   }
   const T = Tools.get(id); if (!T) return; const ok = Tools.exts(T); pickRows = []; pickTool = id;
   (function w(l, p) { l.forEach(f => f.t === 'dir' ? w(f.c, p + f.n + '/') : ok.has(ext(f.n)) && pickRows.push([p + f.n, f])); })(files(), '');
-  $('#pick-l').innerHTML = pickRows.map(([p, f], i) => `<div class="row ${f.blob ? '' : 'dim'}" data-pi="${i}">${ico(fileIcon(f.n))}<span class="nm">${esc(p)}</span><span class="dnote">${f.blob ? kb(f.blob.size) : 'サンプル（データなし）'}</span></div>`).join('')
+  $('#pick-l').innerHTML = pickRows.map(([p, f], i) => `<div class="row ${f.blob ? '' : 'dim'}" data-pi="${i}">${ico(fileIcon(f.n))}<span class="nm">${esc(p)}</span><span class="dnote">${f.blob ? kb(f.blob.size) : (f.size ? kb(f.size) : '未取得')}</span></div>`).join('')
     || '<div class="dnote">対応するファイルがありません。先にファイルをアップロードするか、ツールの結果を「保存」してください。</div>';
   $('#d-pick').showModal();
 }
-$('#pick-l').onclick = e => { const r = e.target.closest('[data-pi]'); if (!r) return; const [, f] = pickRows[+r.dataset.pi]; if (!f.blob) return showToast('このファイルはサンプルのため、実データがありません');
-  $('#d-pick').close(); const T = Tools.get(pickTool); T && T.onFile && T.onFile(new File([f.blob], f.n, { type: f.blob.type })); };
+$('#pick-l').onclick = async e => {
+  const r = e.target.closest('[data-pi]'); if (!r) return;
+  const [path, f] = pickRows[+r.dataset.pi];
+  if (!f.blob) {
+    if (!(typeof hasProject === 'function' ? hasProject() : !!(S.proj && S.proj.id))) {
+      return showToast(typeof NO_PROJECT_MSG === 'string' ? NO_PROJECT_MSG : 'プロジェクトを作成するか、開いてください');
+    }
+    if (typeof ensureBlob !== 'function') return showToast('このファイルはサンプルのため、実データがありません');
+    try { await ensureBlob(f, path, S.proj.id); }
+    catch (err) { return showApiError ? showApiError(err) : showToast('ファイルを読み込めませんでした'); }
+    if (!f.blob) return showToast('このファイルはサンプルのため、実データがありません');
+  }
+  $('#d-pick').close(); const T = Tools.get(pickTool); T && T.onFile && T.onFile(new File([f.blob], f.n, { type: f.blob.type || '' }));
+};

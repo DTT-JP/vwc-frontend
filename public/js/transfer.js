@@ -1,34 +1,149 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
-/* 転送：アップロード（M08・M15）と、ZIPダウンロード（N04）。画面右下の「転送トレイ」に進捗を出し、ステータスバーの「現在の処理」（Proc）と連動する。
-   ・アップロード：files/upload_init → files/upload_chunk（5MBずつ）→ files/upload_done。
-     保存・アップロードの前に、管理設定の最大アップロードサイズ（max_upload_mb）を超えていないか確認する。超えたら「ファイルが大きすぎます」で、保存しない。
-     ダウンロードには上限をかけない。進捗バーとキャンセルあり（分割アップロードを想定して、5MBずつ送る表示）。
-   ・ZIP：サーバーが作る。files/zip_prepare → files/zip（GET）。準備中 → ダウンロード開始 / 失敗 / 大きすぎ。 */
+/* 転送・通知・現在の処理（統合）：
+   - 右下の通知パネル（Tray）に、進捗表示・完了/失敗・画面内通知（旧トースト）をすべて集約する。
+   - ステータスバーの #s-proc は現在の処理状態を示し、押すと通知パネル（履歴含む）の表示/非表示を切り替える。
+   - 終了/閉じた通知は履歴として保持し、履歴からの削除（各項目の×）でメモリからも消す。 */
 const MB = 1048576;
 const kb = n => n > 1048576 ? (n / 1048576).toFixed(1) + 'MB' : Math.max(1, Math.round(n / 1024)) + 'KB';
 const limitVal = k => { const l = DATA.limits.find(x => x.key === k); return l ? l.value : 0; };
 const maxUploadBytes = () => limitVal('max_upload_mb') * MB;
 const TOO_BIG = 'ファイルが大きすぎます';
 
-/* ---- 転送トレイ ---- */
-const Tray = (() => {
-  let el = null, seq = 0; const rows = [];
-  const mount = () => { if (el) return el; el = document.createElement('div'); el.id = 'tray'; el.hidden = true; (window.floatStack ? floatStack() : document.body).appendChild(el);
-    el.onclick = e => { const x = e.target.closest('[data-tx]'), c = e.target.closest('[data-tc]'); if (x) Tray.remove(+x.dataset.tx); if (c) { const r = rows.find(r => r.id === +c.dataset.tc); r && r.onCancel && r.onCancel(); } }; return el; };
-  /* 進み具合が分からない（pct が null）処理は、左右に動く帯で「動いていること」を示す。実行中のアイコンは回る。 */
-  const paint = () => { mount(); el.hidden = !rows.length;
-    el.innerHTML = rows.map(r => { const run = r.state === 'run', known = r.pct !== null && r.pct !== undefined, pct = Math.round((r.pct || 0) * 100);
-      return `<div class="tr-row ${r.kind} ${run ? 'run' : ''}" data-id="${r.id}"><div class="tr-h"><span class="ms${run && r.spin ? ' spin' : ''}">${esc(r.icon)}</span><b title="${esc(r.title)}">${esc(r.title)}</b>` +
-      (run && known ? `<span class="tr-pct">${pct}%</span>` : '') +
-      (run && r.onCancel ? `<button data-tc="${r.id}">キャンセル</button>` : !run ? `<button data-tx="${r.id}" title="閉じる"><span class="ms">close</span></button>` : '') + `</div>` +
-      (run ? `<div class="pgb${known ? '' : ' ind'}" role="progressbar"${known ? ` aria-valuenow="${pct}"` : ''}><i style="width:${known ? pct : 38}%"></i></div>` : '') + `<div class="tr-m" title="${esc(r.msg || '')}">${esc(r.msg || '')}</div></div>`; }).join(''); };
+/* ---- 現在の処理（ステータスバー） ---- */
+const Proc = (() => {
+  const items = []; let seq = 0; const KIND_ICON = { upload: 'upload', zip: 'folder_zip', tool: 'build', task: 'sync' };
+  const render = () => {
+    const el = document.getElementById('s-proc'); if (!el) return;
+    el.classList.add('proc-btn');
+    if (!items.length) {
+      el.innerHTML = `<span class="ms">notifications</span><span class="proc-text">通知</span>`;
+      el.classList.remove('busy'); el.title = '通知・履歴を表示'; return;
+    }
+    el.classList.add('busy');
+    const first = items[0], icon = first.kind === 'upload' ? 'upload' : (first.icon || KIND_ICON[first.kind] || 'sync');
+    if (items.length === 1) {
+      const pct = first.pct != null ? ` ${Math.round(first.pct * 100)}%` : '';
+      el.innerHTML = `<span class="ms">${esc(icon)}</span><span class="proc-text">${esc(first.label)}${pct}</span>`;
+    } else {
+      const n = items.filter(x => x.kind === 'upload').length;
+      const label = n && n === items.length ? `${n}件をアップロード中` : `${items.length}件の処理を実行中`;
+      const ico = n ? 'upload' : 'sync';
+      el.innerHTML = `<span class="ms">${esc(ico)}</span><span class="proc-text">${label}</span>`;
+    }
+    el.title = '通知を表示/非表示（クリック）\n' + items.map(x => x.label + (x.pct != null ? ' ' + Math.round(x.pct * 100) + '%' : '')).join('\n');
+  };
   return {
-    add(o) { const r = { id: ++seq, kind: 'up', icon: 'cloud_upload', state: 'run', pct: 0, msg: '', spin: false, ...o }; rows.push(r); paint(); return r.id; },
-    set(id, o) { const r = rows.find(x => x.id === id); if (r) { Object.assign(r, o); paint(); } },
-    remove(id) { const i = rows.findIndex(x => x.id === id); if (i >= 0) rows.splice(i, 1); paint(); },
-    rows: () => rows.map(r => ({ ...r })), paint
+    add(label, kind, icon) { const k = kind || 'tool'; const it = { id: ++seq, label, kind: k, icon: icon || KIND_ICON[k] || 'sync', pct: null }; items.push(it); render(); return it.id; },
+    set(id, o) { const it = items.find(x => x.id === id); if (it) { Object.assign(it, o); render(); } },
+    done(id) { const i = items.findIndex(x => x.id === id); if (i >= 0) items.splice(i, 1); render(); },
+    list: () => items.map(x => ({ ...x })), render
   };
 })();
+
+/* ---- 通知トレイ（進捗・通知・履歴を統合） ---- */
+const Tray = (() => {
+  let el = null, seq = 0; const rows = [], history = []; let panelVisible = true;
+  const mount = () => {
+    if (el) return el;
+    el = document.createElement('div'); el.id = 'tray'; el.hidden = false;
+    (window.floatStack ? floatStack() : document.body).appendChild(el);
+    el.addEventListener('click', e => {
+      const del = e.target.closest('[data-td]');
+      const close = e.target.closest('[data-tx]');
+      const cancel = e.target.closest('[data-tc]');
+      if (del) { Tray.forget(+del.dataset.td); e.stopPropagation(); return; }
+      if (close) { Tray.dismiss(+close.dataset.tx); e.stopPropagation(); return; }
+      if (cancel) { const r = rows.find(r => r.id === +cancel.dataset.tc) || history.find(r => r.id === +cancel.dataset.tc); r && r.onCancel && r.onCancel(); e.stopPropagation(); return; }
+      if (!e.target.closest('button,a,input,select,textarea')) Tray.toggle();
+    });
+    paint();
+    return el;
+  };
+  const rowHtml = (r, inHistory) => {
+    const run = r.state === 'run', known = r.pct != null, pct = Math.round((r.pct || 0) * 100);
+    const showPct = run && known && r.kind !== 'notice';
+    const showBar = run && r.kind !== 'notice';
+    const action = run && r.onCancel
+      ? `<button data-tc="${r.id}">キャンセル</button>`
+      : inHistory
+        ? `<button data-td="${r.id}" title="履歴から消す"><span class="ms">close</span></button>`
+        : `<button data-tx="${r.id}" title="閉じる"><span class="ms">close</span></button>`;
+    const msg = r.msg || (run ? '' : r.state === 'ok' ? '完了' : r.state === 'err' ? '失敗' : r.state === 'cancel' ? 'キャンセル' : '');
+    return `<div class="tr-row ${esc(r.kind || '')} ${run ? 'run' : esc(r.state || '')}" data-id="${r.id}"><div class="tr-h"><span class="ms${run && r.spin ? ' spin' : ''}">${esc(r.icon || 'notifications')}</span><b title="${esc(r.title)}">${esc(r.title)}</b>` +
+      (showPct ? `<span class="tr-pct">${pct}%</span>` : '') + action + `</div>` +
+      (showBar ? `<div class="pgb${known ? '' : ' ind'}" role="progressbar"${known ? ` aria-valuenow="${pct}"` : ''}><i style="width:${known ? pct : 38}%"></i></div>` : '') +
+      `<div class="tr-m" title="${esc(msg)}">${esc(msg)}</div></div>`;
+  };
+  const paint = () => {
+    mount();
+    const has = rows.length || history.length;
+    el.classList.toggle('is-empty', !has);
+    el.classList.toggle('is-hidden', !panelVisible);
+    if (!has) { el.innerHTML = ''; el.hidden = true; return; }
+    el.hidden = false;
+    let html = '';
+    if (rows.length) html += `<div class="tr-sec">${rows.map(r => rowHtml(r, false)).join('')}</div>`;
+    if (history.length) html += `<div class="tr-sec tr-hist"><div class="tr-cap">履歴</div>${[...history].reverse().map(r => rowHtml(r, true)).join('')}</div>`;
+    el.innerHTML = html;
+  };
+  const toHistory = r => {
+    if (!r || r._hist) return;
+    r._hist = true; r.state = r.state === 'run' ? 'done' : r.state; r.onCancel = null; r.pct = r.pct == null ? r.pct : 1;
+    if (!history.find(x => x.id === r.id)) history.push(r);
+    if (history.length > 50) history.splice(0, history.length - 50);
+  };
+  const scheduleNoticeOut = id => {
+    const r = rows.find(x => x.id === id); if (!r || r.kind !== 'notice') return;
+    clearTimeout(r._t); r._t = setTimeout(() => { if (rows.find(x => x.id === id)) Tray.dismiss(id); }, r.ms || Math.min(12000, Math.max(2500, String((r.title || '') + (r.msg || '')).length * 130)));
+  };
+  return {
+    add(o) {
+      const r = { id: ++seq, kind: 'task', icon: 'sync', state: 'run', pct: null, msg: '', spin: false, title: '', ...o };
+      rows.push(r); panelVisible = true; paint(); return r.id;
+    },
+    notify(o) {
+      const r = { id: ++seq, kind: 'notice', icon: 'notifications', state: 'info', pct: null, msg: '', spin: false, title: '', ...o };
+      rows.push(r); panelVisible = true; paint(); scheduleNoticeOut(r.id); return r.id;
+    },
+    set(id, o) {
+      const r = rows.find(x => x.id === id) || history.find(x => x.id === id);
+      if (r) { Object.assign(r, o); if (o.state && o.state !== 'run') { toHistory(r); } paint(); }
+    },
+    /* 表示中の項目を閉じる（履歴には残す） */
+    dismiss(id) {
+      const i = rows.findIndex(x => x.id === id); if (i < 0) return;
+      const r = rows.splice(i, 1)[0]; clearTimeout(r._t); toHistory(r); paint();
+    },
+    /* 互換: close同等。進捗完了などでは履歴へ */
+    remove(id) { Tray.dismiss(id); },
+    /* 履歴から完全削除（メモリ解放） */
+    forget(id) {
+      let i = history.findIndex(x => x.id === id);
+      if (i >= 0) { history.splice(i, 1); paint(); return; }
+      i = rows.findIndex(x => x.id === id);
+      if (i >= 0) { const r = rows.splice(i, 1)[0]; clearTimeout(r._t); r.msg = r.title = r.onCancel = null; paint(); }
+    },
+    toggle(force) { panelVisible = typeof force === 'boolean' ? force : !panelVisible; paint(); },
+    show() { panelVisible = true; paint(); },
+    hide() { panelVisible = false; paint(); },
+    isVisible: () => panelVisible,
+    rows: () => rows.map(r => ({ ...r })),
+    history: () => history.map(r => ({ ...r })),
+    paint
+  };
+})();
+
+/* 通知を右下トレイへ統合（旧 #toast の代替） */
+window.showToast = (m, ms) => {
+  if (!m) return;
+  try { Tray.notify({ icon: 'notifications', title: String(m), msg: '', ms }); } catch (e) { /* 初期化前フォールバック */ }
+};
+/* 設定に従う通知（settings.js からも利用） */
+window.notify = (k, m) => {
+  try { if (DATA && DATA.settings && DATA.settings.notify && !DATA.settings.notify[k]) return; } catch (e) { /* 判定不能なら表示 */ }
+  showToast(m);
+};
+document.addEventListener('DOMContentLoaded', () => { Tray.paint(); Proc.render(); const p = document.getElementById('s-proc'); if (p) p.addEventListener('click', () => Tray.toggle()); });
 
 /* ---- アップロード ---- */
 const normalPath = p => String(p || '').replace(/\\/g, '/').split('/').filter(s => s && s !== '.' && s !== '..').join('/');
@@ -118,7 +233,7 @@ const Upl = {
       if (code === 'quota') $('#d-cap').showModal(); else showToast(msg);
     } else if (done.length) {
       Tray.set(tid, { state: 'ok', icon: 'cloud_done', msg: `${done.length}件を保存しました（${kb(total)}）` });
-      setTimeout(() => Tray.remove(tid), 4000);
+      setTimeout(() => Tray.dismiss(tid), 4000);
     } else {
       Tray.set(tid, { state: 'err', icon: 'error', msg: '保存できませんでした。', pct: 0 });
     }
@@ -158,7 +273,7 @@ const Zip = {
       const { blob } = await Api.files.zip(token, { onProgress: (n, t) => { if (t) { Tray.set(tid, { pct: n / t, msg: `${kb(n)} / ${kb(t)}` }); Proc.set(pid, { pct: n / t }); } } });
       finish('ok', 'download_done', `ダウンロードを開始しました（${kb(blob.size)}）`);
       dl(blob, zipName);
-      setTimeout(() => Tray.remove(tid), 5000);
+      setTimeout(() => Tray.dismiss(tid), 5000);
       return { ok: true, blob };
     } catch (e) {
       if (e instanceof ApiError && e.code === 'too_large') {
@@ -192,8 +307,9 @@ const Task = (() => {
         Proc.set(proc, { ...(p.title ? { label: p.title } : {}), pct: t.state.pct });
       }
     };
-    try { return await fn(api); }
-    finally { t.done = true; clearTimeout(timer); Proc.done(proc); if (t.tid) Tray.remove(t.tid); }
+    try { const r = await fn(api); if (t.tid) Tray.set(t.tid, { state: 'ok', msg: t.state.msg || '完了', pct: 1, spin: false }); return r; }
+    catch (e) { if (t.tid) Tray.set(t.tid, { state: 'err', msg: (e && e.message) || '失敗', spin: false }); throw e; }
+    finally { t.done = true; clearTimeout(timer); Proc.done(proc); if (t.tid) setTimeout(() => Tray.dismiss(t.tid), 2500); }
   }
   return { run };
 })();

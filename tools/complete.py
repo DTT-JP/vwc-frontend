@@ -127,6 +127,44 @@ def add_output(outputs, public_path, data):
     return relative.as_posix()
 
 
+def collect_local_dependencies(spec):
+    packages = []
+    managed = set()
+    for dependency in spec.get("local_dependencies", []):
+        name = dependency["name"]
+        package_files = {}
+        for relative in dependency.get("files", []):
+            public_path = safe_relative_path(relative).as_posix()
+            path = PUBLIC / safe_relative_path(public_path)
+            if not path.is_file():
+                raise ValueError(f"同梱ファイルがありません: {public_path}")
+            package_files[public_path] = sha256(path.read_bytes())
+            managed.add(public_path)
+        license_document = dependency.get("license_document")
+        if license_document and license_document not in package_files:
+            license_path = PUBLIC / safe_relative_path(license_document)
+            if not license_path.is_file():
+                raise ValueError(f"ライセンス文書がありません: {license_document}")
+            package_files[license_document] = sha256(license_path.read_bytes())
+            managed.add(license_document)
+        package = {
+            "name": name,
+            "version": dependency["version"],
+            "license": dependency["license"],
+            "source": dependency.get("source", "bundled"),
+            "tarball_sha256": "",
+            "use": dependency["use"],
+            "files": dict(sorted(package_files.items())),
+            "bundled": True,
+        }
+        for key in ("repository", "license_document", "license_note"):
+            if key in dependency:
+                package[key] = dependency[key]
+        packages.append(package)
+        print(f"同梱: {name}@{dependency['version']}")
+    return packages, managed
+
+
 def download_dependencies(spec):
     outputs = {}
     packages = []
@@ -334,7 +372,9 @@ def complete():
     if spec.get("schema_version") != 1 or not spec.get("dependencies"):
         raise ValueError("dependencies.json の schema_version または dependencies が不正です")
     stale_files = previous_generated_files()
+    local_packages, local_managed = collect_local_dependencies(spec)
     packages, outputs = download_dependencies(spec)
+    packages = local_packages + packages
     source = download_components(spec, outputs)
     manifest = make_manifest(spec, packages, source)
     docs, warnings = license_docs.build(manifest, outputs)  # public/license/*.md・bundle.js・vendor/ffmpeg/SOURCE.md
@@ -354,6 +394,7 @@ def complete():
         for package in packages
         for path in package["files"]
     }
+    managed_files.update(local_managed)
     for component in (source or {}).get("components", []):
         managed_files.update(component["files"])
     managed_files.update(docs)
@@ -375,8 +416,10 @@ def verify():
         (dependency["name"], dependency["version"], dependency["source"]["sha256"])
         for dependency in spec["dependencies"]
     }
+    for dependency in spec.get("local_dependencies", []):
+        expected.add((dependency["name"], dependency["version"], ""))
     actual = {
-        (package["name"], package["version"], package["tarball_sha256"])
+        (package["name"], package["version"], package.get("tarball_sha256", ""))
         for package in manifest.get("packages", [])
     }
     if expected != actual:

@@ -91,57 +91,81 @@
 
   window.renderAboutVersion = async function renderAboutVersion() {
     const fe = await loadFeInfo();
-    const be = (window.DATA && DATA.meta && DATA.meta.backend) ? DATA.meta.backend : null;
+    const meta = (window.DATA && DATA.meta) ? DATA.meta : {};
+    const be = meta.backend || null;
     const feBuild = fe.manifest && fe.manifest.build ? fe.manifest.build : '—';
     const feVer = (fe.manifest && fe.manifest.version) || fe.version || '—';
-    const beVer = be ? (be.version || '—') : (DATA.meta && DATA.meta.server_version ? DATA.meta.server_version + '（旧形式）' : '取得できません');
+    const beVerRaw = be ? (be.version || '') : (meta.server_version || '');
+    const beVer = beVerRaw ? beVerRaw : '取得できません';
     const beBuild = be ? (be.build || '—') : '—';
-    const feLine = `Frontend | ver ${esc(feVer)} (build ${esc(feBuild)})`;
-    const beLine = `Backend  | ver ${esc(beVer)} (build ${esc(beBuild)})`;
+    const feOk = feVer !== '取得できません' && feVer !== '—';
+    const beOk = beVer !== '取得できません';
+    const verRow = (side, label, ver, build, ok, icon) => {
+      const st = ok ? 'ok' : 'na';
+      const stText = ok ? '取得済み' : '取得できません';
+      return `<div class="ver-card ${st}" data-side="${side}">
+        <div class="ver-main">
+          <div class="ver-head">
+            <span class="ver-icon ms" aria-hidden="true">${icon}</span>
+            <span class="ver-label">${label}</span>
+          </div>
+          <div class="ver-meta">
+            <span class="ver-kv"><span class="k">version</span><span class="v" id="ver-${side}-ver">${esc(ver)}</span></span>
+            <span class="ver-kv"><span class="k">build</span><span class="v mono" id="ver-${side}-build">${esc(build)}</span></span>
+          </div>
+        </div>
+        <div class="ver-state" id="ver-${side}-state">${stText}</div>
+      </div>`;
+    };
     return `<h2>バージョン情報</h2>
-      <pre class="verbox" id="ver-lines" style="white-space:pre-wrap;font-family:var(--mono,monospace);padding:12px;border:1px solid var(--border,#333);border-radius:8px">${feLine}\n${beLine}</pre>
-      <div class="row" style="margin-top:12px"><div>ファイルの整合性<small>配備されたファイルが build-manifest.json と一致するか確認します（config.js・vendor・fonts・help/media・.htaccess は対象外。追加ファイルや manifest 自体の差し替えは検出できません）</small></div>
-      <button class="o" id="ver-check">${window.ico ? ico('verified') : ''}整合性を確認</button></div>
+      <div class="ver-cards" id="ver-lines" aria-label="バージョン情報">
+        ${verRow('fe', 'Frontend', feVer, feBuild, feOk, 'web')}
+        ${verRow('be', 'Backend', beVer, beBuild, beOk, 'dns')}
+      </div>
+      <div class="row" style="margin-top:12px"><div>FE側変更の確認<small>配備されたFEファイルに変更があるかどうかを確認します（config.js・vendor・fonts・help/media・.htaccess は対象外。追加ファイルや manifest 自体の差し替えは検出できません）</small></div>
+      <button class="o" id="ver-check">${window.ico ? ico('verified') : ''}変更を確認</button></div>
       <div id="ver-result" class="dnote" style="margin-top:8px"></div>
       <div id="ver-diff" style="margin-top:8px"></div>`;
   };
 
   window.runIntegrityCheck = async function runIntegrityCheck(statusEl, diffEl, linesEl) {
-    const useFallback = !(typeof crypto !== 'undefined' && crypto.subtle && typeof crypto.subtle.digest === 'function');
     let manifest;
-    try { manifest = await fetchJsonNoStore('build-manifest.json'); } catch { statusEl.textContent = '確認できません（build-manifest.json を取得できませんでした）'; return; }
+    try { manifest = await fetchJsonNoStore('build-manifest.json'); } catch { statusEl.textContent = '確認できません'; diffEl.textContent = ''; return; }
     const files = manifest && manifest.files ? Object.keys(manifest.files) : [];
-    if (!files.length) { statusEl.textContent = '確認できません（検査対象がありません）'; return; }
-    statusEl.textContent = `確認中… (0/${files.length})`;
+    if (!files.length) { statusEl.textContent = '確認できません'; diffEl.textContent = ''; return; }
+    statusEl.textContent = '確認中…';
     diffEl.textContent = '';
-    const diffs = [];
+    let changed = false;
     let done = 0;
     const concurrency = 4;
     let idx = 0;
     async function worker() {
-      while (idx < files.length) {
+      while (idx < files.length && !changed) {
         const i = idx++; const rel = files[i];
         const name = rel.split('/').pop();
         try {
           const r = await fetch(rel, { cache: 'no-store', credentials: 'same-origin' });
-          if (!r.ok) { diffs.push(`${rel} (取得失敗 ${r.status})`); }
+          if (!r.ok) { changed = true; }
           else {
             const buf = await r.arrayBuffer();
             const norm = normalizeCrlf(buf, name);
             const h = await sha256Hex(norm);
-            if (h !== manifest.files[rel]) diffs.push(rel);
+            if (h !== manifest.files[rel]) changed = true;
           }
-        } catch (e) { diffs.push(`${rel} (エラー)`); }
-        done++; statusEl.textContent = `確認中… (${done}/${files.length})`;
+        } catch (e) { changed = true; }
+        done++; statusEl.textContent = '確認中…';
       }
     }
     await Promise.all(Array.from({length: Math.min(concurrency, files.length)}, worker));
-    if (diffs.length) {
-      statusEl.textContent = `不一致・欠落が ${diffs.length} 件あります（build ${manifest.build || ''} *）` + (useFallback ? '（JS計算）' : '');
-      if (linesEl) linesEl.textContent = linesEl.textContent.replace(/\(build ([0-9a-f]{7})\)/, '(build $1 *)');
-      diffEl.innerHTML = '<ul style="margin:4px 0 0 16px">' + diffs.map(d=>'<li><code>'+esc(d)+'</code></li>').join('') + '</ul>';
+    diffEl.textContent = '';
+    if (changed) {
+      statusEl.textContent = '変更がある';
+      if (linesEl) {
+        const feBuildEl = linesEl.querySelector('#ver-fe-build') || document.getElementById('ver-fe-build');
+        if (feBuildEl && !/\*$/.test(feBuildEl.textContent)) feBuildEl.textContent += ' *';
+      }
     } else {
-      statusEl.textContent = `一致しました（${files.length} ファイル）` + (useFallback ? '（JS計算）' : '');
+      statusEl.textContent = '変更がない';
     }
   };
 

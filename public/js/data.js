@@ -158,17 +158,51 @@ const memberLabel = id => {
 };
 
 /* ---- 設定（端末の localStorage。キーに部員IDを含める：03） ---- */
+/* V6: 保存データ互換。変換可能なら正規化、破損/不明形式は放棄して既定値を再生成する。 */
+const SETTINGS_SCHEMA = 1;
+function migrateSettings(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const s = { ...v };
+  // 旧形式の正規化（変換可能）
+  if (s.htmlComplete === 'tab' || s.htmlComplete === 'auto') s.htmlComplete = 'on';
+  if (s.htmlComplete === true) s.htmlComplete = 'on';
+  if (s.htmlComplete === false) s.htmlComplete = 'off';
+  if (!s.notify || typeof s.notify !== 'object') s.notify = {};
+  s._v = SETTINGS_SCHEMA;
+  return s;
+}
 function settingsKey() { return 'vwc.settings.' + (DATA.user.id || 'anon'); }
 function loadSettings() {
+  let base = JSON.parse(JSON.stringify(SETTINGS_DEFAULT));
   try {
-    const v = JSON.parse(localStorage.getItem(settingsKey()) || 'null');
-    if (v && typeof v === 'object') {
-      DATA.settings = { ...JSON.parse(JSON.stringify(SETTINGS_DEFAULT)), ...v, notify: { ...SETTINGS_DEFAULT.notify, ...(v.notify || {}) } };
+    const raw = localStorage.getItem(settingsKey());
+    if (raw !== null) {
+      const parsed = JSON.parse(raw);
+      const migrated = migrateSettings(parsed);
+      if (migrated) {
+        base = { ...base, ...migrated, notify: { ...SETTINGS_DEFAULT.notify, ...(migrated.notify || {}) } };
+        // 変換/正規化結果を保存（冪等）
+        if (!parsed || parsed._v !== SETTINGS_SCHEMA || JSON.stringify(parsed) !== JSON.stringify(migrated)) {
+          try { localStorage.setItem(settingsKey(), JSON.stringify(base)); } catch { /* noop */ }
+        }
+      } else {
+        // 形式不明は放棄して新規生成（V6-3）
+        try { localStorage.removeItem(settingsKey()); } catch { /* noop */ }
+      }
     }
-  } catch { /* 壊れた値は既定に戻す */ }
+  } catch {
+    // 破損データは放棄して新規生成（V6-3）
+    try { localStorage.removeItem(settingsKey()); } catch { /* noop */ }
+  }
+  DATA.settings = base;
   DATA.settings.htmlComplete = normalizeCodeComplete(DATA.settings.htmlComplete);
 }
-function saveSettings() { try { localStorage.setItem(settingsKey(), JSON.stringify(DATA.settings)); } catch { /* 保存できなくても画面は動く */ } }
+function saveSettings() {
+  try {
+    DATA.settings._v = SETTINGS_SCHEMA;
+    localStorage.setItem(settingsKey(), JSON.stringify(DATA.settings));
+  } catch { /* 保存できなくても画面は動く */ }
+}
 
 /* ---- me / 初期データ ---- */
 function applyMe(d) {

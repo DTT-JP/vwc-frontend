@@ -1,35 +1,10 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
-/* Media サービス（N01）と、ステータスバーの「現在の処理」（Proc / N12）。
+/* Media サービス（N01）。ステータスバーの「現在の処理」（Proc）は transfer.js で統合管理。
    ・Media：アプリ全体で1つ。どのツール・画面からも Media.run() で呼べる。初回の呼び出しで ffmpeg.wasm を自動で読み込む（呼び出し側は意識しない）。
    ・同時に動くのは1件。ほかは待ち行列に積み、待ち数を画面に出す。進捗・中止・失敗を共通表示する。
-   ・ffmpeg は vendor/ffmpeg/ から配信する（シングルスレッド版）。変換は1件ごとに新しいインスタンスで行う（再利用すると opus で止まることがあったため。
-     読み込んだ本体（js と wasm）は Blob URL にして使い回すので、2回目からは通信も再読み込みも無い）。
+   ・ffmpeg は vendor/ffmpeg/ から配信する（シングルスレッド版）。変換は1件ごとに新しいインスタンスで行う。
    ・端末のメモリに収まる範囲だけ。足りなければ「メモリ不足」。
    ・ファイルは端末の外へ出ない。 */
-
-/* ---- 現在の処理（ツール変換・アップロード・ZIP準備） ---- */
-const Proc = (() => {
-  const items = []; let seq = 0, total = 0;   /* total：いまの「連続した作業」で始めた件数（待機に戻るとリセット） */
-  const KIND_ICON = { upload: 'upload', zip: 'folder_zip', tool: 'build', task: 'sync' };
-  const render = () => {
-    const el = document.getElementById('s-proc'); if (!el) return;
-    if (!items.length) { total = 0; el.innerHTML = '<span class="ms">check</span><span class="proc-text">待機中</span>'; el.classList.remove('busy'); el.title = ''; return; }
-    el.classList.add('busy');
-    if (items.length === 1) {
-      const a = items[0], pct = a.pct != null ? ` ${Math.round(a.pct * 100)}%` : '';
-      el.innerHTML = `<span class="ms spin">${esc(a.icon)}</span><span class="proc-text">${esc(a.label)}${pct}</span>`;
-    } else {
-      el.innerHTML = `<span class="ms spin">sync</span><span class="proc-text">${items.length}/${total}件の作業を実施中</span>`;
-    }
-    el.title = items.map(x => x.label + (x.pct != null ? ' ' + Math.round(x.pct * 100) + '%' : '')).join('\n');
-  };
-  return {
-    add(label, kind, icon) { const k = kind || 'tool'; const it = { id: ++seq, label, kind: k, icon: icon || KIND_ICON[k] || 'sync', pct: null }; items.push(it); total++; render(); return it.id; },
-    set(id, o) { const it = items.find(x => x.id === id); if (it) { Object.assign(it, o); render(); } },
-    done(id) { const i = items.findIndex(x => x.id === id); if (i >= 0) items.splice(i, 1); render(); },
-    list: () => items.map(x => ({ ...x })), render
-  };
-})();
 
 /* ---- Media ---- */
 class MediaFail extends Error { constructor(code, message) { super(message); this.code = code; } }

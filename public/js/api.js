@@ -18,6 +18,7 @@ const Api = (() => {
 
   const config = () => window.EDITOR_CONFIG || {};
   const base = () => String(config().apiBase || 'system/api/index.php').trim();
+  const DEFAULT_TIMEOUT_MS = 30000;
   let csrf = '';
   let meta = null;
   let csrfPending = null;
@@ -40,6 +41,28 @@ const Api = (() => {
     return data == null ? {} : data;
   }
 
+  function withTimeout(opts = {}, fallbackMs = DEFAULT_TIMEOUT_MS) {
+    const ms = opts.timeout === 0 ? 0 : (opts.timeout == null ? fallbackMs : opts.timeout);
+    if (!ms || ms <= 0 || typeof AbortController === 'undefined') return { signal: opts.signal, cleanup() {} };
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => {
+      try { ctrl.abort(); } catch {}
+    }, ms);
+    if (opts.signal) {
+      if (opts.signal.aborted) {
+        clearTimeout(timer);
+        try { ctrl.abort(); } catch {}
+      } else {
+        try {
+          opts.signal.addEventListener('abort', () => { clearTimeout(timer); try { ctrl.abort(); } catch {} }, { once: true });
+        } catch {
+          /* 古い環境では外部signal連携を省略（タイムアウト保護は維持） */
+        }
+      }
+    }
+    return { signal: ctrl.signal, cleanup() { clearTimeout(timer); } };
+  }
+
   async function rawCall(name, body, opts = {}) {
     const headers = { Accept: 'application/json', 'X-Requested-With': 'fetch' };
     if (csrf) headers['X-CSRF-Token'] = csrf;
@@ -49,10 +72,18 @@ const Api = (() => {
       headers['Content-Type'] = 'application/json';
       init.body = JSON.stringify(body || {});
     }
-    if (opts.signal) init.signal = opts.signal;
+    const t = withTimeout(opts, DEFAULT_TIMEOUT_MS);
+    if (t.signal) init.signal = t.signal;
     const url = base() + '?r=' + encodeURIComponent(name);
-    const res = await fetch(url, init);
-    return readResponse(res);
+    try {
+      const res = await fetch(url, init);
+      return await readResponse(res);
+    } catch (e) {
+      if (e && e.name === 'AbortError') throw new ApiError('network', 0, { timeout: true });
+      throw e;
+    } finally {
+      t.cleanup();
+    }
   }
 
   async function refreshCsrf() {
@@ -86,24 +117,32 @@ const Api = (() => {
   async function getBlob(name, params = {}, opts = {}) {
     const headers = { Accept: '*/*' };
     if (csrf) headers['X-CSRF-Token'] = csrf;
-    const res = await fetch(query(name, params), { method: 'GET', credentials: 'same-origin', headers, signal: opts.signal });
-    if (!res.ok) {
-      let data = {};
-      try { data = await res.json(); } catch { /* バイナリ応答の失敗 */ }
-      throw new ApiError(data.error || `http_${res.status}`, res.status, data);
-    }
-    /* 大きいファイルは、受け取った量を onProgress(受け取った, 全体) で知らせる（全体が分からなければ 0） */
-    const total = +res.headers.get('content-length') || 0;
-    if (opts.onProgress && res.body && res.body.getReader) {
-      const reader = res.body.getReader(), parts = []; let got = 0;
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        parts.push(value); got += value.length; opts.onProgress(got, total);
+    const t = withTimeout(opts, 0); // GET(ファイル/ZIP配信)は既定で無期限。必要時のみ opts.timeout で指定
+    try {
+      const res = await fetch(query(name, params), { method: 'GET', credentials: 'same-origin', headers, signal: t.signal });
+      if (!res.ok) {
+        let data = {};
+        try { data = await res.json(); } catch { /* バイナリ応答の失敗 */ }
+        throw new ApiError(data.error || `http_${res.status}`, res.status, data);
       }
-      return { blob: new Blob(parts, { type: res.headers.get('content-type') || '' }), headers: res.headers };
+      /* 大きいファイルは、受け取った量を onProgress(受け取った, 全体) で知らせる（全体が分からなければ 0） */
+      const total = +res.headers.get('content-length') || 0;
+      if (opts.onProgress && res.body && res.body.getReader) {
+        const reader = res.body.getReader(), parts = []; let got = 0;
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          parts.push(value); got += value.length; opts.onProgress(got, total);
+        }
+        return { blob: new Blob(parts, { type: res.headers.get('content-type') || '' }), headers: res.headers };
+      }
+      return { blob: await res.blob(), headers: res.headers };
+    } catch (e) {
+      if (e && e.name === 'AbortError') throw new ApiError('network', 0, { timeout: true });
+      throw e;
+    } finally {
+      t.cleanup();
     }
-    return { blob: await res.blob(), headers: res.headers };
   }
 
   /* preview.php は index.php と同じディレクトリにある。 */

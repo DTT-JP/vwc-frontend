@@ -4,8 +4,11 @@ const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [..
 const S = { role: 'member', proj: null, tabs: [], act: { g1: null, g2: null }, grp: 'g1', sel: null, closed: new Set(), fold: {}, msel: new Set(), mmode: false, hov: null, anchor: null, deletedPaths: {}, loading: 0 };
 
 /* ---- 共通 ---- */
-/* 表示時間は文章の長さに合わせる（短い通知は2.5秒、エラーの説明文は最長12秒）。 */
-const showToast = (m, ms) => { const t = $('#toast'); if (!t) return; t.textContent = m; t.hidden = false; clearTimeout(showToast.t); showToast.t = setTimeout(() => t.hidden = true, ms || Math.min(12000, Math.max(2500, String(m).length * 130))); };
+/* 表示時間は文章の長さに合わせる。通知は右下トレイへ統合（transfer.js が上書き提供）。 */
+var showToast = (m, ms) => {
+  if (window.Tray && Tray.notify) { try { Tray.notify({ icon: 'notifications', title: String(m || ''), msg: '', ms }); return; } catch (e) { /* フォールバック */ } }
+  const t = $('#toast'); if (!t) return; t.textContent = m; t.hidden = false; clearTimeout(showToast.t); showToast.t = setTimeout(() => t.hidden = true, ms || Math.min(12000, Math.max(2500, String(m || '').length * 130)));
+};
 const ico = (ms, c) => `<span class="ms${c ? ' ' + c : ''}">${ms}</span>`;
 const fico = n => { const i = fileIcon(n); return ico(i, 'ft-' + i); }; // 種類ごとに色を変えたファイルアイコン
 /* 画面に出す文字列は、必ず esc を通す（ファイル名・プロジェクト名は部員が自由に付けられるため）。属性の中でも安全なよう、引用符も変換する */
@@ -467,7 +470,7 @@ function renderTabs() {
   if ($('#g1').hidden && S.grp === 'g1') S.grp = 'g2';
   G.forEach(g => {
     const el = $('#' + g), ts = S.tabs.filter(t => t.g === g);
-    if (!ts.includes(S.act[g])) S.act[g] = ts[ts.length - 1] || null;
+    if (!ts.includes(S.act[g])) S.act[g] = ts.length ? ts[ts.length - 1] : null;
     tabBar(g); paneFor(el, S.act[g], g);
   });
   $('#split-g').hidden = $('#g1').hidden || $('#g2').hidden;
@@ -611,7 +614,7 @@ tabMenu.addEventListener('click', e => {
   if (action === 'move') {
     const from = t.g, to = from === 'g1' ? 'g2' : 'g1';
     if (to === 'g2') $('#g2').dataset.keep = 1;
-    if (S.act[from] === t) S.act[from] = S.tabs.filter(x => x !== t && x.g === from).at(-1) || null;
+    if (S.act[from] === t) { const rest = S.tabs.filter(x => x !== t && x.g === from); S.act[from] = rest.length ? rest[rest.length - 1] : null; }
     t.g = to; S.act[to] = t; S.grp = to; renderTabs(); return;
   }
   if (action === 'preview') { S.act[t.g] = t; S.grp = t.g; return preview(); }
@@ -646,11 +649,92 @@ async function preview() {
   S.tabs = S.tabs.filter(x => x.path !== pv.path); S.tabs.push(pv); $('#g2').dataset.keep = 1; S.act[pv.g] = pv; S.grp = pv.g; renderTabs(); $('#app').dataset.view = 'right';
 }
 $('#s-prev').onclick = preview;
+$('#s-lang').onclick = openEncDialog;
+$('#s-lang').onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openEncDialog(); } };
+$('#enc-view').onclick = async () => { const token = $('#enc-sel').value; $('#d-enc').close(); await viewAsEncoding(token); };
+$('#enc-save').onclick = async () => { const token = $('#enc-sel').value; $('#d-enc').close(); await saveAsEncoding(token); };
 
 /* ---- ステータスバー ---- */
+const ENC_OPTIONS = [
+  { label: 'UTF-8', token: 'UTF-8', dec: 'utf-8' },
+  { label: 'UTF-8 BOM', token: 'UTF-8-BOM', dec: 'utf-8' },
+  { label: 'UTF-16 LE', token: 'UTF-16LE', dec: 'utf-16le' },
+  { label: 'UTF-16 LE BOM', token: 'UTF-16LE-BOM', dec: 'utf-16le' },
+  { label: 'UTF-16 BE', token: 'UTF-16BE', dec: 'utf-16be' },
+  { label: 'UTF-16 BE BOM', token: 'UTF-16BE-BOM', dec: 'utf-16be' },
+  { label: 'Shift-JIS', token: 'SJIS-win', dec: 'shift_jis' },
+  { label: 'EUC-JP', token: 'EUC-JP', dec: 'euc-jp' },
+  { label: 'ANSI', token: 'Windows-1252', dec: 'windows-1252' },
+];
+function encLabelToToken(label) {
+  const o = ENC_OPTIONS.find(x => x.label === label || x.token === label);
+  return o ? o.token : (label || 'UTF-8');
+}
+function currentTextTab() {
+  const t = S.act[S.grp];
+  if (!t || t.render || t.prev || !t.f || t.f.t === 'dir' || !isText(t.f)) return null;
+  return t;
+}
+function openEncDialog() {
+  const t = currentTextTab(); if (!t) return;
+  const enc = t.encoding || (t.f && t.f.encoding) || 'UTF-8';
+  if (enc !== 'UTF-8') return; // 仕様: UTF-8のとき変更画面を出す
+  const sel = $('#enc-sel'); if (!sel) return;
+  sel.innerHTML = ENC_OPTIONS.filter(o => o.label !== 'UTF-8').map(o => `<option value="${esc(o.token)}">${esc(o.label)}</option>`).join('');
+  const cur = $('#enc-cur'); if (cur) cur.textContent = `現在: ${enc}`;
+  $('#d-enc').showModal();
+}
+async function viewAsEncoding(token) {
+  const t = currentTextTab(); if (!t || !S.proj) return;
+  const opt = ENC_OPTIONS.find(o => o.token === token); if (!opt) return;
+  try {
+    const { blob } = await Task.run({ title: `${t.name} を読み込み中`, icon: 'visibility', delay: 0 }, () => Api.files.raw(S.proj.id, t.path));
+    const buf = await blob.arrayBuffer();
+    let text = '';
+    try { text = new TextDecoder(opt.dec, { fatal: false }).decode(buf); }
+    catch { text = new TextDecoder('utf-8', { fatal: false }).decode(buf); }
+    t.text = text;
+    if (t.cm && window.EditorCore) EditorCore.setText(t.cm, text); else { const ta = document.querySelector('.group[data-g="' + t.g + '"] .ed textarea'); if (ta) ta.value = text; }
+    t.viewEncoding = opt.label;
+    t.dirty = false; // 表示のみ。内容は元ファイルのバイト列を指定形式で解釈したもの
+    renderTabs();
+    showToast(`${opt.label} として表示しました（文字化けする場合があります）`);
+  } catch (e) { showApiError(e); }
+}
+async function saveAsEncoding(token) {
+  const t = currentTextTab(); if (!t || !S.proj) return;
+  if (S.role === 'shared-view' || S.proj.perm === 'view') return showToast('閲覧のみのため変更できません');
+  const opt = ENC_OPTIONS.find(o => o.token === token); if (!opt) return;
+  const prevCharset = t.charset || (t.f && t.f.charset) || null;
+  const prevEncoding = t.encoding || (t.f && t.f.encoding) || 'UTF-8';
+  try {
+    t.charset = opt.token;
+    t.encoding = opt.label;
+    const ok = await save(t, { force: unsaved(t) ? false : false });
+    if (ok) {
+      // 保存後に最新の判定情報を反映
+      try {
+        const latest = await Api.files.read(S.proj.id, t.path);
+        if (latest) {
+          t.f.version = latest.version ?? t.f.version;
+          t.f.encoding = latest.encoding || opt.label; t.f.charset = latest.charset || opt.token;
+          t.encoding = t.f.encoding; t.charset = t.f.charset;
+        }
+      } catch {}
+      t.viewEncoding = null;
+      renderTabs();
+      showToast(`${opt.label} で保存しました`);
+    } else {
+      t.charset = prevCharset; t.encoding = prevEncoding;
+    }
+  } catch (e) {
+    t.charset = prevCharset; t.encoding = prevEncoding;
+    showApiError(e);
+  }
+}
 function updateStatus() {
   const t = S.act[S.grp], used = usedMB();
-  const sSave = $('#s-save');
+  const sSave = $('#s-save'), sLang = $('#s-lang');
   if (!hasProject()) {
     /* プロジェクト未オープン時: アイコンのみ表示、プロジェクト名なし、保存済み表示削除、容量は表示 */
     $('#s-proj').innerHTML = `${ico('inbox')}`;
@@ -661,9 +745,16 @@ function updateStatus() {
   }
   if (t && !t.render && !t.prev) {
     const fmt = ext(t.name).toUpperCase() || 'FILE';
-    const enc = t.encoding || (t.f && t.f.encoding) || (isText(t.f) ? 'UTF-8' : '');
-    $('#s-lang').textContent = enc ? `${fmt}(${enc})` : fmt;
-  } else $('#s-lang').textContent = '';
+    const enc = t.viewEncoding || t.encoding || (t.f && t.f.encoding) || (isText(t.f) ? 'UTF-8' : '');
+    if (sLang) {
+      sLang.textContent = enc ? `${fmt}(${enc})` : fmt;
+      const clickable = isText(t.f) && (t.encoding || (t.f && t.f.encoding) || 'UTF-8') === 'UTF-8';
+      sLang.classList.toggle('clickable', clickable);
+      sLang.title = clickable ? 'クリックして文字エンコーディングを変更' : '';
+      sLang.setAttribute('role', clickable ? 'button' : '');
+      sLang.tabIndex = clickable ? 0 : -1;
+    }
+  } else if (sLang) { sLang.textContent = ''; sLang.classList.remove('clickable'); sLang.title = ''; sLang.removeAttribute('role'); sLang.tabIndex = -1; }
   if (t && t.cm && window.updateEdPos) window.updateEdPos(t.cm); else if (!t || t.render || t.prev) { const sp = $('#s-pos'); if (sp) sp.textContent = ''; }
   $('#s-cap').textContent = `容量 ${fmtMB(used)}/${fmtMB(quotaLimit())}MB`;
   $('#s-prev').hidden = !(t && !t.prev && hasProject() && ['html', 'md'].includes(ext(t.name))); $('#bn-prev').disabled = $('#s-prev').hidden || S.auth === false;

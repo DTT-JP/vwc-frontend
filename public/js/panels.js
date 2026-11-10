@@ -11,7 +11,7 @@ function confirmHtml(title, html, ok, label) { $('#conf-t').textContent = title;
 function resultDlg(title, html) { $('#res-t').textContent = title; $('#res-b').innerHTML = html; $('#d-res').showModal(); }
 function openInfo(name, html) { // 右エリアにタブで表示（詳細・差分）
   const path = '#' + name; S.tabs = S.tabs.filter(t => t.path !== path);
-  S.tabs.push({ name, path, g: 'g1', f: { text: '' }, prev: { md: true, html } }); S.act.g1 = S.tabs.at(-1); S.grp = 'g1';
+  S.tabs.push({ name, path, g: 'g1', f: { text: '' }, prev: { md: true, html } }); S.act.g1 = S.tabs[S.tabs.length - 1]; S.grp = 'g1';
   hideHome(); renderTabs(); $('#app').dataset.view = 'right';
 }
 

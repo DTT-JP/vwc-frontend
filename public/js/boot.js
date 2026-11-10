@@ -101,88 +101,109 @@ function reportLoadFailures(failures, context) {
 async function boot() {
   if (window.__vwcBooted) return;
   window.__vwcBooted = true;
+  let bootOk = false;
   const q = currentQuery();
   /* 管理の再認証のポップアップ：結果は元のウィンドウが確認するので、ここでは閉じるだけ。 */
   if (q.get('auth') === 'done' && q.get('mode') === 'reauth' && window.opener) { try { window.close(); } catch { /* 閉じられなければ、そのまま表示する */ } }
   window.VWC_RETURN_TO = safeReturn(q.get('return'));
-  $('#app').classList.add('skel');
+  const app = $('#app');
+  if (app) app.classList.add('skel');
   if (typeof showBootLoading === 'function') showBootLoading();
 
-  let version;
-  try { version = await Api.version(); }
-  catch (e) { showBootError(e); $('#app').classList.remove('skel'); return; }
-  DATA.meta = Object.assign({ backend: null, login_providers: [] }, version || {});
-  /* IdP連携あり判定の早期化: ログイン手段にIdPがあれば、初回のメンバー同期完了前でも
-     ユーザー管理をIdP管理モード相当に扱う（誤ってローカル追加できる状態を防ぐ）。
-     BEが members_list で managedByIdp を明示した場合は applyMembers が上書きする（BE確定を反映）。 */
-  if (typeof hasIdpLoginProvider === 'function' && hasIdpLoginProvider() && DATA.membersManagedByIdp === undefined) DATA.membersManagedByIdp = true;
-  if (typeof applyLoginProvidersUi === 'function') applyLoginProvidersUi();
-  /* FE指示書 B1: BE MAJOR は backend.version 優先、なければ api_version。MAJOR不一致は全体停止。 */
-  let feVer = '';
-  try { feVer = (await (await fetch('VERSION', { cache: 'no-store' })).text()).trim(); } catch {}
-  const feMaj = window.VWCCompat ? VWCCompat.feMajor(feVer) : null;
-  const beMaj = window.VWCCompat ? VWCCompat.beMajor(version) : Number(version.api_version);
-  if (feMaj != null && beMaj != null && feMaj !== beMaj) {
-    VWC.set('state', 'version', 'app');
-    st20('version'); show('s20'); $('#app').classList.remove('skel');
-    return;
-  }
-  /* 部分互換: 使うAPIが無ければ該当機能を無効化して警告。取得失敗時は止めない（B1-6）。 */
-  if (window.VWCCompat && version && version.backend && version.backend.apis) {
-    const miss = VWCCompat.missingApis(version);
-    const dep = VWCCompat.deprecatedUsed(version);
-    if (miss.length) { window.VWC_MISSING_APIS = miss; console.warn('missing APIs', miss); showToast('一部の機能はこのサーバーでは使えません（' + miss.map(m=>m.feature).slice(0,3).join('・') + (miss.length>3?'…':'') + '）', 8000); }
-    if (dep.length) console.warn('deprecated APIs in use', dep);
-  }
-
-  let loggedIn = false;
   try {
-    const meData = await Api.me();
-    applyMe(meData);
-    loggedIn = !!DATA.user.id;
+    let version;
+    try { version = await Api.version(); }
+    catch (e) { showBootError(e); return; }
+    DATA.meta = Object.assign({ backend: null, login_providers: [] }, version || {});
+    /* IdP連携あり判定の早期化: ログイン手段にIdPがあれば、初回のメンバー同期完了前でも
+       ユーザー管理をIdP管理モード相当に扱う（誤ってローカル追加できる状態を防ぐ）。
+       BEが members_list で managedByIdp を明示した場合は applyMembers が上書きする（BE確定を反映）。 */
+    if (typeof hasIdpLoginProvider === 'function' && hasIdpLoginProvider() && DATA.membersManagedByIdp === undefined) DATA.membersManagedByIdp = true;
+    if (typeof applyLoginProvidersUi === 'function') applyLoginProvidersUi();
+    /* FE指示書 B1: BE MAJOR は backend.version 優先、なければ api_version。MAJOR不一致は全体停止。 */
+    let feVer = '';
+    try { feVer = (await (await fetch('VERSION', { cache: 'no-store' })).text()).trim(); } catch {}
+    const feMaj = window.VWCCompat ? VWCCompat.feMajor(feVer) : null;
+    const beMaj = window.VWCCompat ? VWCCompat.beMajor(version) : Number(version.api_version);
+    if (feMaj != null && beMaj != null && feMaj !== beMaj) {
+      VWC.set('state', 'version', 'app');
+      st20('version'); show('s20');
+      return;
+    }
+    /* 部分互換: 使うAPIが無ければ該当機能を無効化して警告。取得失敗時は止めない（B1-6）。 */
+    if (window.VWCCompat && version && version.backend && version.backend.apis) {
+      const miss = VWCCompat.missingApis(version);
+      const dep = VWCCompat.deprecatedUsed(version);
+      if (miss.length) { window.VWC_MISSING_APIS = miss; console.warn('missing APIs', miss); showToast('一部の機能はこのサーバーでは使えません（' + miss.map(m=>m.feature).slice(0,3).join('・') + (miss.length>3?'…':'') + '）', 8000); }
+      if (dep.length) console.warn('deprecated APIs in use', dep);
+    }
+
+    let loggedIn = false;
+    try {
+      const meData = await Api.me();
+      applyMe(meData);
+      loggedIn = !!DATA.user.id;
+    } catch (e) {
+      if (!(e instanceof ApiError) || !['unauthorized', 'http_401', 'forbidden', 'http_403'].includes(e.code)) {
+        showBootError(e); return;
+      }
+    }
+
+    if (loggedIn) {
+      reportLoadFailures(await loadInitial(), 'Initial data load failed');
+      bootPlaceholderProject();
+      if (S.proj && S.proj.id) {
+        try { await loadProject(S.proj.id); } catch (e) { reportLoadFailures([e], 'Project load failed'); }
+      }
+    } else {
+      DATA.settings = JSON.parse(JSON.stringify(SETTINGS_DEFAULT));
+      bootPlaceholderProject();
+    }
+
+    try {
+      initBase(); applyRoleForProject(); renderAll(); setAuth(loggedIn);
+      bootOk = true;
+    } catch (e) {
+      console.error('boot render failed', e);
+      showBootError(e);
+      return;
+    }
+
+    const approve = (q.get('approve') || '').match(/^\d{6}$/)?.[0];
+    if (approve) {
+      try {
+        if (loggedIn) openApproval(approve);
+        else { window.VWC_APPROVE_CODE = approve; openLogin('qr'); showToast('承認するにはログインしてください'); }
+      } catch (e) { console.warn('approve flow failed', e); }
+    }
+
+    if (q.has('auth')) {
+      try {
+        const auth = q.get('auth'), reason = q.get('reason') || '';
+        if (auth === 'done' && loggedIn) completeLogin(q.get('mode'));
+        else if (auth === 'done') {
+          openLogin(); showToast('ログインを確認できませんでした。もう一度お試しください');
+        } else if (auth === 'error') {
+          /* サーバーが付けたエラーコード（E-A…）で、原因と対処を示す。古い形式（reason / detail）にも対応。FE 2.0: MS固有コード削除 */
+          const KEY = { denied: 'E-A01', state: 'E-A02', invalid: 'E-A06', unauthorized: 'E-A15',
+            inactive: 'E-A11', other_account: 'E-A13',
+            contract: 'E-A20', connect: 'E-A21', verify: 'E-A22', sub_mismatch: 'E-A23', inactive_idp: 'E-A24' };
+          const code = q.get('code') || KEY[q.get('detail') || ''] || KEY[reason] || 'E-A99';
+          showToast(errorText(ERROR_CATALOG[code] ? code : 'E-A99'), 12000);
+        }
+      } catch (e) { console.warn('auth callback flow failed', e); }
+    }
+
+    if (q.has('gate')) {
+      try { showGate(q.get('gate'), q.get('need'), window.VWC_RETURN_TO); } catch (e) { console.warn('gate flow failed', e); }
+    }
   } catch (e) {
-    if (!(e instanceof ApiError) || !['unauthorized', 'http_401', 'forbidden', 'http_403'].includes(e.code)) {
-      showBootError(e); $('#app').classList.remove('skel'); return;
-    }
+    console.error('boot failed', e);
+    showBootError(e);
+  } finally {
+    const appEl = $('#app'); if (appEl) appEl.classList.remove('skel');
+    if (bootOk && typeof hideBootLoading === 'function') hideBootLoading();
   }
-
-  if (loggedIn) {
-    reportLoadFailures(await loadInitial(), 'Initial data load failed');
-    bootPlaceholderProject();
-    if (S.proj && S.proj.id) {
-      try { await loadProject(S.proj.id); } catch (e) { reportLoadFailures([e], 'Project load failed'); }
-    }
-  } else {
-    DATA.settings = JSON.parse(JSON.stringify(SETTINGS_DEFAULT));
-    bootPlaceholderProject();
-  }
-
-  initBase(); applyRoleForProject(); renderAll(); setAuth(loggedIn);
-  $('#app').classList.remove('skel');
-  if (typeof hideBootLoading === 'function') hideBootLoading();
-
-  const approve = (q.get('approve') || '').match(/^\d{6}$/)?.[0];
-  if (approve) {
-    if (loggedIn) openApproval(approve);
-    else { window.VWC_APPROVE_CODE = approve; openLogin('qr'); showToast('承認するにはログインしてください'); }
-  }
-
-  if (q.has('auth')) {
-    const auth = q.get('auth'), reason = q.get('reason') || '';
-    if (auth === 'done' && loggedIn) completeLogin(q.get('mode'));
-    else if (auth === 'done') {
-      openLogin(); showToast('ログインを確認できませんでした。もう一度お試しください');
-    } else if (auth === 'error') {
-      /* サーバーが付けたエラーコード（E-A…）で、原因と対処を示す。古い形式（reason / detail）にも対応。FE 2.0: MS固有コード削除 */
-      const KEY = { denied: 'E-A01', state: 'E-A02', invalid: 'E-A06', unauthorized: 'E-A15',
-        inactive: 'E-A11', other_account: 'E-A13',
-        contract: 'E-A20', connect: 'E-A21', verify: 'E-A22', sub_mismatch: 'E-A23', inactive_idp: 'E-A24' };
-      const code = q.get('code') || KEY[q.get('detail') || ''] || KEY[reason] || 'E-A99';
-      showToast(errorText(ERROR_CATALOG[code] ? code : 'E-A99'), 12000);
-    }
-  }
-
-  if (q.has('gate')) showGate(q.get('gate'), q.get('need'), window.VWC_RETURN_TO);
 }
 
 document.addEventListener('DOMContentLoaded', () => { boot(); });

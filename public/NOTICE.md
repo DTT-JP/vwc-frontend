@@ -8,6 +8,7 @@ Visual Web Code フロントエンドの自作部分は GNU GPL version 3 or lat
 
 | 資材 | 版 | ライセンス | ライセンス文書・補足 | 取得元 | 用途 |
 |---|---|---|---|---|---|
+| CodeMirror 6 bundle | 6.x (custom bundle) | MIT | [`vendor/codemirror/LICENSE`](vendor/codemirror/LICENSE) | bundled (vendored): public/vendor/codemirror/cm6.bundle.js | コードエディター（CM6 IIFE バンドル。@codemirror/*・@lezer/highlight 等を同梱） |
 | @fontsource-variable/noto-sans-jp | 5.3.1 | OFL-1.1 | [`vendor/fonts/noto-sans-jp/LICENSE`](vendor/fonts/noto-sans-jp/LICENSE) | https://registry.npmjs.org/@fontsource-variable/noto-sans-jp/-/noto-sans-jp-5.3.1.tgz | 本文フォント Noto Sans JP（可変フォント、分割配信） |
 | @fontsource-variable/jetbrains-mono | 5.3.0 | OFL-1.1 | [`vendor/fonts/jetbrains-mono/LICENSE`](vendor/fonts/jetbrains-mono/LICENSE) | https://registry.npmjs.org/@fontsource-variable/jetbrains-mono/-/jetbrains-mono-5.3.0.tgz | エディターの等幅フォント JetBrains Mono（可変フォント） |
 | @highlightjs/cdn-assets | 11.9.0 | BSD-3-Clause | [`vendor/highlight/LICENSE`](vendor/highlight/LICENSE) | https://registry.npmjs.org/@highlightjs/cdn-assets/-/cdn-assets-11.9.0.tgz | コードの構文強調（本体と追加言語9種） |

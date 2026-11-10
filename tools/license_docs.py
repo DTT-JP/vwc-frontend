@@ -96,7 +96,7 @@ def third_party(manifest):
     lines = [
         "# 第三者ソフトウェア",
         "",
-        "このアプリには、次の第三者ソフトウェアを同梱しています。版・取得元・SHA-256 は、配布物を作るときに検証したものです。ライセンスの全文は[ライセンス全文](05-notices.md)にあります。",
+        "このアプリには、次の第三者ソフトウェアを同梱しています。版・取得元・SHA-256 は、配布物を作るときに検証したものです（同梱バンドル等、ダウンロード取得でないものはリポジトリ内ファイルのハッシュを記録）。ライセンスの全文は[ライセンス全文](05-notices.md)にあります。",
         "",
         "| 名前 | 版 | ライセンス | 用途 | 取得元 |",
         "|---|---|---|---|---|",
@@ -107,6 +107,7 @@ def third_party(manifest):
         "",
         "## 補足",
         "",
+        "- **CodeMirror 6 bundle** は、エディター用に `@codemirror/*`・`@lezer/highlight` 等をまとめて同梱した IIFE バンドル（`vendor/codemirror/cm6.bundle.js`）です。内訳・版・再ビルド手順は `vendor/codemirror/README.md`、ライセンス文書は `vendor/codemirror/LICENSE` を参照してください（同梱パッケージはいずれも MIT）。",
         "- **FFmpeg（@ffmpeg/core）** は GPL-2.0-or-later のバイナリで、多くの部品を含みます。詳しくは [FFmpeg](04-ffmpeg.md) を参照してください。",
         "- **Mermaid** は、図を描くときだけ読み込みます。`mermaid.min.js` は、Mermaid が依存するライブラリをまとめた1ファイルです。確認できたのは DOMPurify の表示（Apache-2.0 と MPL-2.0 の選択）だけで、そのほかの同梱ライブラリ（D3、Cytoscape、KaTeX、dayjs、marked、roughjs など）の個別のライセンス表示は、**要確認**です。Mermaid 11.17.2 のパッケージの依存関係を、取得元の配布物で確認してください。",
         "- **Material Symbols**（アイコン）は Apache-2.0 です。Google のアイコンフォントです。",

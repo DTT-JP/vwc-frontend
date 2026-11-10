@@ -171,7 +171,7 @@
  <footer id="status">
    <span id="s-proj"></span><button id="s-save" title="押すと保存">保存済み</button><span id="s-pos"></span><span id="s-lang"></span><span id="s-cap"></span>
    <span class="right">
-     <span id="s-proc"><span class="ms">check</span> 待機中</span>
+     <span id="s-proc" class="proc-btn" role="button" tabindex="0" title="通知・履歴を表示"><span class="ms">notifications</span><span class="proc-text">通知</span></span>
      <button id="s-prev" hidden><span class="ms">preview</span> プレビュー</button>
      <span id="s-net"><span class="ms">cloud_done</span> オンライン</span>
    </span>
@@ -296,6 +296,7 @@
   <div id="bk-list" style="max-height:46vh;max-height:46dvh;overflow:auto"></div>
   <div class="btns"><button data-close>閉じる</button><button class="primary" id="bk-go" disabled>反映する</button></div></dialog>
 <dialog id="d-sv"><h3>確認</h3><p>保存されていない変更があります。保存しますか？</p><div class="btns"><button data-close>キャンセル</button><button class="primary" id="sv-ok">保存</button></div></dialog>
+<dialog id="d-enc"><h3>文字エンコーディング</h3><p id="enc-cur" class="dnote"></p><label for="enc-sel">形式を選択</label><select id="enc-sel" style="width:100%"></select><p class="dnote">「見る」では選択した形式で表示します（文字化けする場合があります）。「保存してみる」では現在の内容を変換して保存します。</p><div class="btns"><button data-close>閉じる</button><button id="enc-view">見る</button><button class="primary" id="enc-save">保存してみる</button></div></dialog>
 <dialog id="d-in"><h3 id="in-t"></h3><input id="in-v"><p class="err" id="in-e" style="color:var(--danger);min-height:22px"></p><div class="btns"><button data-close>キャンセル</button><button class="primary" id="in-ok">OK</button></div></dialog>
 <dialog id="d-pick"><h3>システムのファイルから選ぶ</h3><div id="pick-l" style="max-height:50vh;max-height:50dvh;overflow:auto"></div><div class="btns"><button data-close>閉じる</button></div></dialog>
 <!-- 汎用確認 / 公開 -->

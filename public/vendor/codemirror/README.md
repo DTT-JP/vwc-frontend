@@ -1,6 +1,6 @@
 # CodeMirror 6 (vendored bundle)
 
-This directory contains a custom IIFE bundle of CodeMirror 6 used by the VWC editor (FIX 13/14). It is **not** managed by `tools/dependencies.json` / `tools/complete.py`; rebuild this bundle when adding languages or extensions.
+This directory contains a custom IIFE bundle of CodeMirror 6 used by the VWC editor (FIX 13/14). It is managed as a local/bundled dependency in `tools/dependencies.json` (`local_dependencies`) and loaded by the FE integration tool `tools/complete.py` (license/manifest generation). Rebuild this bundle when adding languages or extensions, then run `python3 tools/complete.py` to refresh manifests and license documents.
 
 - Bundle: `cm6.bundle.js` (minified, IIFE)
 - Global export: `window.CM`

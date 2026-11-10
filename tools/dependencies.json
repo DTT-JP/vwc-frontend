@@ -1,6 +1,21 @@
 {
   "schema_version": 1,
   "description": "ブラウザー配布物の外部依存。版、取得URL、tarball SHA-256、ライセンス、取り出すファイルを固定する。",
+  "local_dependencies": [
+    {
+      "name": "CodeMirror 6 bundle",
+      "version": "6.x (custom bundle)",
+      "license": "MIT",
+      "license_document": "vendor/codemirror/LICENSE",
+      "use": "コードエディター（CM6 IIFE バンドル。@codemirror/*・@lezer/highlight 等を同梱）",
+      "source": "bundled (vendored): public/vendor/codemirror/cm6.bundle.js",
+      "files": [
+        "vendor/codemirror/cm6.bundle.js",
+        "vendor/codemirror/README.md",
+        "vendor/codemirror/LICENSE"
+      ]
+    }
+  ],
   "dependencies": [
     {
       "name": "@fontsource-variable/noto-sans-jp",

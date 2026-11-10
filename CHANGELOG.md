@@ -1,3 +1,13 @@
+## FE 2.2.0 (2026-11-10)
+- 修正: Safari/WebKitで読み込み中表示のまま止まる場合がある問題を改善（起動処理の例外保護・ローディング解除保証、API呼び出しのタイムアウト/中断保護、互換性調整）
+- 修正(バージョン表記): BEバージョンが旧形式扱いになる表示を修正し、FE/BEのバージョン情報をカード型UIに刷新。FE側変更の確認結果を「変更がある/ない」のみ表示するよう変更
+- 変更(設定): ON/OFFで扱える設定項目（コード補完）をチェックボックス化し、保存形式の互換を維持
+- 追加(エンコーディング): UTF-8テキストの形式表示からエンコーディング変更画面を開き、対応形式の「見る」（指定形式で表示）と「保存してみる」（変換保存）に対応
+- 追加(ライセンス): CodeMirror 6 bundleをFE統合ツール用JSON（`local_dependencies`）/`complete.py`管理に統合し、ライセンス表記・NOTICE/manifestへ反映（別管理記述を廃止）
+- 変更(通知): 下部通知と右下進捗通知を右下通知に統合。処理状態表示（アップロード中/処理中件数等）・通知の表示/非表示トグル・終了/閉じた通知の履歴表示・履歴削除（メモリ解放）に対応
+- 追加(データ移行): ローカル設定のスキーマ版管理と正規化移行、破損/不明データの初期化を追加（V6方針に準拠）
+- 文書: vwc-rules 1.0.5（V6追補含む）に追従して `docs/rules/` を更新
+
 ## FE 2.1.0 (2026-11-10)
 - 変更(エディタ): 独自textarea/ハイライト/HTML補完実装を **CodeMirror 6** に置換（`public/vendor/codemirror/cm6.bundle.js`, `js/editor.js` をEditorCore化）。補完はON/OFF設定（`htmlComplete` 旧値 `tab/auto→on` 移行）、標準CM6言語/拡張を同梱し `EditorCore.langs/EXT` で追加可能。ファイル内検索・プロジェクト検索ジャンプ・タッチ補助キー・タブ再利用(undo/選択保持)・テーマ/wrap/行番号/tab幅反映に対応。
 - 追加(エンコーディング): テキスト読込/表示/保存で差分表示と同等のエンコーディングに対応（UTF-8, UTF-8 BOM, UTF-16 LE/BE［BOM有無］, Shift-JIS, EUC-JP, ANSI）。ステータスバー種別を `形式(エンコーディング)` 表示（例: `HTML(UTF-8 BOM)`）。BEが返す `encoding/charset` を保持し保存時に送信。
@@ -12,7 +22,7 @@
 - 修正(ツール): 動画から音声/音声カットの「原音忠実」時、wav/flac選択で誤警告が出る条件を修正（非可逆形式の不整合時のみ警告）。
 - 修正(公開): 公開成功URL表示を青リンクからテーマ文字色に変更し、URLコピー/URLを開くボタンを追加。`files/raw`・`files/zip` の能力広告整合により「ファイル配信・ZIP取得」誤警告が出ない構成へ（BE側routes反映が必要）。
 - その他: `Api.admin.idpMembersSync` 追加、`me.project`互換フィールド等の契約写し/補助修正、`build-manifest.json` 更新。
-- 備考: 実機ブラウザ・IdP/WebAuthn・実サーバー配備/E2E確認は未実施項目あり。`public/vendor/codemirror/cm6.bundle.js` は `tools/dependencies.json`/`complete.py` 管理外の同梱。
+- 備考: 実機ブラウザ・IdP/WebAuthn・実サーバー配備/E2E確認は未実施項目あり。`public/vendor/codemirror/cm6.bundle.js` は `tools/dependencies.json`（`local_dependencies`）/`tools/complete.py` で管理する同梱（FE内統合ツールで読込・ライセンス表記に反映）。
 
 ## FE 2.0.4 (2026-11-09)
 - 修正: 管理画面（SM07）の「認証システム（IdP）の管理を開く」リンク（`<a class="row">`）が周囲のメニュー項目より青いリンク表示で浮いて見える問題を修正。`public/css/layout.css` の `.row` に `color: inherit; text-decoration: none;` を追加し、周囲の `.row` と同じ見た目に統一。
