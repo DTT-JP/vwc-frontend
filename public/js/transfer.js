@@ -186,42 +186,81 @@ const Upl = {
     this.active.push(job);
     const done = [], failed = []; let sent = 0;
     try {
+      const fhInit = () => 0x811c9dc5 >>> 0;
+      const fhUpd = (h, bytes) => { for (let i = 0; i < bytes.length; i++) { h ^= bytes[i]; h = Math.imul(h, 0x01000193) >>> 0; } return h >>> 0; };
+      const fhFin = (h) => (h >>> 0).toString(16).padStart(8, '0');
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+
       for (const it of ok) {
         if (job.cancelled) break;
         const full = normalPath((it.dir ? it.dir + '/' : '') + it.name);
         if (!full) { failed.push({ item: it, error: new ApiError('bad_path', 0) }); continue; }
-        const dir = dirName(full), name = baseNameOf(full), chunks = Math.max(1, Math.ceil(it.size / (this.chunkMB * MB)));
-        let uploadId = '';
-        const baseSent = sent;
+        const dir = dirName(full), name = baseNameOf(full);
+        const targetPath = dir ? (dir + '/' + name) : name;
+        const chunkSize = 8 * MB;
         try {
           await ensureDirs(S.proj.id, dir);
-          const d = await Api.files.uploadInit(S.proj.id, dir, name, it.size, chunks);
-          uploadId = d.upload_id || d.id || '';
-          if (!uploadId) throw new ApiError('invalid', 0, d);
-          for (let c = 0; c < chunks && !job.cancelled; c++) {
-            const start = c * this.chunkMB * MB, end = Math.min(it.size, start + this.chunkMB * MB);
-            const raw = new Uint8Array(await (it.file || new Blob()).slice(start, end).arrayBuffer());
-            /* サーバー側WAFのシグネチャ誤検知回避のため、upload_id/index由来の鍵で難読化する（BE側で復号）。固定パターンを避ける。 */
-            const seedSrc = new TextEncoder().encode(uploadId + '\0' + c + '\0vwc-chunk-v1');
-            const hashBuf = await crypto.subtle.digest('SHA-256', seedSrc);
-            let state = new DataView(hashBuf).getUint32(0);
-            const bytes = new Uint8Array(raw.length);
-            for (let i = 0; i < raw.length; i++) {
-              state ^= (state << 13) >>> 0;
-              state ^= state >>> 17;
-              state ^= (state << 5) >>> 0;
-              state >>>= 0;
-              bytes[i] = raw[i] ^ (state & 0xff);
+          // 全体ハッシュ計算（軽量FNV-1a）
+          Tray.set(tid, { pct: total ? sent / total : 0, spin: true, icon: 'hourglass_top', msg: `${name} のハッシュを計算中…` });
+          Proc.set(pid, { label: name + ' のハッシュを計算中', pct: total ? sent / total : 0 });
+          let overall = fhInit();
+          for (let off = 0, idx = 0; off < it.size && !job.cancelled; off += chunkSize, idx++) {
+            const end = Math.min(it.size, off + chunkSize);
+            const raw0 = new Uint8Array(await (it.file || new Blob()).slice(off, end).arrayBuffer());
+            overall = fhUpd(overall, raw0);
+            if (idx % 2 === 1) {
+              Tray.set(tid, { pct: total ? Math.min(.99, (sent + end) / total) : 0, spin: true, msg: `${name} のハッシュを計算中… ${kb(end)} / ${kb(it.size)}` });
             }
-            await Api.files.uploadChunk(uploadId, c, bytes.buffer, S.proj.id);
-            sent = baseSent + end;
-            const p = total ? Math.min(.99, sent / total) : .5;
-            Tray.set(tid, { pct: p, spin: false, icon: 'cloud_upload', msg: `${name}（${c + 1}/${chunks} 分割）　${kb(sent)} / ${kb(total)}` });
-            Proc.set(pid, { pct: p });
           }
           if (job.cancelled) break;
-          const finished = await Api.files.uploadDone(uploadId);
-          if (it.commit) await it.commit(finished);
+          const fileHash = fhFin(overall);
+
+          // 単発アップロード: 難読化しつつ本文を構築して1回で送信（失敗時は再送）
+          let doneOne = false, attempt = 0;
+          while (!doneOne && !job.cancelled) {
+            attempt++;
+            try {
+              Tray.set(tid, { pct: total ? Math.min(.99, sent / total) : 0, spin: true, icon: 'cloud_upload', msg: `${name} を送信準備中…` });
+              Proc.set(pid, { label: name + ' を送信中', pct: total ? Math.min(.99, sent / total) : 0 });
+              const seedSrc = new TextEncoder().encode(S.proj.id + '\0' + targetPath + '\0' + it.size + '\0vwc-upload-v1');
+              const hashBuf = await crypto.subtle.digest('SHA-256', seedSrc);
+              let state = new DataView(hashBuf).getUint32(0);
+              const parts = [];
+              for (let off = 0; off < it.size && !job.cancelled; off += chunkSize) {
+                const end = Math.min(it.size, off + chunkSize);
+                const raw = new Uint8Array(await (it.file || new Blob()).slice(off, end).arrayBuffer());
+                const out = new Uint8Array(raw.length);
+                for (let i = 0; i < raw.length; i++) {
+                  state ^= (state << 13) >>> 0;
+                  state ^= state >>> 17;
+                  state ^= (state << 5) >>> 0;
+                  state >>>= 0;
+                  out[i] = raw[i] ^ (state & 0xff);
+                }
+                parts.push(out);
+                Tray.set(tid, { pct: total ? Math.min(.99, (sent + end) / total) : 0, spin: true, icon: 'cloud_upload', msg: `${name} を送信準備中… ${kb(end)} / ${kb(it.size)}` });
+              }
+              if (job.cancelled) break;
+              const bodyBlob = new Blob(parts, { type: 'application/octet-stream' });
+              Tray.set(tid, { pct: total ? Math.min(.99, (sent + it.size * 0.95) / total) : 0, spin: true, icon: 'cloud_upload', msg: `${name} を送信中…` });
+              const finished = await Api.files.upload(S.proj.id, dir, name, it.size, fileHash, bodyBlob, { timeout: 0 });
+              if (it.commit) await it.commit(finished);
+              doneOne = true;
+            } catch (e) {
+              if (job.cancelled) break;
+              const maxAttempts = 5;
+              if (attempt >= maxAttempts) throw e;
+              const wait = Math.min(10000, 1000 * attempt + Math.floor(Math.random() * 500));
+              Tray.set(tid, { pct: total ? Math.min(.99, sent / total) : 0, spin: true, icon: 'cloud_sync', msg: `${name} の送信に失敗、再送信します… (${attempt}/${maxAttempts - 1})` });
+              Proc.set(pid, { label: name + ' を再送信中', pct: total ? Math.min(.99, sent / total) : 0 });
+              await sleep(wait);
+            }
+          }
+          if (job.cancelled) break;
+          sent += it.size;
+          const p = total ? Math.min(.99, sent / total) : 1;
+          Tray.set(tid, { pct: p, spin: false, icon: 'cloud_upload', msg: `${name} を保存しました` });
+          Proc.set(pid, { label: label + 'をアップロード中', pct: p });
           done.push(it);
         } catch (e) {
           failed.push({ item: it, error: e });

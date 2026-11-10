@@ -225,13 +225,22 @@ const Api = (() => {
     mkdir: (project, path) => call('files/mkdir', { project, path }),
     rename: (project, path, to) => call('files/rename', { project, path, to }),
     remove: (project, path) => call('files/delete', { project, path }),
-    uploadInit: (project, dir, name, size, chunks) => call('files/upload_init', { project, path: dir || '', name, size, chunks }),
+    uploadInit: (project, dir, name, size, chunks, fileHash, chunkHashes) => {
+      const body = { project, path: dir || '', name, size, chunks };
+      if (fileHash) body.file_hash = fileHash;
+      if (chunkHashes) body.chunk_hashes = chunkHashes;
+      return call('files/upload_init', body);
+    },
     uploadChunk: (uploadId, index, data, project) => {
       const query = { upload_id: uploadId, index };
       if (project) query.project = project;
       return call('files/upload_chunk', data, { query, contentType: 'application/octet-stream' });
     },
     uploadDone: uploadId => call('files/upload_done', { upload_id: uploadId }),
+    upload: (project, path, name, size, fileHash, data, opts = {}) => {
+      const query = { project, path: path || '', name: name || '', size, file_hash: fileHash || '' };
+      return call('files/upload', data, { query, contentType: 'application/octet-stream', ...(opts.timeout !== undefined ? { timeout: opts.timeout } : {}) });
+    },
     raw: (project, path, opts) => getBlob('files/raw', { project, path }, opts),
     rawUrl: (project, path) => query('files/raw', { project, path }),
     previewToken: (project, path) => call('files/preview_token', { project, path }),
