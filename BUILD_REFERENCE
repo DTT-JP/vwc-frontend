@@ -1,6 +1,6 @@
 # BUILD_REFERENCE (generated reference; keep in sync with calc-build-hash.py output)
-version=2.2.2
-build=f17278c
-build_full=f17278c94ac8d15fe69e7e23862f9011781e928e2247cf3b35cc5f51cd09acc7
+version=2.2.3
+build=006578c
+build_full=006578c44b1c64fe9e1db7f3725c318ea24b77cf27138bd6e303d282a42924be
 date=2026-11-10
-tag=fe-v2.2.2
+tag=fe-v2.2.3

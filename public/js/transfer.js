@@ -168,7 +168,7 @@ async function ensureDirs(projectId, dir) {
 }
 
 const Upl = {
-  chunkMB: 5, active: [],
+  chunkMB: 1, active: [],
   /* items: [{ name, size, file, dir, commit? }]。戻り値：{ done, rejected, cancelled, failed } */
   async start(items, opts = {}) {
     const max = opts.maxBytes !== undefined ? opts.maxBytes : maxUploadBytes(), ok = [], bad = [];
