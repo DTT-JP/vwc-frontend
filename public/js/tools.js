@@ -1,16 +1,19 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* メディアプレビューと未保存・保存競合・容量超過のダイアログ */
 function mediaPane(t) {
-  const e = ext(t.name), u = t.f.blob ? (t.f.url = t.f.url || URL.createObjectURL(t.f.blob)) : '';
-  const meta = `<div class="media-meta">${esc(t.name)}${t.f.blob ? ' · ' + kb(t.f.blob.size) : ''}</div>`;
-  if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico'].includes(e)) {
+  const e = ext(t.name), blobUrl = t.f.blob ? (t.f.url = t.f.url || URL.createObjectURL(t.f.blob)) : '';
+  const raw = (typeof S !== 'undefined' && S.proj && t.path && typeof Api !== 'undefined' && Api.files && Api.files.rawUrl) ? Api.files.rawUrl(S.proj.id, t.path) : '';
+  const u = blobUrl || raw;
+  const size = t.f.blob ? t.f.blob.size : (t.f.size || 0);
+  const meta = `<div class="media-meta">${esc(t.name)}${size ? ' · ' + kb(size) : ''}</div>`;
+  if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif'].includes(e)) {
     return u
-      ? `<div class="media-preview"><div class="media-fit-wrap"><img class="media-fit" src="${u}" alt="${esc(t.name)}"></div>${meta}</div>`
-      : `<div class="media-preview"><div class="media-fit-wrap"><div class="empty">${ico('image')}<br>${esc(t.name)}<br>1920×1080 / 240KB（サンプル）</div></div></div>`;
+      ? `<div class="media-preview"><div class="media-fit-wrap"><img class="media-fit" src="${u}" alt="${esc(t.name)}" loading="lazy"></div>${meta}</div>`
+      : `<div class="media-preview"><div class="media-fit-wrap"><div class="empty">${ico('image')}<br>${esc(t.name)}<br>画像を表示できません</div></div></div>`;
   }
-  if (['mp3', 'wav', 'm4a', 'flac', 'ogg'].includes(e)) return `<div class="media-preview audio"><div class="media-fit-wrap"><audio controls ${u ? `src="${u}"` : ''}></audio></div>${meta}</div>`;
-  if (['mp4', 'webm'].includes(e)) {
-    return `<div class="media-preview"><div class="media-fit-wrap"><video controls class="media-fit" ${u ? `src="${u}"` : ''}></video></div>${meta}</div>`;
+  if (['mp3', 'wav', 'm4a', 'flac', 'ogg', 'opus', 'aac'].includes(e)) return `<div class="media-preview audio"><div class="media-fit-wrap"><audio controls preload="metadata" ${u ? `src="${esc(u)}"` : ''}></audio></div>${meta}</div>`;
+  if (['mp4', 'webm', 'mov', 'm4v', 'ogv'].includes(e)) {
+    return `<div class="media-preview"><div class="media-fit-wrap"><video controls preload="metadata" playsinline class="media-fit" ${u ? `src="${esc(u)}"` : ''}></video></div>${meta}</div>`;
   }
   return `<div class="empty">${ico(fileIcon(t.name))}<br>${esc(t.name)}<br>この形式はダウンロードのみできます</div>`;
 }

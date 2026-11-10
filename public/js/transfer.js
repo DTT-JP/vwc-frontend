@@ -42,7 +42,7 @@ const Proc = (() => {
 
 /* ---- 通知トレイ（進捗・通知・履歴を統合） ---- */
 const Tray = (() => {
-  let el = null, seq = 0; const rows = [], history = []; let panelVisible = true;
+  let el = null, seq = 0; const rows = [], history = []; let panelVisible = true, showHistory = false;
   const mount = () => {
     if (el) return el;
     el = document.createElement('div'); el.id = 'tray'; el.hidden = false;
@@ -51,9 +51,11 @@ const Tray = (() => {
       const del = e.target.closest('[data-td]');
       const close = e.target.closest('[data-tx]');
       const cancel = e.target.closest('[data-tc]');
+      const clearHist = e.target.closest('[data-th-clear]');
       if (del) { Tray.forget(+del.dataset.td); e.stopPropagation(); return; }
       if (close) { Tray.dismiss(+close.dataset.tx); e.stopPropagation(); return; }
       if (cancel) { const r = rows.find(r => r.id === +cancel.dataset.tc) || history.find(r => r.id === +cancel.dataset.tc); r && r.onCancel && r.onCancel(); e.stopPropagation(); return; }
+      if (clearHist) { Tray.clearHistory(); e.stopPropagation(); return; }
       if (!e.target.closest('button,a,input,select,textarea')) Tray.toggle();
     });
     paint();
@@ -76,14 +78,15 @@ const Tray = (() => {
   };
   const paint = () => {
     mount();
-    const has = rows.length || history.length;
+    const canShowHistory = showHistory && history.length;
+    const has = rows.length || canShowHistory;
     el.classList.toggle('is-empty', !has);
     el.classList.toggle('is-hidden', !panelVisible);
     if (!has) { el.innerHTML = ''; el.hidden = true; return; }
     el.hidden = false;
     let html = '';
     if (rows.length) html += `<div class="tr-sec">${rows.map(r => rowHtml(r, false)).join('')}</div>`;
-    if (history.length) html += `<div class="tr-sec tr-hist"><div class="tr-cap">履歴</div>${[...history].reverse().map(r => rowHtml(r, true)).join('')}</div>`;
+    if (canShowHistory) html += `<div class="tr-sec tr-hist"><div class="tr-cap"><span>履歴</span><button data-th-clear title="通知履歴をすべて削除">一括削除</button></div>${[...history].reverse().map(r => rowHtml(r, true)).join('')}</div>`;
     el.innerHTML = html;
   };
   const toHistory = r => {
@@ -103,7 +106,7 @@ const Tray = (() => {
     },
     notify(o) {
       const r = { id: ++seq, kind: 'notice', icon: 'notifications', state: 'info', pct: null, msg: '', spin: false, title: '', ...o };
-      rows.push(r); panelVisible = true; paint(); scheduleNoticeOut(r.id); return r.id;
+      rows.push(r); panelVisible = true; showHistory = false; paint(); scheduleNoticeOut(r.id); return r.id;
     },
     set(id, o) {
       const r = rows.find(x => x.id === id) || history.find(x => x.id === id);
@@ -123,8 +126,20 @@ const Tray = (() => {
       i = rows.findIndex(x => x.id === id);
       if (i >= 0) { const r = rows.splice(i, 1)[0]; clearTimeout(r._t); r.msg = r.title = r.onCancel = null; paint(); }
     },
-    toggle(force) { panelVisible = typeof force === 'boolean' ? force : !panelVisible; paint(); },
-    show() { panelVisible = true; paint(); },
+    /* 通知履歴をすべて削除（メモリ解放） */
+    clearHistory() {
+      while (history.length) {
+        const r = history.pop();
+        if (r) { clearTimeout(r._t); r.msg = r.title = r.onCancel = null; }
+      }
+      paint();
+    },
+    toggle(force) {
+      if (typeof force === 'boolean') { panelVisible = force; if (panelVisible) showHistory = true; }
+      else { panelVisible = !panelVisible; if (panelVisible) showHistory = true; }
+      paint();
+    },
+    show() { panelVisible = true; showHistory = true; paint(); },
     hide() { panelVisible = false; paint(); },
     isVisible: () => panelVisible,
     rows: () => rows.map(r => ({ ...r })),

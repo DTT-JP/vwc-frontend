@@ -19,7 +19,21 @@ function noticeWithState(n) {
   };
 }
 const lvIcon = { info: 'info', warn: 'warning', danger: 'error' };
-const annCard = a => `<div class="an ${a.level}"><span class="ms">${lvIcon[a.level] || 'info'}</span><div><b>${esc(a.kind)}</b>${a.audience === 'admin' ? ' ' + bd('管理者のみ') : ''}<div class="an-t">${esc(a.title)}</div>${a.body ? `<p>${esc(a.body)}</p>` : ''}</div></div>`; /* 表示期間（from〜to）は、表示するかどうかの判定にだけ使う。画面には出さない */
+const linkifyAnn = text => {
+  const s = String(text ?? ''), re = /https?:\/\/[^\s<>"']+/g;
+  let out = '', i = 0, m;
+  while ((m = re.exec(s))) {
+    let url = m[0], trail = '';
+    while (/[)\].,!?;:]+$/.test(url)) { trail = url.slice(-1) + trail; url = url.slice(0, -1); }
+    out += esc(s.slice(i, m.index));
+    if (url) out += `<a class="ann-link" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(url)}</a>`;
+    out += esc(trail);
+    i = m.index + m[0].length;
+  }
+  out += esc(s.slice(i));
+  return out.replace(/\n/g, '<br>');
+};
+const annCard = a => `<div class="an ${a.level}"><span class="ms">${lvIcon[a.level] || 'info'}</span><div><b>${esc(a.kind)}</b>${a.audience === 'admin' ? ' ' + bd('管理者のみ') : ''}<div class="an-t">${esc(a.title)}</div>${a.body ? `<p>${linkifyAnn(a.body)}</p>` : ''}</div></div>`; /* 表示期間（from〜to）は、表示するかどうかの判定にだけ使う。画面には出さない */
 const annActive = () => { const t = isoToday(); return DATA.announcements.filter(a => a.from <= t && t <= a.to && (a.audience === 'all' || S.role === 'admin')).sort((a, b) => ['danger', 'warn', 'info'].indexOf(a.level) - ['danger', 'warn', 'info'].indexOf(b.level)); };
 function renderNotices() {
   const n = $('#h-news'), w = $('#h-notice'); if (!n) return; const an = annActive();

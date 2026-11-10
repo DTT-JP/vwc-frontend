@@ -350,7 +350,7 @@ function applyMembers(d) {
   else if (hasIdpLoginProvider() || !!(typeof S !== 'undefined' && S && S.idpMode)) DATA.membersManagedByIdp = true;
   else DATA.membersManagedByIdp = false;
   DATA.members = arr(d, 'members').map(m => ({
-    ...m, id: String(m.id ?? m.member_id ?? ''), name: m.name || '', mail: m.mail ?? m.email ?? '-',
+    ...m, id: String(m.id ?? m.member_id ?? ''), name: m.name || '',
     position: m.position || '部員', isAdmin: bool(first(m, ['isAdmin', 'is_admin'], m.role === 'admin'), false),
     active: bool(first(m, ['active'], true), true),
     idpLinked: bool(first(m, ['idpLinked', 'idp_linked'], false), false),

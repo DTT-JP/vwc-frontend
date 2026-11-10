@@ -292,20 +292,21 @@ const Api = (() => {
     announcementsList: () => call('admin/announcements_list', {}),
     announcementSave: a => call('admin/announcements_save', a),
     announcementDelete: id => call('admin/announcements_delete', { id }),
-    gc: () => call('admin/gc', {}),
+    gc: (execute) => call('admin/gc', execute ? { execute: true } : {}),
     auditList: filter => call('admin/audit_list', filter || {})
   };
 
   /* 部員の候補検索。契約 04 には一般部員向けの一覧が無いため、
      BE が members/search を実装していれば使い、無ければ分かっている部員から絞る。 */
   async function searchMembers(q) {
+    const needle = String(q || '').toLowerCase();
+    const local = () => (DATA.members || []).filter(m => m.active !== false && (!needle || `${m.name || ''} ${m.id || ''}`.toLowerCase().includes(needle)));
     try {
       const d = await call('members/search', { query: q || '' });
       return Array.isArray(d) ? d : (d.members || d.items || []);
     } catch (e) {
-      if (!(e instanceof ApiError) || !['not_found', 'invalid', 'http_404'].includes(e.code)) throw e;
-      const needle = String(q || '').toLowerCase();
-      return (DATA.members || []).filter(m => m.active !== false && (!needle || `${m.name} ${m.id}`.toLowerCase().includes(needle)));
+      // エンドポイント未実装だけでなく通信/権限エラー時も、手元の部員情報で補完を継続する
+      return local();
     }
   }
 

@@ -171,8 +171,12 @@ function openLogin(m) {
 }
 function loginDone() {
   setAuth(true);
-  /* 信頼端末登録レーン: 未登録なら登録確認を優先し、return先への遷移でSKIPしない */
-  if ((DATA.user && DATA.user.trusted) || (typeof isTrusted === 'function' && isTrusted())) {
+  /* 信頼端末登録レーン: 未登録なら登録確認を優先し、return先への遷移でSKIPしない。
+     QR/コードでログインしたセッションでは信頼端末登録を行えない。 */
+  if (DATA.user && DATA.user.can_register_trusted === false) {
+    showToast('ログインしました（QR/コードでのログインでは信頼端末を登録できません）');
+    if (window.VWC_RETURN_TO) location.href = window.VWC_RETURN_TO;
+  } else if ((DATA.user && DATA.user.trusted) || (typeof isTrusted === 'function' && isTrusted())) {
     showToast('ログインしました');
     if (window.VWC_RETURN_TO) location.href = window.VWC_RETURN_TO;
   } else {
@@ -191,6 +195,10 @@ $('#bench').addEventListener('click', e => {
 });
 
 function openTrustTab() {
+  if (DATA.user && DATA.user.can_register_trusted === false) {
+    showToast('QR/コードでのログインでは信頼端末を登録できません');
+    return;
+  }
   openTab('端末の登録', () => $('#t-trust').innerHTML, 'verified_user', () => {
     const i = $('#dev-name'); if (i) i.value = describeDevice();
     const d = $('#trust-days'); if (d) d.textContent = limitVal('device_days');

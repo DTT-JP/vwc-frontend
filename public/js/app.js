@@ -314,10 +314,24 @@ function badName(v, list, self) {
   if (v.toLowerCase() === '.htaccess' || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i.test(v)) return 'この名前は使えません';
   return list.some(x => x !== self && x.n === v) ? '同じ名前があります' : '';
 }
-let inCb = null;
-function askName(title, init, cb) { $('#in-t').textContent = title; $('#in-v').value = init; $('#in-e').textContent = ''; inCb = cb; $('#d-in').showModal(); $('#in-v').focus(); }
-$('#in-ok').onclick = () => { const err = inCb($('#in-v').value.trim()); if (err) $('#in-e').textContent = err; else $('#d-in').close(); };
-$('#in-v').onkeydown = e => { if (e.key === 'Enter') $('#in-ok').click(); }; // ※ falseを返すとBackSpace等が効かなくなるため式にしない
+let inCb = null, inBusy = false;
+function askName(title, init, cb) {
+  inBusy = false; inCb = cb;
+  $('#in-t').textContent = title; $('#in-v').value = init; $('#in-e').textContent = '';
+  $('#in-ok').disabled = false;
+  $('#d-in').showModal(); $('#in-v').focus();
+}
+function submitName() {
+  if (inBusy || !inCb) return;
+  const cb = inCb;
+  const err = cb($('#in-v').value.trim());
+  if (err) { $('#in-e').textContent = err; return; }
+  inBusy = true; inCb = null; $('#in-ok').disabled = true;
+  $('#d-in').close();
+}
+$('#in-ok').onclick = submitName;
+$('#in-v').onkeydown = e => { if (e.key === 'Enter') submitName(); }; // ※ falseを返すとBackSpace等が効かなくなるため式にしない
+$('#d-in').addEventListener('close', () => { inCb = null; inBusy = false; $('#in-ok').disabled = false; });
 const dotHint = v => { if (v.startsWith('.') && !S.dotHint) { S.dotHint = true; showToast('ドットファイルは表示されますが、Webでは見えません'); } };
 $$('[data-act]').forEach(b => b.onclick = () => { if (readOnly()) return; const k = b.dataset.act;
   if (k === 'mkdir') askName('新しいフォルダ', '', v => { const t = newTarget(); const e = badName(v, t.list); if (e) return e; const path = (t.dir ? t.dir + '/' : '') + v; must(async () => { await Api.files.mkdir(S.proj.id, path); if (t.dir) S.closed.delete(t.dir); dotHint(v); await reloadTree(); if (typeof scheduleUsageRefresh === 'function') scheduleUsageRefresh(); showToast('フォルダを作成しました'); }); return ''; });
@@ -419,7 +433,12 @@ async function openFile(path) {
       t.text = node.text; t.encoding = node.encoding; t.charset = node.charset;
       S.tabs.push(t);
     } else {
-      const node = f.t === 'dir' ? f : await ensureBlob(f, path, S.proj.id);
+      const streamable = typeof ext === 'function' && [
+        'png','jpg','jpeg','gif','webp','svg','bmp','ico','avif',
+        'mp3','wav','m4a','flac','ogg','opus','aac',
+        'mp4','webm','mov','m4v','ogv'
+      ].includes(ext(f.n));
+      const node = f.t === 'dir' ? f : (streamable ? f : await ensureBlob(f, path, S.proj.id));
       t = { path, name: path.split('/').pop(), g: S.grp, f: node }; t.text = node.text;
       t.encoding = node.encoding; t.charset = node.charset;
       S.tabs.push(t);
@@ -782,7 +801,13 @@ function renderHome() {
 }
 
 /* ---- ダイアログ ---- */
-$$('dialog').forEach(d => { d.onclick = e => { if ((e.target === d && !d.dataset.lock) || e.target.closest('[data-close]')) d.close(); }; });
+$$('dialog').forEach(d => { d.onclick = e => {
+  if (e.target.closest('[data-close]')) return d.close();
+  if (e.target !== d || d.dataset.lock) return;
+  const r = d.getBoundingClientRect(), m = 32;
+  const near = e.clientX >= r.left - m && e.clientX <= r.right + m && e.clientY >= r.top - m && e.clientY <= r.bottom + m;
+  if (!near) d.close();
+}; });
 const cloneNodes = list => list.map(f => { const n = { ...f, saved: true, inBase: true, renamed: false, mod: false }; if (f.t === 'dir') n.c = cloneNodes(f.c); else if (f.text !== undefined) n.bt = f.text; return n; }); // 分岐元の内容をコピー
 const cnpMode = () => $('[name=cnp-mode]:checked').value;
 $('#btn-new').onclick = () => {

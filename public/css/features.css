@@ -8,7 +8,9 @@
 #tray.is-hidden:hover{opacity:.45}
 #tray .tr-sec{display:grid;gap:8px}
 #tray .tr-hist{margin-top:4px;padding-top:8px;border-top:1px dashed var(--border)}
-#tray .tr-cap{font-size:12px;color:var(--fg-dim);padding:0 2px}
+#tray .tr-cap{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:var(--fg-dim);padding:0 2px}
+#tray .tr-cap button{flex:none;font:inherit;font-size:11px;line-height:1.2;color:var(--fg-dim);background:transparent;border:1px solid var(--border);border-radius:8px;padding:2px 8px;cursor:pointer}
+#tray .tr-cap button:hover{color:var(--fg);border-color:var(--fg-dim)}
 .tr-row.info .tr-h .ms:first-child{color:var(--accent)}
 /* 右下に出す枠（変換の進行・転送トレイ）は #float-stack に積む。下のバー（--bar-h）の上に置き、互いに重ならない */
 #float-stack{position:fixed;right:12px;bottom:calc(var(--bar-h,26px) + env(safe-area-inset-bottom,0px) + 12px);z-index:45;width:min(340px,calc(100vw - 24px));display:flex;flex-direction:column-reverse;gap:8px;pointer-events:none}
@@ -68,6 +70,7 @@ dl.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:8px 0}dl.k
 .diffv[data-view=u] .dv-s,.diffv[data-view=s] .dv-u{display:none}.sr{display:grid;grid-template-columns:1fr 1fr;gap:2px}.sr .dl{padding-left:6px;min-height:1.5em}.sh b{color:var(--fg-dim);font-size:13px}.bin{color:var(--fg-dim);background:var(--bar);border-radius:8px;padding:8px 10px}
 /* お知らせ・忘れていませんか？ */
 .an{display:flex;gap:10px;padding:10px 12px;border-radius:12px;margin:8px 0;background:color-mix(in srgb,var(--accent) 10%,transparent)}.an p{margin:4px 0}.an small{color:var(--fg-dim)}.an .an-t{font-weight:600}
+.an a.ann-link{color:inherit;text-decoration:underline}.an a.ann-link:hover{opacity:.85}
 .an.warn{background:color-mix(in srgb,var(--warn) 16%,transparent)}.an.warn>.ms{color:var(--warn)}.an.danger{background:color-mix(in srgb,var(--danger) 16%,transparent)}.an.danger>.ms{color:var(--danger)}.an.info>.ms{color:var(--accent)}
 .nt{border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin:8px 0;display:grid;gap:8px}.nt p{margin:4px 0;color:var(--fg-dim)}.nt-a{display:flex;flex-wrap:wrap;gap:8px}
 /* 管理の再認証バー・通知設定の保存状態 */

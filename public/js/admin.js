@@ -127,7 +127,7 @@ function rMembers() {
     const admCell = `<span title="管理者権限は認証システム（IdP）で設定します">${m.isAdmin ? bd('あり', 'b-warn') : 'なし'}</span>`;
     const togAttr = managed ? 'disabled aria-disabled="true" title="IdP連携時は有効/無効をVWCから変更できません（IdPの状態に同期されます）"' : 'data-a="mem-tog" title="無効化/有効化"';
     const delAttr = managed ? 'disabled aria-disabled="true" title="IdP連携時はVWCから削除できません（IdP側で管理）"' : 'data-a="mem-del" title="削除"';
-    return `<tr><td data-l="ID">${m.id}</td><td data-l="名前">${esc(m.name)}</td><td data-l="メール">${esc(m.mail)}</td><td data-l="役職"><select data-a="mem-pos" data-id="${m.id}">${['顧問', '部長', '副部長', '部員'].map(p => `<option ${m.position === p ? 'selected' : ''}>${p}</option>`).join('')}</select></td><td data-l="管理者">${admCell}</td><td data-l="状態">${bd(m.active ? '有効' : '無効', m.active ? 'b-ok' : 'b-ng')}</td><td data-l="使用量">${fmtMB(m.usedMB)}MB<small class="dnote">（P${pc} / A${ac}）</small></td>` +
+    return `<tr><td data-l="ID">${m.id}</td><td data-l="名前">${esc(m.name)}</td><td data-l="役職"><select data-a="mem-pos" data-id="${m.id}">${['顧問', '部長', '副部長', '部員'].map(p => `<option ${m.position === p ? 'selected' : ''}>${p}</option>`).join('')}</select></td><td data-l="管理者">${admCell}</td><td data-l="状態">${bd(m.active ? '有効' : '無効', m.active ? 'b-ok' : 'b-ng')}</td><td data-l="使用量">${fmtMB(m.usedMB)}MB<small class="dnote">（P${pc} / A${ac}）</small></td>` +
     `<td class="adm-actions"><div class="adm-actions-in"><button data-a="mem-edit" data-id="${m.id}" title="編集">${ico('edit')}</button><button ${togAttr}>${ico('block')}</button><button ${delAttr}>${ico('delete')}</button></div></td></tr>`;
   });
   const idpNote = managed ? `<p class="dnote">IdP連携が有効なため、ユーザーの追加・削除・管理者設定はVWCから変更できません（IdPの登録情報が元）。一覧はIdPと同期されます。</p>` : '';
@@ -136,7 +136,7 @@ function rMembers() {
     ? `${idpAdminBtn}<button class="o" data-a="idp-sync" title="認証システム(IdP)から登録済み全ユーザーのユーザーID・管理者権限を同期">${ico('sync')} IdPから同期</button>`
     : `${idpAdminBtn}<button class="o" data-a="idp-sync" title="認証システム(IdP)から登録済み全ユーザーのユーザーID・管理者権限を同期">${ico('sync')} IdPから同期</button><button class="o" data-a="mem-add">${ico('person_add')} 追加</button><button class="o" data-a="csv">${ico('upload_file')} CSV一括登録</button>`;
   return `<h2>ユーザー管理</h2>${admReauthBar()}${idpNote}<div class="tools"><input placeholder="検索" id="adm-q">${addBtns}</div>
-  <table class="tbl"><thead><tr><th>ID</th><th>名前</th><th>メール</th><th>役職</th><th>管理者</th><th>状態</th><th>使用量</th><th></th></tr></thead><tbody>` + (rows.join('') || '<tr><td colspan="8">ユーザーはいません</td></tr>') + '</tbody></table>';
+  <table class="tbl"><thead><tr><th>ID</th><th>名前</th><th>役職</th><th>管理者</th><th>状態</th><th>使用量</th><th></th></tr></thead><tbody>` + (rows.join('') || '<tr><td colspan="7">ユーザーはいません</td></tr>') + '</tbody></table>';
 }
 let delM = null, step = 1;
 function mdStep(n) {
@@ -212,6 +212,36 @@ $('#bench').addEventListener('change', e => { if (e.target.id === 'ox-m') fillOx
 /* S18 使用状況・保守：ランキング・GC・監査ログ（部員・操作・IPで絞り込める） */
 const AUD = { m: '', op: '', ip: '' };
 let maintMember = '', auditOps = [];
+const GC_RESULT_KEY = 'vwc_gc_result';
+function loadGcResult() {
+  try { return JSON.parse(sessionStorage.getItem(GC_RESULT_KEY) || 'null'); } catch { return null; }
+}
+function saveGcResult(r) { try { sessionStorage.setItem(GC_RESULT_KEY, JSON.stringify(r)); } catch { /* 保存できなくても実行自体は継続 */ } }
+let gcResult = loadGcResult();
+function gcResultHtml() {
+  if (!gcResult) return '<p class="dnote">まだ実行されていません。「GCを実行」で不要な履歴やキャッシュ、期限切れデータなどを回収します。</p>';
+  const at = gcResult.at ? new Date(gcResult.at).toLocaleString('ja-JP') : '';
+  const freed = num(gcResult.freed_mb ?? gcResult.freedMB, 0);
+  const est = num(gcResult.estimate_mb ?? gcResult.estimateMB, NaN);
+  const objs = num(gcResult.objects, 0);
+  const items = num(gcResult.items, objs);
+  const lines = [];
+  if (gcResult.executed) lines.push(`<b>回収量：</b>${fmtMB(freed)}MB${items ? `（対象 ${items} 件）` : ''}`);
+  else if (Number.isFinite(est)) lines.push(`<b>回収できる見込み：</b>約 ${fmtMB(est)}MB${items ? `（対象 ${items} 件）` : ''}`);
+  if (at) lines.push(`<b>実行日時：</b>${esc(at)}`);
+  if (gcResult.message) lines.push(esc(gcResult.message));
+  const br = Array.isArray(gcResult.breakdown) ? gcResult.breakdown.filter(x => x && (num(x.count, 0) > 0 || num(x.mb ?? x.bytes / 1048576, 0) > 0)) : [];
+  if (br.length) {
+    lines.push('<b>内訳：</b><ul class="exl" style="margin:4px 0 0 18px">' + br.map(x => {
+      const c = num(x.count, 0), mb = num(x.mb, num(x.bytes, 0) / 1048576);
+      return `<li>${esc(x.label || x.key || '')}：${c} 件${mb > 0 ? `（${fmtMB(mb)}MB）` : ''}</li>`;
+    }).join('') + '</ul>');
+  } else if (gcResult.details && typeof gcResult.details === 'object') {
+    const rows = Object.values(gcResult.details).filter(x => x && (num(x.count, 0) > 0 || num(x.bytes, 0) > 0));
+    if (rows.length) lines.push('<b>内訳：</b><ul class="exl" style="margin:4px 0 0 18px">' + rows.map(x => `<li>${esc(x.label || '')}：${num(x.count, 0)} 件${num(x.bytes, 0) > 0 ? `（${fmtMB(num(x.bytes, 0) / 1048576)}MB）` : ''}</li>`).join('') + '</ul>');
+  }
+  return `<div class="anote" id="gc-r">${lines.join('<br>')}</div>`;
+}
 function auditRows() { return DATA.audit.filter(l => (!AUD.m || l.member === AUD.m) && (!AUD.op || String(l.op).includes(AUD.op)) && (!AUD.ip || String(l.ip).includes(AUD.ip))); }
 function rMaint() {
   const mx = Math.max(1, ...DATA.members.map(m => m.usedMB || 0)), ops = auditOps.length ? auditOps : [...new Set(DATA.audit.map(l => l.op))];
@@ -220,9 +250,9 @@ function rMaint() {
   const memberAppNames = selected ? new Set(memberApps(selected)) : null;
   const cats = DATA.adminUsage.categories || [];
   const usageRows = cats.flatMap(c => (c.items || []).filter(([name]) => !selected || c.name === 'その他' || (c.name === 'プロジェクト' && memberNames.has(name)) || (c.name === 'アプリ' && memberAppNames.has(name)) || (c.name === '履歴' && [...memberNames].some(p => name.startsWith(p + ' の履歴')))).map(([name, mb]) => ({ c: c.name, name, mb })));
-  return `<h2>使用状況・保守</h2>${admReauthBar()}<h3>使用量ランキング</h3><table class="tbl"><tbody>` + [...DATA.members].sort((a, b) => (b.usedMB || 0) - (a.usedMB || 0)).map(m => `<tr><td data-l="部員">${esc(m.name)}</td><td data-l="使用量" style="width:50%"><div class="bar" style="width:${(m.usedMB || 0) / mx * 100}%"></div></td><td>${fmtMB(m.usedMB || 0)}MB</td></tr>`).join('') +
-    `</tbody></table><h3>容量の内訳と操作</h3><div class="tools"><label>部員<select data-maint-member><option value="">全体</option>${DATA.members.map(m => `<option value="${m.id}" ${maintMember === m.id ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}</select></label></div><table class="tbl"><thead><tr><th>区分</th><th>項目</th><th>容量</th><th>操作</th></tr></thead><tbody>${usageRows.map(x => `<tr><td>${esc(x.c)}</td><td>${esc(x.name)}</td><td>${fmtMB(x.mb)}MB</td><td>${x.c === 'プロジェクト' ? `<button class="o" data-usage-open="${esc(x.name)}">開く</button>` : ''}${x.c === '履歴' ? `<button class="o" data-usage-history="${esc(x.name)}">履歴を削除</button>` : ''}${x.c === 'アプリ' ? `<button class="o" data-usage-open-app="${esc(x.name)}">開く</button><button class="o" data-usage-delete-app="${esc(x.name)}">削除</button>` : ''}</td></tr>`).join('')}</tbody></table>` +
-    `<h3>GC（不要データの回収）</h3><p>回収できる見込み：<span id="gc-est">実行して確認</span></p><button class="o" data-a="gc">GCを実行</button><span id="gc-r" class="anote"></span>
+  return `<h2>使用状況・保守</h2>${admReauthBar()}<h3>GC（不要データの回収）</h3><div class="tools" style="margin:4px 0 8px"><button class="o" data-a="gc">${ico('cleaning_services')} GCを実行</button></div>${gcResultHtml()}` +
+    `<h3>使用量ランキング</h3><table class="tbl"><tbody>` + [...DATA.members].sort((a, b) => (b.usedMB || 0) - (a.usedMB || 0)).map(m => `<tr><td data-l="部員">${esc(m.name)}</td><td data-l="使用量" style="width:50%"><div class="bar" style="width:${(m.usedMB || 0) / mx * 100}%"></div></td><td>${fmtMB(m.usedMB || 0)}MB</td></tr>`).join('') +
+    `</tbody></table><h3>容量の内訳と操作</h3><div class="tools"><label>部員<select data-maint-member><option value="">全体</option>${DATA.members.map(m => `<option value="${m.id}" ${maintMember === m.id ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}</select></label></div><table class="tbl"><thead><tr><th>区分</th><th>項目</th><th>容量</th><th>操作</th></tr></thead><tbody>${usageRows.map(x => `<tr><td>${esc(x.c)}</td><td>${esc(x.name)}</td><td>${fmtMB(x.mb)}MB</td><td>${x.c === 'プロジェクト' ? `<button class="o" data-usage-open="${esc(x.name)}">開く</button>` : ''}${x.c === '履歴' ? `<button class="o" data-usage-history="${esc(x.name)}">履歴を削除</button>` : ''}${x.c === 'アプリ' ? `<button class="o" data-usage-open-app="${esc(x.name)}">開く</button><button class="o" data-usage-delete-app="${esc(x.name)}">削除</button>` : ''}</td></tr>`).join('')}</tbody></table>
   <h3>監査ログ</h3><p class="dnote">${limitOf('audit_retention_days').value}日より古いものは削除されます。IPアドレスは、操作した端末の接続元です。</p>
   <div class="tools" id="aud-f"><select data-aud="m"><option value="">全部員</option>${DATA.members.map(m => `<option value="${m.id}" ${AUD.m === m.id ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}</select><select data-aud="op"><option value="">全操作</option>${ops.map(o => `<option ${AUD.op === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select><input data-aud="ip" placeholder="IPで絞り込み（例 192.0.2）" value="${esc(AUD.ip)}" style="width:190px"></div>
   <table class="tbl"><thead><tr><th>日時</th><th>部員</th><th>操作</th><th>対象</th><th>IP</th></tr></thead><tbody id="aud-b">${auditBody()}</tbody></table>`;
@@ -289,9 +319,7 @@ $('#bench').addEventListener('click', e => { const b = e.target.closest('[data-a
     $('#mem-idp-note').hidden = true;
     $('#mem-id').value = ''; $('#mem-id').disabled = false;
     $('#mem-name-row').hidden = true; $('#mem-note').hidden = false;
-    $('#mem-name').value = ''; $('#mem-mail').value = ''; $('#mem-pos').value = '部員';
-    $('#mem-mail').required = false;
-    $('#mem-mail').placeholder = 'メールアドレス（任意）';
+    $('#mem-name').value = ''; $('#mem-pos').value = '部員';
     $('#d-mem').showModal();
   }
   if (a === 'mem-edit') {
@@ -300,8 +328,7 @@ $('#bench').addEventListener('click', e => { const b = e.target.closest('[data-a
     $('#mem-idp-note').hidden = true;
     $('#mem-id').value = m.id; $('#mem-id').disabled = true;
     $('#mem-name-row').hidden = false; $('#mem-note').hidden = true;
-    $('#mem-name').value = m.named === false ? '' : m.name; $('#mem-mail').value = m.mail; $('#mem-pos').value = m.position;
-    $('#mem-mail').required = true; $('#mem-mail').placeholder = 'メールアドレス';
+    $('#mem-name').value = m.named === false ? '' : m.name; $('#mem-pos').value = m.position;
     $('#d-mem').showModal();
   }
   if (a === 'csv') {
@@ -311,7 +338,7 @@ $('#bench').addEventListener('click', e => { const b = e.target.closest('[data-a
   if (a === 'mem-tog') {
     if (membersManagedByIdp()) return showToast('IdP連携時は有効/無効をVWCから変更できません（IdPの状態に同期されます）');
     const m = DATA.members.find(x => x.id === id); if (!m) return; reauth(async () => {
-    try { await Api.admin.membersUpdate({ member: m.id, name: m.name, mail: m.mail, position: m.position, active: !m.active }); await loadMembers(); redo(); showToast(m.active ? 'ユーザーを有効化しました' : 'ユーザーを無効化しました'); }
+    try { await Api.admin.membersUpdate({ member: m.id, name: m.name, position: m.position, active: !m.active }); await loadMembers(); redo(); showToast(m.active ? 'ユーザーを有効化しました' : 'ユーザーを無効化しました'); }
     catch (err) { showApiError(err); } }); }
   if (a === 'mem-del') {
     if (membersManagedByIdp()) return showApiError({ code: 'managed_by_idp' });
@@ -346,13 +373,30 @@ $('#bench').addEventListener('click', e => { const b = e.target.closest('[data-a
   if (a === 'ox-go') { const m = DATA.members.find(x => x.id === $('#ox-m').value), pid = $('#ox-p').value; if (!pid) return showToast('このプロジェクトはありません');
     $('#ox-w').textContent = m && quotaLimit() > 0 && m.usedMB > quotaLimit() * .8 ? `${m.name} さんの使用量は上限の${Math.round(m.usedMB / quotaLimit() * 100)}%です。公開すると超過する可能性があります。` : ''; reauth(() => { pubOpen(); const sel = $('#pub-proj'); if (sel) { sel.value = pid; sel.dispatchEvent(new Event('change')); } }); }
   if (a === 'gc') reauth(async () => {
+    const btn = document.querySelector('[data-a="gc"]');
+    if (btn) { btn.disabled = true; btn.textContent = 'GCを実行中...'; }
     try {
-      const d = await Api.admin.gc(), freed = num(d.freed_mb ?? d.freedMB ?? (d.freed_bytes ? d.freed_bytes / 1048576 : 0), 0), est = num(d.estimate_mb ?? d.estimateMB, NaN);
-      const el = $('#gc-est'); if (el) el.textContent = Number.isFinite(est) ? `約 ${fmtMB(est)}MB` : '実行済み';
-      $('#gc-r').textContent = ` 実行しました：${freed ? fmtMB(freed) + 'MB を回収' : '回収できるものはありませんでした'}`;
+      const d = await Api.admin.gc(true);
+      const freed = num(d.freed_mb ?? d.freedMB ?? (d.freed_bytes ? d.freed_bytes / 1048576 : 0), 0);
+      const est = num(d.estimate_mb ?? d.estimateMB, NaN);
+      const objs = num(d.objects, 0);
+      const items = num(d.items, objs);
+      const br = Array.isArray(d.breakdown) ? d.breakdown.filter(x => num(x.count, 0) > 0 || num(x.mb, 0) > 0 || num(x.bytes, 0) > 0) : [];
+      const label = br.map(x => x.label || x.key).filter(Boolean).join('・');
+      gcResult = {
+        ...d,
+        executed: true,
+        at: Date.now(),
+        message: items > 0
+          ? `${freed ? fmtMB(freed) + 'MB を回収しました。' : '回収量は 0.00MB でしたが、不要データを整理しました。'}${label ? `（${label}）` : ''}`
+          : '回収できる不要データはありませんでした。'
+      };
+      if (Number.isFinite(est)) gcResult.estimate_mb = est;
+      saveGcResult(gcResult);
       await Promise.allSettled([loadAdminUsage(maintMember || undefined), loadAudit()]);
       redo();
-    } catch (e) { showApiError(e); } });
+      showToast(gcResult.message);
+    } catch (e) { if (btn) { btn.disabled = false; btn.textContent = 'GCを実行'; } showApiError(e); } });
   if (a === 'ann-new') openAnn(); if (a === 'ann-edit') openAnn(DATA.announcements.find(x => x.id === id));
   if (a === 'ann-del') confirmDlg('お知らせを削除', '削除すると、ホームの表示から消えます。', () => reauth(async () => {
     try { await Api.admin.announcementDelete(id); await loadAdminAnnouncements(); redo(); refreshNotices(); showToast('削除しました'); }
@@ -363,7 +407,7 @@ function afterLimits() { loginSecLeft = Math.min(loginSecLeft, limitVal('code_tt
 $('#bench').addEventListener('change', e => { const t = e.target, a = t.dataset.a; if (!a) return;
   if (a === 'mem-pos') { const m = DATA.members.find(x => x.id === t.dataset.id); if (!m) return; const next = t.value; reauth(async () => {
     try {
-      await Api.admin.membersUpdate({ member: m.id, name: m.name, mail: m.mail, position: next, active: m.active });
+      await Api.admin.membersUpdate({ member: m.id, name: m.name, position: next, active: m.active });
       await loadMembers(); showToast(m.name + ' さんを更新しました'); redo();
     } catch (err) { showApiError(err); redo(); } }); }
   if (a === 'dev-f') { devF = t.value; redo(); }
@@ -375,23 +419,17 @@ $('#bench').addEventListener('change', e => { const t = e.target, a = t.dataset.
 });
 let editM = null;
 $('#mem-ok').onclick = () => {
-  const n = $('#mem-name').value.trim(), mail = $('#mem-mail').value.trim(), position = $('#mem-pos').value;
+  const n = $('#mem-name').value.trim(), position = $('#mem-pos').value;
   const mid = $('#mem-id').value.trim();
   if (!editM && (!mid || mid.length > 64 || !/^[A-Za-z0-9._@-]+$/.test(mid))) return showToast('ユーザーIDは、半角の英数字と . _ @ - だけで入力してください');
-  if (editM && (!mail || !$('#mem-mail').checkValidity())) return showToast('有効なメールアドレスを入力してください');
-  if (!editM && mail && !$('#mem-mail').checkValidity()) return showToast('メールアドレスの形式を確認してください');
   const current = editM;
   reauth(async () => {
     try {
-      if (current) await Api.admin.membersUpdate({ member: current.id, name: n, mail, position });
-      else {
-        const payload = { id: mid, name: n, position };
-        if (mail) payload.mail = mail;
-        await Api.admin.membersAdd(payload);
-      }
+      if (current) await Api.admin.membersUpdate({ member: current.id, name: n, position });
+      else await Api.admin.membersAdd({ id: mid, name: n, position });
       $('#d-mem').close(); await loadMembers(); redo(); showToast(current ? 'ユーザーを更新しました' : 'ユーザーを追加しました');
     } catch (e) {
-      if (e instanceof ApiError && e.code === 'conflict' && !current) showToast('そのユーザーID、またはメールアドレスは、すでに登録されています');
+      if (e instanceof ApiError && e.code === 'conflict' && !current) showToast('そのユーザーIDは、すでに登録されています');
       else showApiError(e);
     }
   });
@@ -417,22 +455,22 @@ $('#as-ok').onclick = () => reauth(async () => {
   } catch (e) { showApiError(e); }
 });
 
-/* CSV一括登録：プレビュー（エラー行つき）。列：ユーザーID,名前,メール,役職。IdP正本時はVWCからの追加不可。 */
+/* CSV一括登録：プレビュー（エラー行つき）。列：ユーザーID,名前,役職。メールアドレスはIdP連携で不要のため扱わない。IdP正本時はVWCからの追加不可。 */
 const POS = ['顧問', '部長', '副部長', '部員'];
-const CSV_SAMPLE = 'ユーザーID,名前,メール,役職\nU101,新人 一郎,ichiro@example.invalid,部員\nU102,新人 二郎,not-an-email,部員\nU001,重複 太郎,dup@example.invalid,部員\nU103,新人 三郎,saburo@example.invalid,副部長\nU104,新人 四郎,shiro@example.invalid,会計';
+const CSV_SAMPLE = 'ユーザーID,名前,役職\nU101,新人 一郎,部員\nU102,新人 二郎,部員\nU001,重複 太郎,部員\nU103,新人 三郎,副部長\nU104,新人 四郎,会計';
 let csvOk = [];
 $('#csv-pv').onclick = () => {
   if (membersManagedByIdp()) return showApiError({ code: 'managed_by_idp' });
   const rows = $('#csv-in').value.trim().split('\n').slice(1).map(l => l.split(',').map(s => s.trim())), seen = new Set(DATA.members.map(m => m.id)); csvOk = [];
-  const res = rows.map((r, i) => { const [id, name, mail, role] = r; let err = '';
-    if (r.length < 4 || !id || !name) err = '列が足りません'; else if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) err = 'メールアドレスの形式が正しくありません';
+  const res = rows.map((r, i) => { const [id, name, role] = r; let err = '';
+    if (r.length < 3 || !id || !name) err = '列が足りません';
     else if (!POS.includes(role)) err = '役職は 顧問/部長/副部長/部員 のいずれかです'; else if (seen.has(id)) err = 'ユーザーIDが重複しています';
-    if (!err) { seen.add(id); csvOk.push({ id, name, mail, role }); } return `<tr style="${err ? 'color:var(--danger)' : ''}"><td>${i + 2}</td><td>${esc(id || '')}</td><td>${esc(name || '')}</td><td>${err ? bd('エラー', 'b-ng') + ' ' + err : bd('OK', 'b-ok')}</td></tr>`; });
+    if (!err) { seen.add(id); csvOk.push({ id, name, role }); } return `<tr style="${err ? 'color:var(--danger)' : ''}"><td>${i + 2}</td><td>${esc(id || '')}</td><td>${esc(name || '')}</td><td>${err ? bd('エラー', 'b-ng') + ' ' + err : bd('OK', 'b-ok')}</td></tr>`; });
   $('#csv-out').innerHTML = `<table class="tbl"><thead><tr><th>行</th><th>ID</th><th>名前</th><th>結果</th></tr></thead><tbody>${res.join('')}</tbody></table><p class="anote">登録できる行：${csvOk.length}件 / エラー行：${rows.length - csvOk.length}件</p>`;
   $('#csv-ok').disabled = !csvOk.length; };
 $('#csv-ok').onclick = () => {
   if (membersManagedByIdp()) return showApiError({ code: 'managed_by_idp' });
-  const csv = 'ユーザーID,名前,メール,役職\n' + csvOk.map(m => [m.id, m.name, m.mail, m.role].join(',')).join('\n');
+  const csv = 'ユーザーID,名前,役職\n' + csvOk.map(m => [m.id, m.name, m.role].join(',')).join('\n');
   const count = csvOk.length;
   reauth(async () => {
     try {

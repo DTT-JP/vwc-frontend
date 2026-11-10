@@ -91,7 +91,7 @@ dialog .btns button{min-height:40px;padding:0 16px;border-radius:20px}
 
 
 #toast{display:none!important}
-#s-proc.proc-btn{cursor:pointer;user-select:none;border-radius:6px;padding:2px 6px;margin:-2px 0}
+#s-proc.proc-btn{cursor:pointer;user-select:none;border-radius:6px;padding:2px 6px;margin:0}
 #s-proc.proc-btn:hover{background:var(--hover,rgba(127,127,127,.12))}
 #s-proc.proc-btn:focus-visible{outline:2px solid var(--accent)}
 
@@ -315,7 +315,7 @@ button.primary{display:inline-flex;align-items:center;justify-content:center;gap
 .acts3{display:grid;grid-template-columns:1fr 1fr 1.3fr;gap:6px}.acts3 button{padding:0 8px;font-size:14px;justify-content:center;border-radius:12px}
 #s-msg{color:var(--fg-dim)}#s-res .row.dim{font-weight:600;color:var(--fg)}
 
-#sh-state{display:flex;align-items:center;gap:12px;margin:6px 12px 10px;padding:12px 14px;background:var(--bar);border-radius:14px}#sh-state .ms{color:var(--accent);font-size:24px}#sh-state small,.ucard small,.app-row small{display:block;color:var(--fg-dim)}
+#sh-state{display:flex;align-items:center;gap:12px;margin:6px 12px 10px;padding:12px 14px;background:var(--bar);border-radius:14px}#sh-state .ms{color:var(--accent);font-size:24px}#sh-state [data-sh-bulk]{margin-left:auto}#sh-state small,.ucard small,.app-row small{display:block;color:var(--fg-dim)}
 .mem{margin:8px 12px;padding:12px;background:var(--bar);border-radius:14px}.mem-h{display:flex;align-items:center;gap:10px}.mem-h b{flex:1;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mem-b{display:flex;gap:12px;align-items:center;margin-top:10px}.mem-b select{flex:1;min-width:0}
 .app-row{display:grid;grid-template-columns:20px minmax(0,1fr);align-items:start;gap:8px 10px;margin:8px 12px;padding:10px 10px 10px 14px;background:var(--bar);border-radius:14px}.app-row-icon{grid-column:1;grid-row:1;color:var(--accent)}.app-row-main{grid-column:2;min-width:0}.app-row-main b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.app-row-main small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.app-row-actions{grid-column:2;display:flex;align-items:center;flex-wrap:wrap;gap:6px;min-width:0}.app-row-actions button{width:44px;min-width:44px;min-height:44px;padding:0;justify-content:center}
@@ -657,10 +657,10 @@ dialog:focus{outline:none}
 .ext-note{padding:6px 14px;color:var(--accent);font-size:13px}
 
 /* 共有：一括の切り替え画面 */
-.bulk-row{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border)}
-.bulk-row .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bulk-row{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.bulk-row .nm{flex:1;min-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bulk-row small{display:block;color:var(--fg-dim)}
-.bulk-row label{display:inline-flex;align-items:center;gap:8px}
+.bulk-row label{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
 
 .row[hidden],.lcard[hidden],.pnote[hidden]{display:none!important}
 

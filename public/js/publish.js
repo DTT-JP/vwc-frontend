@@ -99,7 +99,9 @@ function pubScan(projId) {
     if (f.n.startsWith('.')) ex.push([path + (f.t === 'dir' ? '/' : ''), '隠しファイル（. で始まる）']);
     else if (f.t !== 'dir' && /\.(php|phtml|phar|php[3-8]|pl|cgi|py|sh|asp|aspx|jsp)$/i.test(f.n)) ex.push([path, '実行系ファイル（Webへ公開しない）']);
     else if (f.t === 'dir') w(f.c, path + '/'); else inc.push([path, nodeBytes(f)]); });
-  w(DATA.files[projId] || [], ''); return { ex, bytes: inc.reduce((a, x) => a + x[1], 0), n: inc.length };
+  w(DATA.files[projId] || [], '');
+  const hasIndex = inc.some(x => x[0] === 'index.html' || x[0] === 'index.htm');
+  return { ex, bytes: inc.reduce((a, x) => a + x[1], 0), n: inc.length, hasIndex };
 }
 const pjOf = id => pubProjects().find(p => p.id === id) || { id, name: id, owner: DATA.user.id, label: id };
 const ownerLabel = id => (DATA.members.find(m => m.id === id) || {}).name || '（なし）';
@@ -187,7 +189,8 @@ $('#pub-next').onclick = async () => {
   try { await busy('公開の内容を確認中', 'fact_check', () => loadTreeFor(p.id)); } catch (e) { return showApiError(e); }
   const c = commitsForProject(p.id).find(x => x.hash === hash), sc = pubScan(p.id), max = limitVal('max_publish_mb') * MB, over = sc.bytes > max;
   if (!c) return showToast('このプロジェクトにコミットがありません');
-  $('#pub-sum').innerHTML = `<dl class="kv"><dt>公開名・URL</dt><dd><b>${esc(name)}</b><br>${APP_URL(name)}</dd><dt>もとになるもの</dt><dd>${esc(p.label)} ／ ${esc(commitLabel(c.hash, p.id))}</dd>` +
+  const noIndexNotice = sc.hasIndex ? '' : `<p class="anote" style="margin:8px 0">index.html がないため、公開時にアプリ内のファイルを共有するためのファイル一覧ページ（index.html）を自動生成します。</p>`;
+  $('#pub-sum').innerHTML = noIndexNotice + `<dl class="kv"><dt>公開名・URL</dt><dd><b>${esc(name)}</b><br>${APP_URL(name)}</dd><dt>もとになるもの</dt><dd>${esc(p.label)} ／ ${esc(commitLabel(c.hash, p.id))}</dd>` +
     `<dt>公開状態</dt><dd>${st}${st === '限定公開' ? '（アクセスコードを自動で作ります）' : ''}</dd><dt>公開範囲</dt><dd>${RANGE[st]}</dd>` +
     `<dt>公開するもの</dt><dd>${sc.n}個のファイル（${kb(sc.bytes)}）</dd>` +
     `<dt>公開されないもの</dt><dd>${sc.ex.length ? '<ul class="exl">' + sc.ex.map(x => `<li><code>${esc(x[0])}</code> <small>${x[1]}</small></li>`).join('') + '</ul>' : 'なし'}</dd></dl>` +
@@ -591,18 +594,26 @@ async function openViewers(a) {
   try { const d = await Api.apps.viewersList(a.name); a.viewers = arr(d, 'viewers').map(v => typeof v === 'string' ? v : (v.id || v.member || v.member_id)); }
   catch (e) { showApiError(e); }
   $('#vw-dl').innerHTML = ''; vwCandidates = []; renderViewers(); $('#d-view').showModal();
+  loadViewerCandidates('');
 }
 function renderViewers() {
   $('#vw-list').innerHTML = (vwApp.viewers || []).map(id => { const m = DATA.members.find(x => x.id === id) || vwCandidates.find(x => x.id === id); return `<div class="row"><span class="nm">${esc(m ? m.name : id)}</span><button data-vr="${id}" title="解除">${ico('person_remove')}</button></div>`; }).join('') || '<div class="pnote">閲覧者はいません。追加するまで、所有者以外は開けません。</div>';
 }
+async function loadViewerCandidates(q = '') {
+  try { vwCandidates = await Api.searchMembers(q); } catch { vwCandidates = []; }
+  $('#vw-dl').innerHTML = vwCandidates.map(m => `<option value="${esc(m.name)}（${m.id}）">`).join('');
+}
 $('#vw-in').addEventListener('input', e => {
   const q = e.target.value.trim(); clearTimeout(vwTimer);
-  vwTimer = setTimeout(async () => {
-    try { vwCandidates = await Api.searchMembers(q); } catch { vwCandidates = []; }
-    $('#vw-dl').innerHTML = vwCandidates.map(m => `<option value="${esc(m.name)}（${m.id}）">`).join('');
-  }, 200);
+  vwTimer = setTimeout(() => { loadViewerCandidates(q); }, 200);
 });
-const viewerMember = v => vwCandidates.find(m => v === `${m.name}（${m.id}）` || v === m.id || v === m.name) || DATA.members.find(m => v === `${m.name}（${m.id}）` || v === m.id || v === m.name);
+$('#vw-in').addEventListener('focus', () => {
+  if (!$('#vw-dl').children.length) loadViewerCandidates($('#vw-in').value.trim());
+});
+const viewerMember = v => {
+  const q = String(v || '').trim();
+  return [...vwCandidates, ...(DATA.members || [])].find(m => m && (q === `${m.name}（${m.id}）` || q === m.id || q === m.name));
+};
 $('#vw-add').onclick = async () => {
   const m = viewerMember($('#vw-in').value.trim());
   if (!m) return showToast('該当する部員がいません');

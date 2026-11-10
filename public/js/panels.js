@@ -34,80 +34,64 @@ function renderShare() {
     (o ? `<button title="共有を解除" data-rm="${c.id}">${ico('person_remove')}</button></div><div class="mem-b"><select data-perm="${c.id}"><option value="view"${c.perm === 'view' ? ' selected' : ''}>閲覧</option><option value="edit"${c.perm === 'edit' ? ' selected' : ''}>編集</option></select>` +
       `<label class="tgl"><input type="checkbox" data-pub="${c.id}" ${c.pub ? 'checked' : ''}><span>公開権限</span></label></div>` : `<span class="badge">${c.perm === 'edit' ? '編集可' : '閲覧のみ'}</span></div>`) + '</div>').join('');
 }
+async function loadShareCandidates(q = '') {
+  try { shareCandidates = await Api.searchMembers(q); } catch { shareCandidates = []; }
+  renderShare();
+}
 $('#sh-state').onclick = e => { if (e.target.closest('[data-sh-bulk]')) openBulkShare(); };
 
-/* 共有の一括設定：部員を1人選び、自分のプロジェクトごとに、その部員への共有を ON / OFF で切り替える。
-   「反映する」で、変えたものだけをまとめて送る（ON = 共有する／OFF = 共有を解除。ON のときは、閲覧・編集と公開権限も選べる）。 */
-const BK = { member: null, rows: [] };
+/* 共有の一括設定：現在プロジェクトの全共有先に、共有機能・編集権限・公開権限を一律で反映する。
+   3つのチェックボックス：共有機能 / 編集権限 / 公開権限。共有OFFのとき権限は無効・解除扱い。 */
+const BK = { targets: [], on: false, edit: false, pub: false };
 function bulkRender() {
-  const changed = BK.rows.filter(r => r.on !== r.was.on || (r.on && (r.perm !== r.was.perm || r.pub !== r.was.pub)));
-  $('#bk-tools').hidden = !BK.member;
-  $('#bk-sum').textContent = BK.member ? `ON ${BK.rows.filter(r => r.on).length} / ${BK.rows.length} 件　変更 ${changed.length} 件` : '';
-  $('#bk-go').disabled = !changed.length;
-  $('#bk-list').innerHTML = BK.rows.map((r, i) => `<div class="bulk-row"><div class="nm" title="${esc(r.name)}">${esc(r.name)}${r.err ? `<small class="err">${esc(r.err)}</small>` : ''}</div>` +
-    `<select data-bk-perm="${i}" ${r.on ? '' : 'disabled'} aria-label="権限"><option value="view"${r.perm === 'view' ? ' selected' : ''}>閲覧</option><option value="edit"${r.perm === 'edit' ? ' selected' : ''}>編集</option></select>` +
-    `<label class="tgl"><input type="checkbox" data-bk-pub="${i}" ${r.pub ? 'checked' : ''} ${r.on ? '' : 'disabled'}><span>公開権限</span></label>` +
-    `<label class="tgl"><input type="checkbox" data-bk-on="${i}" ${r.on ? 'checked' : ''}><span>${r.on ? 'ON' : 'OFF'}</span></label></div>`).join('') || '<div class="pnote">あなたが所有しているプロジェクトがありません</div>';
+  const n = BK.targets.length;
+  $('#bk-sum').textContent = n ? `現在の共有先 ${n} 人に、同じ設定を一律で反映します。` : '現在のプロジェクトには共有先がいません。';
+  $('#bk-go').disabled = !n;
+  $('#bk-list').innerHTML = n ? `<div class="bulk-row"><div class="nm">全共有先に一律適用</div>` +
+    `<label class="tgl"><input type="checkbox" id="bk-on" ${BK.on ? 'checked' : ''}><span>共有機能を有効にする</span></label>` +
+    `<label class="tgl"><input type="checkbox" id="bk-edit" ${BK.edit ? 'checked' : ''} ${BK.on ? '' : 'disabled'}><span>共有された人が編集できる</span></label>` +
+    `<label class="tgl"><input type="checkbox" id="bk-pub" ${BK.pub ? 'checked' : ''} ${BK.on ? '' : 'disabled'}><span>共有された人が公開できる</span></label></div>` +
+    `<div class="dnote">対象：${BK.targets.map(c => esc(c.name || c.id)).join('、')}</div>`
+    : '<div class="pnote">共有先がいないため、反映できる設定はありません。先に共有先を追加してください。</div>';
 }
 function openBulkShare() {
-  BK.member = null; BK.rows = []; $('#bk-m').value = ''; bulkRender(); $('#d-bulk').showModal();
+  if (!(typeof hasProject === 'function' ? hasProject() : !!(S.proj && S.proj.id))) return;
+  BK.targets = (DATA.collab || []).slice();
+  BK.on = BK.targets.length > 0;
+  BK.edit = BK.targets.length > 0 && BK.targets.every(c => c.perm === 'edit');
+  BK.pub = BK.targets.length > 0 && BK.targets.every(c => !!c.pub);
+  bulkRender();
+  $('#d-bulk').showModal();
 }
-$('#bk-m').addEventListener('input', e => {
-  const q = e.target.value.trim(); clearTimeout(shareTimer);
-  shareTimer = setTimeout(async () => {
-    try { shareCandidates = await Api.searchMembers(q); } catch { shareCandidates = []; }
-    const known = [...shareCandidates, ...DATA.members].filter((m, i, a) => m.active !== false && m.id !== DATA.user.id && a.findIndex(x => x.id === m.id) === i);
-    $('#bk-dl').innerHTML = known.map(m => `<option value="${esc(m.name)}（${m.id}）">`).join('');
-  }, 200);
-});
-$('#bk-load').onclick = async () => {
-  const m = memberOfInput($('#bk-m').value.trim());
-  if (!m) return showToast('登録済みの有効な部員を検索して選んでください');
-  if (m.id === DATA.user.id) return showToast('自分自身には共有できません');
-  BK.member = m; BK.rows = [];
-  const mine = DATA.projects.mine.slice();
-  await Task.run({ title: `共有の状態を確認中（${m.name}）`, icon: 'share', delay: 0 }, async t => {
-    let done = 0, next = 0;
-    const one = async () => {
-      while (next < mine.length) {
-        const p = mine[next++];
-        try {
-          const d = await Api.share.list(p.id); DATA.sharesByProject[p.id] = d;
-          const c = arr(d, 'shares').find(s => String(s.member ?? s.id ?? s.member_id) === m.id);
-          const st = { on: !!c, perm: c ? (c.mode || c.perm || 'view') : 'view', pub: c ? bool(c.can_publish ?? c.pub, false) : false };
-          BK.rows[mine.indexOf(p)] = { id: p.id, name: p.name, ...st, was: { ...st } };
-        } catch (e) { BK.rows[mine.indexOf(p)] = { id: p.id, name: p.name, on: false, perm: 'view', pub: false, was: { on: false, perm: 'view', pub: false }, err: '共有の状態を確認できませんでした' }; }
-        done++; t.set({ pct: done / mine.length, msg: `${done}/${mine.length}件` });
-      }
-    };
-    await Promise.all([one(), one(), one(), one()]);
-  });
-  bulkRender();
-};
 $('#bk-list').addEventListener('change', e => {
-  const t = e.target, i = t.dataset.bkOn ?? t.dataset.bkPerm ?? t.dataset.bkPub; if (i === undefined) return;
-  const r = BK.rows[+i]; if (!r) return;
-  if (t.dataset.bkOn !== undefined) r.on = t.checked; else if (t.dataset.bkPerm !== undefined) r.perm = t.value; else r.pub = t.checked;
+  const id = e.target && e.target.id;
+  if (id === 'bk-on') { BK.on = e.target.checked; if (!BK.on) { BK.edit = false; BK.pub = false; } }
+  else if (id === 'bk-edit') BK.edit = e.target.checked;
+  else if (id === 'bk-pub') BK.pub = e.target.checked;
+  else return;
   bulkRender();
 });
-$('#bk-on').onclick = () => { BK.rows.forEach(r => { r.on = true; }); bulkRender(); };
-$('#bk-off').onclick = () => { BK.rows.forEach(r => { r.on = false; }); bulkRender(); };
 $('#bk-go').onclick = async () => {
-  const todo = BK.rows.filter(r => r.on !== r.was.on || (r.on && (r.perm !== r.was.perm || r.pub !== r.was.pub)));
-  if (!todo.length || !BK.member) return;
+  const targets = BK.targets.slice();
+  if (!targets.length || !S.proj || !S.proj.id) return;
   let ok = 0, ng = 0;
-  await Task.run({ title: `共有を反映中（${BK.member.name}）`, icon: 'share', delay: 0 }, async t => {
-    for (const r of todo) {
+  const mode = BK.edit ? 'edit' : 'view';
+  await Task.run({ title: '共有を一括反映中', icon: 'share', delay: 0 }, async t => {
+    for (const c of targets) {
       try {
-        if (r.on) await Api.share.set(r.id, BK.member.id, r.perm, r.pub); else await Api.share.remove(r.id, BK.member.id);
-        r.was = { on: r.on, perm: r.perm, pub: r.pub }; r.err = ''; ok++;
-      } catch (e) { r.err = apiMessage(e); ng++; }
-      t.set({ pct: (ok + ng) / todo.length, msg: `${ok + ng}/${todo.length}件：${r.name}` });
+        if (BK.on) await Api.share.set(S.proj.id, c.id, mode, BK.pub); else await Api.share.remove(S.proj.id, c.id);
+        ok++;
+      } catch (e) { ng++; }
+      t.set({ pct: (ok + ng) / targets.length, msg: `${ok + ng}/${targets.length}件：${c.name || c.id}` });
     }
   });
-  bulkRender();
-  if (S.proj && S.proj.id) { try { const d = await Api.share.list(S.proj.id); DATA.sharesByProject[S.proj.id] = d; applyShares(d); renderShare(); } catch { /* 表示は次の更新で */ } }
-  showToast(ng ? `${ok}件を反映、${ng}件は失敗しました` : `${ok}件の共有を反映しました`);
+  try {
+    const d = await Api.share.list(S.proj.id);
+    DATA.sharesByProject[S.proj.id] = d;
+    if (typeof applyShares === 'function') applyShares(d);
+    renderShare();
+  } catch { /* 表示は次の更新で */ }
+  showToast(ng ? `${ok}件を反映、${ng}件は失敗しました` : (BK.on ? `${ok}件の共有先に設定を反映しました` : `${ok}件の共有を解除しました`));
 };
 $('#sh-list').addEventListener('click', async e => {
   const b = e.target.closest('[data-rm]'); if (!b) return;
@@ -123,13 +107,17 @@ $('#sh-list').addEventListener('change', async e => {
     showToast('権限を更新しました');
   } catch (err) { Object.assign(c, old); renderShare(); showApiError(err); }
 });
-const memberOfInput = value => shareCandidates.find(m => value === `${m.name}（${m.id}）` || value === m.id || value === m.name) || DATA.members.find(m => m.active && (value === `${m.name}（${m.id}）` || value === m.id || value === m.name));
+const memberOfInput = value => {
+  const q = String(value || '').trim();
+  const list = [...shareCandidates, ...(DATA.members || [])].filter(m => m && m.active !== false);
+  return list.find(m => q === `${m.name}（${m.id}）` || q === m.id || q === m.name);
+};
 $('#sh-add').addEventListener('input', e => {
   const q = e.target.value.trim(); clearTimeout(shareTimer);
-  shareTimer = setTimeout(async () => {
-    try { shareCandidates = await Api.searchMembers(q); } catch { shareCandidates = []; }
-    renderShare();
-  }, 200);
+  shareTimer = setTimeout(() => { loadShareCandidates(q); }, 200);
+});
+$('#sh-add').addEventListener('focus', () => {
+  if (!shareCandidates.length) loadShareCandidates($('#sh-add').value.trim());
 });
 $('#sh-addbtn').onclick = async () => {
   const value = $('#sh-add').value.trim(), member = memberOfInput(value);

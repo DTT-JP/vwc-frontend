@@ -1,0 +1,604 @@
+{
+  "schema_version": 1,
+  "description": "ブラウザー配布物の外部依存。版、取得URL、tarball SHA-256、ライセンス、取り出すファイルを固定する。",
+  "local_dependencies": [
+    {
+      "name": "CodeMirror 6 bundle",
+      "version": "6.x (custom bundle)",
+      "license": "MIT",
+      "license_document": "vendor/codemirror/LICENSE",
+      "use": "コードエディター（CM6 IIFE バンドル。@codemirror/*・@lezer/highlight 等を同梱）",
+      "source": "bundled (vendored): public/vendor/codemirror/cm6.bundle.js",
+      "files": [
+        "vendor/codemirror/cm6.bundle.js",
+        "vendor/codemirror/README.md",
+        "vendor/codemirror/LICENSE"
+      ]
+    }
+  ],
+  "dependencies": [
+    {
+      "name": "@fontsource-variable/noto-sans-jp",
+      "version": "5.3.1",
+      "license": "OFL-1.1",
+      "license_document": "vendor/fonts/noto-sans-jp/LICENSE",
+      "use": "本文フォント Noto Sans JP（可変フォント、分割配信）",
+      "source": {
+        "url": "https://registry.npmjs.org/@fontsource-variable/noto-sans-jp/-/noto-sans-jp-5.3.1.tgz",
+        "sha256": "0a8f7d31c6c091e31977c801313b18e692312c37d9fe9a6d779b876e8046dbfc"
+      },
+      "files": [
+        {
+          "from": "package/files/*-wght-normal.woff2",
+          "to": "vendor/fonts/noto-sans-jp/"
+        },
+        {
+          "from": "package/LICENSE",
+          "to": "vendor/fonts/noto-sans-jp/LICENSE"
+        }
+      ],
+      "css": {
+        "from": "package/wght.css",
+        "to": "vendor/fonts/noto-sans-jp.css",
+        "family": [
+          "Noto Sans JP Variable",
+          "Noto Sans JP"
+        ],
+        "directory": "noto-sans-jp"
+      }
+    },
+    {
+      "name": "@fontsource-variable/jetbrains-mono",
+      "version": "5.3.0",
+      "license": "OFL-1.1",
+      "license_document": "vendor/fonts/jetbrains-mono/LICENSE",
+      "use": "エディターの等幅フォント JetBrains Mono（可変フォント）",
+      "source": {
+        "url": "https://registry.npmjs.org/@fontsource-variable/jetbrains-mono/-/jetbrains-mono-5.3.0.tgz",
+        "sha256": "996fe6368a480c9ce15d4de22a2682b7c40b403718fee2b15e7272f244fd993f"
+      },
+      "files": [
+        {
+          "from": "package/files/*-latin-wght-normal.woff2",
+          "to": "vendor/fonts/jetbrains-mono/"
+        },
+        {
+          "from": "package/files/*-latin-ext-wght-normal.woff2",
+          "to": "vendor/fonts/jetbrains-mono/"
+        },
+        {
+          "from": "package/LICENSE",
+          "to": "vendor/fonts/jetbrains-mono/LICENSE"
+        }
+      ],
+      "css": {
+        "from": "package/wght.css",
+        "to": "vendor/fonts/jetbrains-mono.css",
+        "family": [
+          "JetBrains Mono Variable",
+          "JetBrains Mono"
+        ],
+        "directory": "jetbrains-mono",
+        "only": [
+          "latin",
+          "latin-ext"
+        ]
+      }
+    },
+    {
+      "name": "@highlightjs/cdn-assets",
+      "version": "11.9.0",
+      "license": "BSD-3-Clause",
+      "license_document": "vendor/highlight/LICENSE",
+      "use": "コードの構文強調（本体と追加言語9種）",
+      "source": {
+        "url": "https://registry.npmjs.org/@highlightjs/cdn-assets/-/cdn-assets-11.9.0.tgz",
+        "sha256": "62b15dbb4430b9692eb864e99393f4578646da1b25d437fc9e10a79786330dd0"
+      },
+      "files": [
+        {
+          "from": "package/highlight.min.js",
+          "to": "vendor/highlight/highlight.min.js"
+        },
+        {
+          "from": "package/languages/dart.min.js",
+          "to": "vendor/highlight/languages/"
+        },
+        {
+          "from": "package/languages/scala.min.js",
+          "to": "vendor/highlight/languages/"
+        },
+        {
+          "from": "package/languages/haskell.min.js",
+          "to": "vendor/highlight/languages/"
+        },
+        {
+          "from": "package/languages/powershell.min.js",
+          "to": "vendor/highlight/languages/"
+        },
+        {
+          "from": "package/languages/dockerfile.min.js",
+          "to": "vendor/highlight/languages/"
+        },
+        {
+          "from": "package/languages/nginx.min.js",
+          "to": "vendor/highlight/languages/"
+        },
+        {
+          "from": "package/languages/elixir.min.js",
+          "to": "vendor/highlight/languages/"
+        },
+        {
+          "from": "package/languages/groovy.min.js",
+          "to": "vendor/highlight/languages/"
+        },
+        {
+          "from": "package/languages/apache.min.js",
+          "to": "vendor/highlight/languages/"
+        },
+        {
+          "from": "package/LICENSE",
+          "to": "vendor/highlight/LICENSE"
+        }
+      ]
+    },
+    {
+      "name": "mermaid",
+      "version": "11.17.2",
+      "license": "MIT",
+      "license_document": "vendor/mermaid/LICENSE",
+      "use": "Markdown内の図（```mermaid。必要な場合だけ読み込み）",
+      "source": {
+        "url": "https://registry.npmjs.org/mermaid/-/mermaid-11.17.2.tgz",
+        "sha256": "6ad2f42c3fc26bbf9e45cbb6d11898972573ea52b33a5f4ff51952899f950ffd"
+      },
+      "files": [
+        {
+          "from": "package/dist/mermaid.min.js",
+          "to": "vendor/mermaid/mermaid.min.js"
+        },
+        {
+          "from": "package/LICENSE",
+          "to": "vendor/mermaid/LICENSE"
+        }
+      ]
+    },
+    {
+      "name": "qrcode-generator",
+      "version": "2.0.4",
+      "license": "MIT",
+      "license_note": "配布 tarball にライセンス本文がないため、上流リポジトリ（kazuhikoarase/qrcode-generator のタグ js2.0.4）の LICENSE を取得して同梱しています。",
+      "use": "QRコードの生成（ログイン画面）",
+      "source": {
+        "url": "https://registry.npmjs.org/qrcode-generator/-/qrcode-generator-2.0.4.tgz",
+        "sha256": "02e2e18a99a90b02dad940851f59b7c3c5fd1ab79cbdece8595cb06328878159"
+      },
+      "files": [
+        {
+          "from": "package/dist/qrcode.js",
+          "to": "vendor/qr/qrcode.js"
+        }
+      ],
+      "license_download": {
+        "url": "https://raw.githubusercontent.com/kazuhikoarase/qrcode-generator/83b7e8fe3fddd3b0368dbafd6ce56995bd25e3c8/LICENSE",
+        "sha256": "3a850fa5f08101db6f40676c2786e10bd2cd5fff7b12ffdf1e0c434d4e49d90c",
+        "to": "vendor/qr/qrcode-generator.LICENSE"
+      },
+      "license_document": "vendor/qr/qrcode-generator.LICENSE",
+      "repository": "https://github.com/kazuhikoarase/qrcode-generator"
+    },
+    {
+      "name": "jsqr",
+      "version": "1.4.0",
+      "license": "Apache-2.0",
+      "license_document": "vendor/qr/jsQR.LICENSE",
+      "use": "QRコードの読取（BarcodeDetector がない環境向け）",
+      "source": {
+        "url": "https://registry.npmjs.org/jsqr/-/jsqr-1.4.0.tgz",
+        "sha256": "b5299b37917a1fe7a8cab9dd5cc6b8accf82663add80abe5bf7761a921cc6602"
+      },
+      "files": [
+        {
+          "from": "package/dist/jsQR.js",
+          "to": "vendor/qr/jsQR.js"
+        },
+        {
+          "from": "package/LICENSE",
+          "to": "vendor/qr/jsQR.LICENSE"
+        }
+      ]
+    },
+    {
+      "name": "@ffmpeg/ffmpeg",
+      "version": "0.12.15",
+      "license": "MIT",
+      "license_document": "vendor/ffmpeg/LICENSE-MIT",
+      "license_note": "使用元は https://github.com/ffmpegwasm/ffmpeg.wasm の公式配布物です。npm tarball にライセンス本文がないため、上流リポジトリの LICENSE を取得して同梱しています。",
+      "repository": "https://github.com/ffmpegwasm/ffmpeg.wasm",
+      "use": "ffmpeg.wasm の呼び出し側（Worker付き）",
+      "source": {
+        "url": "https://registry.npmjs.org/@ffmpeg/ffmpeg/-/ffmpeg-0.12.15.tgz",
+        "sha256": "c8a23365fb39b46d3d1d9baa2e74b522d00ce5d57e8b20471ad2665eaad38e3e"
+      },
+      "files": [
+        {
+          "from": "package/dist/umd/ffmpeg.js",
+          "to": "vendor/ffmpeg/ffmpeg.js"
+        },
+        {
+          "from": "package/dist/umd/814.ffmpeg.js",
+          "to": "vendor/ffmpeg/814.ffmpeg.js"
+        }
+      ],
+      "license_download": {
+        "url": "https://raw.githubusercontent.com/ffmpegwasm/ffmpeg.wasm/71aa99d37c02a7b4c435275ca9ef50e612f6efa1/LICENSE",
+        "sha256": "3e123e29517d76504ffce77b3f8e2ccffd4712493f27694b0aba3e376676459f",
+        "to": "vendor/ffmpeg/LICENSE-MIT"
+      }
+    },
+    {
+      "name": "@ffmpeg/core",
+      "version": "0.12.10",
+      "license": "GPL-2.0-or-later",
+      "license_document": "vendor/ffmpeg/LICENSE-GPL-2.0-or-later",
+      "license_note": "FFmpeg 5.1.4 を --enable-gpl（--enable-version3 なし）でビルドした GPL-2.0-or-later のバイナリです。構成部品・対応ソース・入手方法は vendor/ffmpeg/SOURCE.md と、アプリ内のライセンス＞FFmpeg を参照してください。",
+      "repository": "https://github.com/ffmpegwasm/ffmpeg.wasm",
+      "use": "ffmpeg.wasm 本体（シングルスレッド版、音声・動画変換）",
+      "source": {
+        "url": "https://registry.npmjs.org/@ffmpeg/core/-/core-0.12.10.tgz",
+        "sha256": "d00089ce82e1bdf637ddbe42e0c3d41a1ba8cf4c9e825e7fa4d0bb970e844bd4"
+      },
+      "files": [
+        {
+          "from": "package/dist/umd/ffmpeg-core.js",
+          "to": "vendor/ffmpeg/ffmpeg-core.js"
+        },
+        {
+          "from": "package/dist/umd/ffmpeg-core.wasm",
+          "to": "vendor/ffmpeg/ffmpeg-core.wasm"
+        }
+      ],
+      "license_download": {
+        "url": "https://raw.githubusercontent.com/FFmpeg/FFmpeg/4729204c17f756e186d622060088371d10b34f7e/COPYING.GPLv2",
+        "sha256": "8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643",
+        "to": "vendor/ffmpeg/LICENSE-GPL-2.0-or-later"
+      }
+    },
+    {
+      "name": "material-symbols",
+      "version": "0.48.2",
+      "license": "Apache-2.0",
+      "license_document": "vendor/fonts/material-symbols.LICENSE",
+      "use": "アイコンフォント Material Symbols Outlined",
+      "source": {
+        "url": "https://registry.npmjs.org/material-symbols/-/material-symbols-0.48.2.tgz",
+        "sha256": "b1688a029b82ae882688f4a53e2990bca8a91f23f9329b5c7bdc2397489eff66"
+      },
+      "files": [
+        {
+          "from": "package/material-symbols-outlined.woff2",
+          "to": "fonts/material-symbols.woff2"
+        },
+        {
+          "from": "package/LICENSE",
+          "to": "vendor/fonts/material-symbols.LICENSE"
+        }
+      ]
+    }
+  ],
+  "corresponding_source": {
+    "for": "@ffmpeg/core",
+    "toolchain": "emscripten/emsdk:3.1.40（Docker イメージ）",
+    "build_recipe": "https://github.com/ffmpegwasm/ffmpeg.wasm の Dockerfile（コミット 71aa99d37c02a7b4c435275ca9ef50e612f6efa1）",
+    "configure": "--enable-gpl --enable-libx264 --enable-libx265 --enable-libvpx --enable-libmp3lame --enable-libtheora --enable-libvorbis --enable-libopus --enable-zlib --enable-libwebp --enable-libfreetype --enable-libfribidi --enable-libass --enable-libzimg",
+    "components": [
+      {
+        "name": "ffmpeg.wasm（ビルド手順・fftools）",
+        "slug": "ffmpeg-wasm-build",
+        "version": "v0.12.10 リリースコミット",
+        "license": "MIT",
+        "repository": "https://github.com/ffmpegwasm/ffmpeg.wasm",
+        "ref": "71aa99d (RELEASE: @ffmpeg/core v0.12.10)",
+        "commit": "71aa99d37c02a7b4c435275ca9ef50e612f6efa1",
+        "role": "Dockerfile・build/*.sh・src/bind・src/fftools（ビルド手順と ffmpeg への差分）",
+        "license_files": [
+          {
+            "path": "LICENSE",
+            "sha256": "3e123e29517d76504ffce77b3f8e2ccffd4712493f27694b0aba3e376676459f"
+          }
+        ],
+        "note": "ビルド手順と呼び出し部の著作権表示は MIT。src/fftools は FFmpeg 由来のため GPL-2.0-or-later 側に含まれる。"
+      },
+      {
+        "name": "FFmpeg",
+        "slug": "ffmpeg",
+        "version": "n5.1.4",
+        "license": "GPL-2.0-or-later（--enable-gpl）",
+        "repository": "https://github.com/FFmpeg/FFmpeg",
+        "ref": "n5.1.4",
+        "commit": "4729204c17f756e186d622060088371d10b34f7e",
+        "role": "本体（libavcodec・libavformat など）",
+        "license_files": [
+          {
+            "path": "COPYING.GPLv2",
+            "sha256": "8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643"
+          },
+          {
+            "path": "LICENSE.md",
+            "sha256": "cb48bf09a11f5fb576cddb0431c8f5ed0a60157a9ec942adffc13907cbe083f2"
+          }
+        ]
+      },
+      {
+        "name": "x264",
+        "slug": "x264",
+        "version": "4-cores ブランチ（ffmpegwasm フォーク）",
+        "license": "GPL-2.0-or-later",
+        "repository": "https://github.com/ffmpegwasm/x264",
+        "ref": "4-cores",
+        "commit": "33cac6b77d5b9259c552156013a817ab23119612",
+        "role": "H.264 エンコーダ",
+        "license_files": [
+          {
+            "path": "COPYING",
+            "sha256": "32b1062f7da84967e7019d01ab805935caa7ab7321a7ced0e30ebe75e5df1670"
+          }
+        ]
+      },
+      {
+        "name": "x265",
+        "slug": "x265",
+        "version": "3.4（ffmpegwasm フォーク）",
+        "license": "GPL-2.0-or-later",
+        "repository": "https://github.com/ffmpegwasm/x265",
+        "ref": "3.4",
+        "commit": "2bb5520e9596f361bf0ed81b3b8da0d7fd999069",
+        "role": "H.265 エンコーダ",
+        "license_files": [
+          {
+            "path": "COPYING",
+            "sha256": "d8afb1bcc7a2cfc603683b168d6987ef0a48e59e0da3693bf55c5d33b67e2b49"
+          }
+        ]
+      },
+      {
+        "name": "libvpx",
+        "slug": "libvpx",
+        "version": "v1.13.1",
+        "license": "BSD-3-Clause",
+        "repository": "https://github.com/ffmpegwasm/libvpx",
+        "ref": "v1.13.1",
+        "commit": "10b9492dcf05b652e2e4b370e205bd605d421972",
+        "role": "VP8/VP9",
+        "license_files": [
+          {
+            "path": "LICENSE",
+            "sha256": "8267348d5af1262c11d1a08de2f5afc77457755f1ac658627dd9acf71011d615"
+          },
+          {
+            "path": "PATENTS",
+            "sha256": "cc3273e0694ea5896145e0677699b53471b03ea43021ddc50e7923fbb9f5023c"
+          }
+        ]
+      },
+      {
+        "name": "LAME",
+        "slug": "lame",
+        "version": "3.100（ffmpegwasm フォーク master）",
+        "license": "LGPL-2.0（COPYING は GNU Library GPL v2）",
+        "repository": "https://github.com/ffmpegwasm/lame",
+        "ref": "master",
+        "commit": "2badea1974ae36cb8312afe99cff1e6b3b5decee",
+        "role": "MP3 エンコーダ",
+        "license_files": [
+          {
+            "path": "COPYING",
+            "sha256": "bfe4a52dc4645385f356a8e83cc54216a293e3b6f1cb4f79f5fc0277abf937fd"
+          }
+        ]
+      },
+      {
+        "name": "libogg",
+        "slug": "libogg",
+        "version": "v1.3.4",
+        "license": "BSD-3-Clause",
+        "repository": "https://github.com/ffmpegwasm/Ogg",
+        "ref": "v1.3.4",
+        "commit": "bada45718453ac27b56773ae663f7e65112f6a6e",
+        "role": "Ogg コンテナ",
+        "license_files": [
+          {
+            "path": "COPYING",
+            "sha256": "d2ab5758336489da61c12cc5bb757da5339c4ae9001f9bb0562b4370249af814"
+          }
+        ]
+      },
+      {
+        "name": "libtheora",
+        "slug": "libtheora",
+        "version": "v1.1.1",
+        "license": "BSD-3-Clause",
+        "repository": "https://github.com/ffmpegwasm/theora",
+        "ref": "v1.1.1",
+        "commit": "7ffd8b2ecfc2d93ae5e16028e7528e609266bfbf",
+        "role": "Theora",
+        "license_files": [
+          {
+            "path": "COPYING",
+            "sha256": "8417fad7da775735564e209484a2e011e0fa201e94f01fdbee6e4977e478e6fc"
+          }
+        ]
+      },
+      {
+        "name": "Opus",
+        "slug": "opus",
+        "version": "v1.3.1",
+        "license": "BSD-3-Clause",
+        "repository": "https://github.com/ffmpegwasm/opus",
+        "ref": "v1.3.1",
+        "commit": "e85ed7726db5d677c9c0677298ea0cb9c65bdd23",
+        "role": "Opus コーデック",
+        "license_files": [
+          {
+            "path": "COPYING",
+            "sha256": "8338ce8d922bb4416ce3dd1e5680173332435e3f0755007ac7801ccd674fe682"
+          }
+        ]
+      },
+      {
+        "name": "libvorbis",
+        "slug": "libvorbis",
+        "version": "v1.3.3",
+        "license": "BSD-3-Clause",
+        "repository": "https://github.com/ffmpegwasm/vorbis",
+        "ref": "v1.3.3",
+        "commit": "7798164043197d7e33f02de4353ce2aa5b248225",
+        "role": "Vorbis コーデック",
+        "license_files": [
+          {
+            "path": "COPYING",
+            "sha256": "414bfd5d8ee64395a9231d6386188461500052c10915bee08b18bfa9489dd0b3"
+          }
+        ]
+      },
+      {
+        "name": "zlib",
+        "slug": "zlib",
+        "version": "v1.2.11",
+        "license": "Zlib",
+        "repository": "https://github.com/ffmpegwasm/zlib",
+        "ref": "v1.2.11",
+        "commit": "cacf7f1d4e3d44d871b605da3b647f07d718623f",
+        "role": "圧縮",
+        "license_files": [
+          {
+            "path": "README",
+            "sha256": "7960b6b1cc63e619abb77acaea5427159605afee8c8b362664f4effc7d7f7d15"
+          }
+        ],
+        "note": "ライセンス文は README の「Copyright notice」にあります。"
+      },
+      {
+        "name": "libwebp",
+        "slug": "libwebp",
+        "version": "v1.3.2",
+        "license": "BSD-3-Clause",
+        "repository": "https://github.com/ffmpegwasm/libwebp",
+        "ref": "v1.3.2",
+        "commit": "ca332209cb5567c9b249c86788cb2dbf8847e760",
+        "role": "WebP",
+        "license_files": [
+          {
+            "path": "COPYING",
+            "sha256": "5aec868f669e384a22372a4e8a1a6cd7d44c64cd451f960ca69cc170d1e13acf"
+          }
+        ]
+      },
+      {
+        "name": "FreeType",
+        "slug": "freetype",
+        "version": "VER-2-10-4",
+        "license": "FTL（FreeType License）",
+        "repository": "https://github.com/ffmpegwasm/freetype2",
+        "ref": "VER-2-10-4",
+        "commit": "6a2b3e4007e794bfc6c91030d0ed987f925164a8",
+        "role": "フォント描画",
+        "license_files": [
+          {
+            "path": "docs/FTL.TXT",
+            "sha256": "08c135755dd589039470f1fdbb400daaabaaa50d0b366d19cebff4d22986baa1"
+          }
+        ],
+        "note": "FTL は、配布物の文書に「Portions of this software are copyright © The FreeType Project (www.freetype.org). All rights reserved.」の表示を求めます。"
+      },
+      {
+        "name": "FriBidi",
+        "slug": "fribidi",
+        "version": "v1.0.9",
+        "license": "LGPL-2.1-or-later",
+        "repository": "https://github.com/fribidi/fribidi",
+        "ref": "v1.0.9",
+        "commit": "f9e8e71a6fbf4a4619481284c9f484d10e559995",
+        "role": "双方向テキスト",
+        "license_files": [
+          {
+            "path": "COPYING",
+            "sha256": "32434afcc8666ba060e111d715bfdb6c2d5dd8a35fa4d3ab8ad67d8f850d2f2b"
+          }
+        ]
+      },
+      {
+        "name": "HarfBuzz",
+        "slug": "harfbuzz",
+        "version": "5.2.0",
+        "license": "MIT（Old MIT）",
+        "repository": "https://github.com/harfbuzz/harfbuzz",
+        "ref": "5.2.0",
+        "commit": "4a1d891c6317d2c83e5f3c2607ec5f5ccedffcde",
+        "role": "テキストシェーピング",
+        "license_files": [
+          {
+            "path": "COPYING",
+            "sha256": "4345e1735f8bc6d812fed5180cabb5a5e88a4109d332652f2a45c13cfa5ee692"
+          }
+        ]
+      },
+      {
+        "name": "libass",
+        "slug": "libass",
+        "version": "0.15.0",
+        "license": "ISC",
+        "repository": "https://github.com/libass/libass",
+        "ref": "0.15.0",
+        "commit": "d149636f502f5774ae1a8fb4c554b122674393b2",
+        "role": "字幕描画",
+        "license_files": [
+          {
+            "path": "COPYING",
+            "sha256": "f7e30699d02798351e7f839e3d3bfeb29ce65e44efa7735c225464c4fd7dfe9c"
+          }
+        ]
+      },
+      {
+        "name": "zimg",
+        "slug": "zimg",
+        "version": "release-3.0.5",
+        "license": "WTFPL-2.0",
+        "repository": "https://github.com/sekrit-twc/zimg",
+        "ref": "release-3.0.5",
+        "commit": "e5b0de6bebbcbc66732ed5afaafef6b2c7dfef87",
+        "role": "画像スケーリング（git submodule を含めて取得する）",
+        "license_files": [
+          {
+            "path": "COPYING",
+            "sha256": "7637386b5f81e8a719ca336233149005e5fa28b5e6054ea7b67de49355b0ad40"
+          }
+        ]
+      }
+    ]
+  },
+  "component": "fe",
+  "name": "vwc-frontend",
+  "unified_description": "統合ツール/デプロイ用の依存関係定義（FE complete.py互換のschema_version=1を維持しつつ統一メタデータを付与）。",
+  "runtime": {
+    "type": "browser-static",
+    "build": {
+      "python": ">=3.8"
+    }
+  },
+  "tools": {
+    "dependencies_install": [
+      "python3",
+      "tools/complete.py"
+    ],
+    "dependencies_verify": [
+      "python3",
+      "tools/complete.py",
+      "--verify"
+    ],
+    "build_hash": [
+      "python3",
+      "tools/calc-build-hash.py"
+    ]
+  }
+}

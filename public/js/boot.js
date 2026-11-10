@@ -20,8 +20,6 @@ function currentQuery() { return new URLSearchParams(location.search); }
 
 function bootPlaceholderProject() {
   if (S.proj && S.proj.id) return;
-  const p = allProjects()[0];
-  if (p) { S.proj = p; return; }
   S.proj = null;
 }
 
@@ -58,16 +56,15 @@ async function afterLogin(mode) {
   /* ログイン後フローでも、IdPがログイン手段にあれば初回描画前からIdP管理モード相当に扱う */
   if (typeof hasIdpLoginProvider === 'function' && hasIdpLoginProvider() && DATA.membersManagedByIdp === undefined) DATA.membersManagedByIdp = true;
   reportLoadFailures(await loadInitial(), 'Initial data load failed');
-  bootPlaceholderProject();
-  if (S.proj && S.proj.id) {
-    try { await loadProject(S.proj.id); } catch (e) { reportLoadFailures([e], 'Project load failed'); }
-  }
+  S.proj = null;
   initBase(); applyRoleForProject(); renderAll(); setAuth(true);
   completeLogin(mode, false);
 }
 
-/* ログイン後の信頼端末登録レーン: ログイン/初回の区別なく、未登録の端末は登録確認へ。登録済み(信頼端末)はSKIP。 */
+/* ログイン後の信頼端末登録レーン: ログイン/初回の区別なく、未登録の端末は登録確認へ。登録済み(信頼端末)はSKIP。
+   ただし QR/コードでログインしたセッションでは信頼端末登録を行えない。 */
 function needsTrustLane() {
+  if (DATA.user && DATA.user.can_register_trusted === false) return false;
   if (DATA.user && DATA.user.trusted) return false;
   if (typeof isTrusted === 'function' && isTrusted()) return false;
   return true;
@@ -151,10 +148,7 @@ async function boot() {
 
     if (loggedIn) {
       reportLoadFailures(await loadInitial(), 'Initial data load failed');
-      bootPlaceholderProject();
-      if (S.proj && S.proj.id) {
-        try { await loadProject(S.proj.id); } catch (e) { reportLoadFailures([e], 'Project load failed'); }
-      }
+      S.proj = null;
     } else {
       DATA.settings = JSON.parse(JSON.stringify(SETTINGS_DEFAULT));
       bootPlaceholderProject();
