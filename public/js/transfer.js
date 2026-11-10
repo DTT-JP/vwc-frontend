@@ -122,6 +122,7 @@ const Upl = {
     } else {
       Tray.set(tid, { state: 'err', icon: 'error', msg: '保存できませんでした。', pct: 0 });
     }
+    if (done.length && typeof scheduleUsageRefresh === 'function') scheduleUsageRefresh();
     return { done, rejected: bad, cancelled: job.cancelled, failed };
   },
   reject(bad, max) {

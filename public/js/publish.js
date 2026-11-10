@@ -106,7 +106,16 @@ const ownerLabel = id => (DATA.members.find(m => m.id === id) || {}).name || '�
 
 /* ---- 公開の一覧（SM05） ---- */
 function renderPub() {
-  if (!$('#pub-list') || !S.proj) return;
+  if (!$('#pub-list')) return;
+  const hp = typeof hasProject === 'function' ? hasProject() : !!(S.proj && S.proj.id);
+  const sm05 = $('#sm05');
+  if (!hp) {
+    if (sm05) sm05.querySelectorAll('#pub-new, #pub-upd, .pnote').forEach(el => el.hidden = true);
+    $('#pub-list').innerHTML = typeof noProjectPanel === 'function' ? noProjectPanel() : `<div class="pnote" style="padding:16px">プロジェクトを作成するか、開いてください</div>`;
+    $('#pub-list').hidden = false;
+    return;
+  }
+  if (sm05) sm05.querySelectorAll('#pub-new, #pub-upd, .pnote').forEach(el => el.hidden = false);
   const l = appsOfProj();
   $('#pub-list').innerHTML = l.length ? l.map(a => { const info = `${appCommitLabel(a)} ・ 更新 ${fmtDate(a.updatedAt)} ・ サイズ ${fmtMB(a.sizeMB)}MB`; return `<div class="app-row"><span class="ms app-row-icon">public</span><div class="app-row-main"><b>${esc(a.name)}</b><small title="${esc(appCommitLabel(a) + ' ・ ' + APP_URL(a.name))}">${esc(appCommitLabel(a))} ・ 更新 ${fmtDate(a.updatedAt)} ・ サイズ ${fmtMB(a.sizeMB)}MB</small><small>${esc(APP_URL(a.name))}</small></div><span class="app-row-actions"><button class="o" data-copy="${esc(APP_URL(a.name))}" data-copy-what="URL" title="URLをコピー" aria-label="URLをコピー">${ico('content_copy')}</button><button class="o" data-open-app="${esc(a.name)}" title="アプリを開く" aria-label="アプリを開く">${ico('open_in_new')}</button>${a.stale ? '<span class="badge b-ng" title="しばらく更新していません">放置</span>' : ''}<span class="badge ${STB[a.state]}">${a.state}</span><button class="o" title="管理（更新・公開状態・削除）" aria-label="管理" data-ad="${esc(a.name)}">${ico('tune')}</button></span></div>`; }).join('') : '<div class="pnote">公開しているアプリはありません</div>';
 }
@@ -119,7 +128,7 @@ async function openPublishedApp(name) {
     window.open(url, '_blank', 'noopener,noreferrer');
   } catch (e) { showApiError(e); }
 }
-$('#pub-list').onclick = e => { const open = e.target.closest('[data-open-app]'); if (open) return openPublishedApp(open.dataset.openApp); const b = e.target.closest('[data-ad]'); if (!b) return; openApp(b.dataset.ad); };
+$('#pub-list').onclick = e => { const b = e.target.closest('[data-ad]'); if (b) openApp(b.dataset.ad); };
 
 /* ---- 新しく公開（3ステップ：入力 → 確認 → 結果） ---- */
 const pubStep = n => $$('#d-pub [data-pstep]').forEach(s => s.hidden = s.dataset.pstep !== String(n));
@@ -196,16 +205,22 @@ $('#pub-go').onclick = async () => {
     if (k.st === '限定公開' && !code) { try { const c = await Api.apps.codeGet(k.name); code = c.code || c.access_code || ''; } catch { /* 表示だけ続行 */ } }
     await Promise.allSettled([loadApps(), DATA.user.isAdmin && reauthLeft() > 0 ? loadAdminApps() : Promise.resolve()]);
     const excluded = (d && (d.excluded || d.exclude)) || k.ex;
-    $('#pub-res').innerHTML = `<p class="okline">${ico('check_circle')}<b>公開しました</b></p><dl class="kv"><dt>URL</dt><dd><a href="#" onclick="return false">${APP_URL(k.name)}</a> <button class="o" data-copy="${APP_URL(k.name)}" data-copy-what="URL">${ico('content_copy')}URLをコピー</button></dd><dt>公開状態</dt><dd>${k.st}（${RANGE[k.st]}）</dd>` +
+    $('#pub-res').innerHTML = `<p class="okline">${ico('check_circle')}<b>公開しました</b></p><dl class="kv"><dt>URL</dt><dd><span class="pub-url-text">${esc(APP_URL(k.name))}</span> <button class="o" data-copy="${esc(APP_URL(k.name))}" data-copy-what="URL" title="URLをコピー" aria-label="URLをコピー">${ico('content_copy')}URLをコピー</button> <button class="o" data-open-app="${esc(k.name)}" title="URLを開く" aria-label="URLを開く">${ico('open_in_new')}URLを開く</button></dd><dt>公開状態</dt><dd>${k.st}（${RANGE[k.st]}）</dd>` +
       (code ? `<dt>アクセスコード</dt><dd><b class="code8">${fmtCode(code)}</b> <button class="o" data-copy="${digits(code)}" data-copy-what="アクセスコード">${ico('content_copy')}コードをコピー</button><br><small>このコードを、見せたい人に伝えてください。</small></dd>` : '') +
       `<dt>公開されなかったもの</dt><dd>${excluded.length ? '<ul class="exl">' + excluded.map(x => Array.isArray(x) ? `<li><code>${esc(x[0])}</code> <small>${esc(x[1] || '')}</small></li>` : `<li><code>${esc(x)}</code></li>`).join('') + '</ul>' : 'なし'}</dd></dl>`; pubStep(3);
     notify('publish', `「${k.name}」を公開しました`); renderPub();
+    if (typeof refreshUsageDisplay === 'function') refreshUsageDisplay().catch(() => {});
   } catch (e) {
     showApiError(e);
     if (e instanceof ApiError && e.code === 'invalid') { $('#pub-chk').textContent = '公開名を確認してください'; $('#pub-chk').className = 'dnote ng'; pubStep(1); }
   } finally { btn.disabled = false; }
 };
-document.addEventListener('click', e => { const c = e.target.closest('[data-copy]'); if (c) { navigator.clipboard && navigator.clipboard.writeText(c.dataset.copy).catch(() => {}); showToast((c.dataset.copyWhat || 'URL') + 'をコピーしました'); } });
+document.addEventListener('click', e => {
+  const open = e.target.closest('[data-open-app]');
+  if (open) { openPublishedApp(open.dataset.openApp); return; }
+  const c = e.target.closest('[data-copy]');
+  if (c) { navigator.clipboard && navigator.clipboard.writeText(c.dataset.copy).catch(() => {}); showToast((c.dataset.copyWhat || 'URL') + 'をコピーしました'); }
+});
 
 /* ---- アプリ管理（更新・ロールバック・状態・アクセスコード・削除） ---- */
 const curApp = () => appByName($('#ap-sel').value);
@@ -282,6 +297,7 @@ $('#ap-upd').onclick = async () => {
       await busy(`「${a.name}」を更新中`, 'upgrade', () => Api.apps.update(a.name, to));
       await Promise.allSettled([loadApps(), DATA.user.isAdmin && reauthLeft() > 0 ? loadAdminApps() : Promise.resolve()]);
       const fresh = appByName(a.name); if (fresh) Object.assign(a, fresh); await fillApp();
+      if (typeof refreshUsageDisplay === 'function') refreshUsageDisplay().catch(() => {});
       resultDlg('更新しました', `<dl class="kv"><dt>アプリ</dt><dd>${esc(a.name)}</dd><dt>版</dt><dd>${commitCode(was, a.proj)} → ${commitCode(to, a.proj)}</dd><dt>URL</dt><dd>${APP_URL(a.name)}</dd><dt>引き継いだファイル</dt><dd>${pr.list ? pr.list.map(x => `<code>${esc(x)}</code>`).join(' ') || 'なし' : pr.err}</dd></dl>`);
     } catch (e) { showApiError(e); }
   }, '更新する');
@@ -294,6 +310,7 @@ $('#ap-rb').onclick = async () => {
       await busy(`「${a.name}」を戻し中`, 'history', () => Api.apps.update(a.name, to));
       await Promise.allSettled([loadApps(), DATA.user.isAdmin && reauthLeft() > 0 ? loadAdminApps() : Promise.resolve()]);
       const fresh = appByName(a.name); if (fresh) Object.assign(a, fresh); await fillApp();
+      if (typeof refreshUsageDisplay === 'function') refreshUsageDisplay().catch(() => {});
       resultDlg('ロールバックしました', `<dl class="kv"><dt>アプリ</dt><dd>${esc(a.name)}</dd><dt>版</dt><dd>${commitCode(was, a.proj)} → ${commitCode(to, a.proj)}</dd></dl>`);
     } catch (e) { showApiError(e); }
   }, '戻す');
@@ -303,28 +320,74 @@ $('#ap-del').onclick = () => confirmDlg('アプリを削除', `${curApp().name} 
   try {
     await busy(`「${a.name}」を削除中`, 'delete', () => Api.apps.unpublish(a.name));
     await Promise.allSettled([loadApps(), DATA.user.isAdmin && reauthLeft() > 0 ? loadAdminApps() : Promise.resolve()]);
-    $('#d-app').close(); renderPub(); refreshNotices(); showToast('削除しました');
+    $('#d-app').close(); renderPub(); refreshNotices(); if (typeof refreshUsageDisplay === 'function') refreshUsageDisplay().catch(() => {}); showToast('削除しました');
   } catch (e) { showApiError(e); }
 });
 
 /* ---- 履歴（SM11） ---- */
 const laneCls = c => c.rel && c.rel.dir ? 'cm-' + c.rel.dir : '', headHash = () => DATA.commits[0]?.hash || '';
+/* コミット対象の変更ファイル一覧（追加・変更・削除）。history/status の states / DATA.fileStates を利用。 */
+function changedCommitFiles() {
+  const pid = S.proj && S.proj.id;
+  if (!pid) return [];
+  const states = (DATA.fileStates && DATA.fileStates[pid]) || {};
+  const out = [];
+  const push = (path, kind) => { if (path && !out.some(x => x.path === path)) out.push({ path, kind }); };
+  if (Array.isArray(states.new || states.added)) (states.new || states.added).forEach(p => push(p, 'add'));
+  if (Array.isArray(states.modified)) states.modified.forEach(p => push(p, 'mod'));
+  if (Array.isArray(states.deleted)) states.deleted.forEach(p => push(p, 'del'));
+  if (Array.isArray(states)) states.forEach(x => {
+    const st = String((x && (x.status || x.state || x.type)) || '').toLowerCase();
+    const kind = /^(new|added|add|untracked)$/.test(st) ? 'add' : /^(modified|mod|changed)$/.test(st) ? 'mod' : /^(deleted|del|removed)$/.test(st) ? 'del' : null;
+    if (kind) push(String(x.path || x.file || x.name || ''), kind);
+  });
+  else if (!Array.isArray(states) && typeof states === 'object') Object.keys(states).forEach(path => {
+    if (Array.isArray(states[path])) return;
+    const st = String(states[path] || '').toLowerCase();
+    const kind = /^(new|added|add|untracked)$/.test(st) ? 'add' : /^(modified|mod|changed)$/.test(st) ? 'mod' : /^(deleted|del|removed)$/.test(st) ? 'del' : null;
+    if (kind) push(path, kind);
+  });
+  const ord = { add: 0, mod: 1, del: 2 };
+  return out.sort((a, b) => (ord[a.kind] - ord[b.kind]) || a.path.localeCompare(b.path, 'ja'));
+}
+function renderCommitFiles() {
+  const box = $('#hi-files');
+  if (!box) return;
+  const hp = typeof hasProject === 'function' ? hasProject() : !!(S.proj && S.proj.id);
+  if (!hp) { box.innerHTML = ''; box.hidden = true; return; }
+  const files = changedCommitFiles();
+  const label = { add: ['追加', 'hi-add'], mod: ['変更', 'hi-mod'], del: ['削除', 'hi-del'] };
+  box.hidden = files.length === 0;
+  box.innerHTML = files.length ? files.map(f => {
+    const [t, cls] = label[f.kind] || ['変更', 'hi-mod'];
+    return `<div class="hi-file ${cls}"><span class="hi-k">${t}</span>${fico(f.path.split('/').pop())}<span class="nm" title="${esc(f.path)}">${esc(f.path)}</span></div>`;
+  }).join('') : '';
+}
 function renderHist() {
   if (!$('#hi-list')) return;
+  const hp = typeof hasProject === 'function' ? hasProject() : !!(S.proj && S.proj.id);
+  const sm11 = $('#sm11');
+  if (!hp) {
+    if (sm11) sm11.querySelectorAll('.field, #hi-count, #hi-files, .sync').forEach(el => el.hidden = true);
+    $('#hi-list').innerHTML = typeof noProjectPanel === 'function' ? noProjectPanel() : `<div class="pnote" style="padding:16px">プロジェクトを作成するか、開いてください</div>`;
+    renderCommitFiles();
+    return;
+  }
+  if (sm11) sm11.querySelectorAll('.field, #hi-count, #hi-files, .sync').forEach(el => { if (el.classList && el.classList.contains('sync')) return; el.hidden = false; });
   const page = DATA.historyPageByProject[S.proj?.id] || {};
   $('#hi-list').innerHTML = DATA.commits.map(c => `<div class="cm ${laneCls(c)}" data-h="${c.hash}"><div class="cm-g"><i class="hdot"></i>${c.rel ? '<i class="hbr"></i>' : ''}</div><div class="cm-b"><div class="cm-t">${esc(c.message)}</div><div class="cm-m">${esc(c.short || String(c.hash).slice(0, 7))} ・ ${esc(c.by)} ・ ${c.at}</div>` +
     `<div class="cm-m">${c.parent ? '親: ' + esc(commitLabel(c.parent, S.proj.id)) : '最初のコミット（親なし）'}</div>` + (c.rel ? `<div class="cm-r ${c.rel.dir}">${ico(c.rel.dir === 'in' ? 'call_merge' : c.rel.kind === 'publish' ? 'public' : 'call_split')}${esc(c.rel.t)}</div>` : '') + `</div><button title="ここに戻す" data-rs="${c.hash}">${ico('restore')}</button><button title="コミットの操作" data-hmenu="${c.hash}">${ico('more_vert')}</button></div>`).join('');
   if (page.next) $('#hi-list').insertAdjacentHTML('beforeend', '<button class="o" data-hi-more>古い履歴を読み込む</button>');
-  /* 追跡上限を超えるファイル：行の差分は取らず、ハッシュ・名前・サイズで追跡している（前の版も残り、戻せる） */
-  const big = []; (function w(l, p) { l.forEach(f => f.t === 'dir' ? w(f.c, p + f.n + '/') : isLargeNode(f) && big.push([p + f.n, nodeBytes(f)])); })(files(), '');
-  $('#hi-un').innerHTML = big.length ? `<div class="un-h">${ico('deployed_code_history')}<b>大きいファイル（ハッシュで追跡）</b></div><div class="pnote">${limitVal('track_limit_mb')}MB を超えるため、行の差分は取らず、ハッシュ・名前・サイズで追跡します。同じ名前で内容を変えても前の版は残り、いつでも戻せます（そのぶん容量を使います）。</div>` + big.map(x => `<div class="un-r">${fico(x[0].split('/').pop())}<span class="nm">${esc(x[0])}</span><span class="dnote">${kb(x[1])}</span></div>`).join('') : '';
   updateCommitControl();
 }
 function updateCommitControl() {
+  const hp = typeof hasProject === 'function' ? hasProject() : !!(S.proj && S.proj.id);
   const status = getCommitStatus(), n = status.add + status.mod + status.del;
   const count = $('#hi-count'), button = $('#hi-save'), message = $('#hi-msg');
   if (!count || !button || !message) return;
+  if (!hp) { button.disabled = true; renderCommitFiles(); return; }
   count.textContent = `追加 ${status.add}・変更 ${status.mod}・削除 ${status.del}`;
+  renderCommitFiles();
   const length = message.value.trim().length;
   button.disabled = n === 0 || length < 1 || length > 200 || S.role === 'shared-view' || S.proj?.perm === 'view';
 }
@@ -392,8 +455,7 @@ async function pruneHistory(hash) {
     try {
       await busy('古い履歴を削除中', 'delete_sweep', () => Api.history.remove(S.proj.id, hash));
       await reloadProjectHistory();
-      await loadUsage().catch(() => {});
-      renderUsage(); showToast(`${count}件の古い履歴を削除しました`);
+      showToast(`${count}件の古い履歴を削除しました`);
     } catch (e) { showApiError(e); }
   }, '削除する');
 }
@@ -407,7 +469,8 @@ async function reloadProjectHistory() {
     await reloadTree(false).catch(() => {});
   });
   Object.keys(DIFFSTORE).forEach(k => delete DIFFSTORE[k]);   // 履歴を変えたら（復元・削除・コミット）、差分の表示も取り直す
-  initBase(); renderHist(); renderTree(); renderUsage();
+  initBase(); renderHist(); renderTree();
+  if (typeof refreshUsageDisplay === 'function') await refreshUsageDisplay().catch(() => {}); else { await loadUsage().catch(() => {}); renderUsage(); }
 }
 /* ---- 差分の表示 ----
    コミットで変わったファイルの一覧は、すぐ出す。ファイルごとの行の差分は、3件ずつ取りに行って、できた順に表示する

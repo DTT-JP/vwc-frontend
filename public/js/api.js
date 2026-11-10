@@ -166,8 +166,17 @@ const Api = (() => {
   const files = {
     tree: project => call('files/tree', { project }),
     read: (project, path) => call('files/read', { project, path }),
-    write: (project, path, content, baseVersion) => call('files/write', { project, path, content, base_version: baseVersion }),
-    create: (project, path, content) => call('files/create', content === undefined ? { project, path } : { project, path, content }),
+    write: (project, path, content, baseVersion, charset) => {
+      const body = { project, path, content, base_version: baseVersion };
+      if (charset) body.charset = charset;
+      return call('files/write', body);
+    },
+    create: (project, path, content, charset) => {
+      const body = { project, path };
+      if (content !== undefined) body.content = content;
+      if (charset) body.charset = charset;
+      return call('files/create', body);
+    },
     mkdir: (project, path) => call('files/mkdir', { project, path }),
     rename: (project, path, to) => call('files/rename', { project, path, to }),
     remove: (project, path) => call('files/delete', { project, path }),
@@ -209,6 +218,7 @@ const Api = (() => {
 
   const admin = {
     membersList: () => call('admin/members_list', {}),
+    idpMembersSync: () => call('admin/idp_members_sync', {}),
     membersAdd: member => call('admin/members_add', member),
     membersUpdate: member => call('admin/members_update', member),
     membersImportCsv: csv => call('admin/members_import_csv', { csv }),

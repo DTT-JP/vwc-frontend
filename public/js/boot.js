@@ -55,6 +55,8 @@ async function afterLogin(mode) {
   } catch (e) {
     return showBootError(e);
   }
+  /* ログイン後フローでも、IdPがログイン手段にあれば初回描画前からIdP管理モード相当に扱う */
+  if (typeof hasIdpLoginProvider === 'function' && hasIdpLoginProvider() && DATA.membersManagedByIdp === undefined) DATA.membersManagedByIdp = true;
   reportLoadFailures(await loadInitial(), 'Initial data load failed');
   bootPlaceholderProject();
   if (S.proj && S.proj.id) {
@@ -64,16 +66,25 @@ async function afterLogin(mode) {
   completeLogin(mode, false);
 }
 
+/* ログイン後の信頼端末登録レーン: ログイン/初回の区別なく、未登録の端末は登録確認へ。登録済み(信頼端末)はSKIP。 */
+function needsTrustLane() {
+  if (DATA.user && DATA.user.trusted) return false;
+  if (typeof isTrusted === 'function' && isTrusted()) return false;
+  return true;
+}
 function completeLogin(mode, notify = true) {
   if (mode === 'reauth') { showToast('再認証しました。元のウィンドウに戻ってください'); return; }
-  if (mode === 'register' || (mode === 'direct' && !DATA.user.trusted)) openTrustTab();
+  /* direct/register/その他の通常ログインは同じレーン: 信頼端末未登録なら登録確認、登録済みならSKIP */
+  if (needsTrustLane()) openTrustTab();
   else if (window.VWC_RETURN_TO) { location.href = window.VWC_RETURN_TO; return; }
   if (window.VWC_APPROVE_CODE) openApproval(window.VWC_APPROVE_CODE);
   if (notify) showToast('認証が完了しました');
 }
 
-function showBootError(e) {
-  st20('net'); show('s20');
+function showBootError(e, kind) {
+  try { if (window.VWCCompat && VWCCompat.applyErrorTheme) VWCCompat.applyErrorTheme(); } catch {}
+  st20(kind || 'boot');
+  show('s20');
   console.warn('boot failed', e);
 }
 
@@ -88,16 +99,23 @@ function reportLoadFailures(failures, context) {
 }
 
 async function boot() {
+  if (window.__vwcBooted) return;
+  window.__vwcBooted = true;
   const q = currentQuery();
   /* 管理の再認証のポップアップ：結果は元のウィンドウが確認するので、ここでは閉じるだけ。 */
   if (q.get('auth') === 'done' && q.get('mode') === 'reauth' && window.opener) { try { window.close(); } catch { /* 閉じられなければ、そのまま表示する */ } }
   window.VWC_RETURN_TO = safeReturn(q.get('return'));
   $('#app').classList.add('skel');
+  if (typeof showBootLoading === 'function') showBootLoading();
 
   let version;
   try { version = await Api.version(); }
   catch (e) { showBootError(e); $('#app').classList.remove('skel'); return; }
   DATA.meta = Object.assign({ backend: null, login_providers: [] }, version || {});
+  /* IdP連携あり判定の早期化: ログイン手段にIdPがあれば、初回のメンバー同期完了前でも
+     ユーザー管理をIdP管理モード相当に扱う（誤ってローカル追加できる状態を防ぐ）。
+     BEが members_list で managedByIdp を明示した場合は applyMembers が上書きする（BE確定を反映）。 */
+  if (typeof hasIdpLoginProvider === 'function' && hasIdpLoginProvider() && DATA.membersManagedByIdp === undefined) DATA.membersManagedByIdp = true;
   if (typeof applyLoginProvidersUi === 'function') applyLoginProvidersUi();
   /* FE指示書 B1: BE MAJOR は backend.version 優先、なければ api_version。MAJOR不一致は全体停止。 */
   let feVer = '';
@@ -141,6 +159,7 @@ async function boot() {
 
   initBase(); applyRoleForProject(); renderAll(); setAuth(loggedIn);
   $('#app').classList.remove('skel');
+  if (typeof hideBootLoading === 'function') hideBootLoading();
 
   const approve = (q.get('approve') || '').match(/^\d{6}$/)?.[0];
   if (approve) {

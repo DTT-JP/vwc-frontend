@@ -11,6 +11,7 @@ function applySettings() {
   root.dataset.theme = th; VWC.set('theme', th, 'app'); root.dataset.density = s.density; root.style.setProperty('--accent', ACC[s.accent]);
   document.body.style.fontSize = s.uiFont + 'px'; root.style.setProperty('--ed-font', s.edFont + 'px'); root.style.setProperty('--ed-lh', s.lineH); root.style.setProperty('--tab', s.tab);
   app.classList.toggle('wrap', s.wrap); app.classList.toggle('nogut', !s.lineNo);
+  if (window.EditorCore && EditorCore.configureAll) EditorCore.configureAll();
 }
 const sel = (key, vals, cur) => `<select data-s="${key}">${vals.map(([v, l]) => `<option value="${v}" ${String(cur) === String(v) ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
 const chk = (key, on, sub = '') => `<input type="checkbox" data-s="${key}" ${on ? 'checked' : ''} style="width:22px;height:22px">`;
@@ -20,8 +21,9 @@ const SET = {
     row('強調色', 'ボタンやステータスバーの色', sel('accent', [['blue', 'ブルー'], ['green', 'グリーン'], ['purple', 'パープル'], ['orange', 'オレンジ']], s.accent)); }],
   font: ['文字サイズ', () => { const s = DATA.settings; return `<h2>文字サイズ</h2>` + row('画面全体', '14〜20px（最小14px）', `<input type="number" data-s="uiFont" min="14" max="20" value="${s.uiFont}" style="width:80px">`) +
     row('エディター', '14〜24px', `<input type="number" data-s="edFont" min="14" max="24" value="${s.edFont}" style="width:80px">`) + row('行間', 'コードの行の高さ', sel('lineH', [[1.4, '狭い'], [1.6, '標準'], [1.8, '広い']], s.lineH)); }],
-  editor: ['エディター', () => { const s = DATA.settings; return `<h2>エディター</h2>` + row('折り返し', 'ONの間は行番号を隠します', chk('wrap', s.wrap)) + row('行番号', 'エディター左の行番号', chk('lineNo', s.lineNo)) +
-    row('タブ幅', 'Tabキーで入る幅（文字数）', sel('tab', [[2, '2'], [4, '4'], [8, '8']], s.tab)); }],
+  editor: ['エディター', () => { const s = DATA.settings; const comp = (s.htmlComplete === 'off' || s.htmlComplete === false) ? 'off' : 'on'; return `<h2>エディター</h2>` + row('折り返し', 'ONの間は行番号を隠します', chk('wrap', s.wrap)) + row('行番号', 'エディター左の行番号', chk('lineNo', s.lineNo)) +
+    row('タブ幅', 'Tabキーで入る幅（文字数）', sel('tab', [[2, '2'], [4, '4'], [8, '8']], s.tab)) +
+    row('コード補完', 'ONにすると、CodeMirror 6 標準の補完候補を表示します。OFFにすると補完しません（対応言語は標準CodeMirror 6の状態）。', sel('htmlComplete', [['on', 'ON'], ['off', 'OFF']], comp)); }],
   touch: ['操作・余白', () => `<h2>操作・余白</h2>` + row('ボタンと行の余白', 'タッチ操作では「ゆったり」がおすすめです（タブレット・スマホは自動で44px以上）', sel('density', [['compact', 'コンパクト'], ['standard', '標準'], ['relaxed', 'ゆったり']], DATA.settings.density))],
   guide: ['ヘルプの案内', () => { const on = !store.get('help.dismissed', false); return `<h2>ヘルプの案内</h2><p class=\"dnote\">ログイン後に出る「ヘルプを読んでみませんか？」の案内を、あとから表示し直せます。</p>` +
     row('ログイン後に案内を表示する', 'オンにすると、ヘルプを一度開くまで、ログインのたびに案内を表示します（「今後表示しない」を取り消します）', `<input type=\"checkbox\" data-hw=\"on\" ${on ? 'checked' : ''} style=\"width:22px;height:22px\">`) +

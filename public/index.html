@@ -7,7 +7,7 @@
 <title>VWC | ホーム</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <!-- 非対応ブラウザ（IE・旧Edge(EdgeHTML)・古いChrome/Firefox/Safari）には、崩れた画面ではなく案内を出す。古い環境でも動くよう、ここだけ ES5 で書く。対応の下限は README「対応ブラウザ」 -->
-<style>#unsupported{display:none;padding:32px 20px;font:16px/1.7 sans-serif;color:#222;background:#fff;min-height:100vh;box-sizing:border-box}.unsupported #unsupported{display:block}.unsupported #app{display:none!important}</style>
+<style>#unsupported{display:none;padding:32px 20px;font:16px/1.7 sans-serif;min-height:100vh;box-sizing:border-box;color:#222;background:#fff}#unsupported h1{font-size:20px;margin:0 0 12px}#unsupported p,#unsupported li{margin:0 0 10px}#unsupported ul{margin:0 0 10px;padding-left:22px}@media(prefers-color-scheme:dark){html:not([data-theme=light]) #unsupported{color:#f3f3f3;background:#1e1e1e}}html[data-theme=dark] #unsupported{color:#f3f3f3;background:#1e1e1e}html[data-theme=light] #unsupported{color:#222;background:#fff}.unsupported #unsupported{display:block}.unsupported #app{display:none!important}</style>
 <script src="js/compat.js"></script>
 <!-- 外部資材は tools/complete.py で public/ に生成。台帳は vendor/MANIFEST.md -->
 <link rel="stylesheet" href="vendor/fonts/noto-sans-jp.css">
@@ -17,7 +17,7 @@
 <link rel="stylesheet" href="css/features.css">
 </head>
 <body>
-<div id="unsupported"><h1 style="font-size:20px">このブラウザには対応していません</h1><p>Visual Web Code は、次のブラウザ（またはそれ以降）でお使いください。</p><ul><li>Chrome / Edge（Chromium版）/ Chromium系（Opera、Samsung Internet、Android WebView など）：111 以上</li><li>Firefox：121 以上</li><li>Safari（Mac）/ iOS・iPadOS の Safari・各ブラウザ：16.2 以上</li></ul><p>Internet Explorer と、旧 Edge（EdgeHTML版）には対応していません。</p></div>
+<div id="unsupported"><h1>このブラウザには対応していません</h1><p>Visual Web Code は、このブラウザでは正しく動作しない可能性があるため表示を停止しています。</p><p>対処方法: 下の一覧のブラウザ（またはそれ以降）に更新してから、もう一度開いてください。</p><ul><li>Chrome / Edge（Chromium版）/ Chromium系（Opera、Samsung Internet、Android WebView など）: 111 以上</li><li>Firefox: 121 以上</li><li>Safari（Mac）/ iOS・iPadOS の Safari・各ブラウザ: 16.2 以上</li></ul><p>Internet Explorer と旧 Edge（EdgeHTML版）には対応していません。</p></div>
 <div id="app" data-view="right">
  <div id="main">
   <!-- 左サイドバー（アイコンのみ・名前は出さない。上揃え→spacer→下揃え） -->
@@ -86,7 +86,7 @@
     <section class="lp" id="sm06"><h2>ツール</h2><div class="sync" hidden></div><div class="body" id="tools"></div></section>
     <section class="lp" id="sm07"><h2>管理</h2><div class="sync" hidden></div><div class="body">
       <a class="row" id="adm-idp-link" href="../auth/" target="_blank" rel="noopener" hidden><span class="ms">manage_accounts</span><span class="nm">認証システム（IdP）の管理を開く</span></a>
-      <div class="row" data-adm="members"><span class="ms">group</span><span class="nm">部員</span></div>
+      <div class="row" data-adm="members"><span class="ms">group</span><span class="nm">ユーザー管理</span></div>
       <div class="row" data-adm="devices"><span class="ms">devices</span><span class="nm">端末</span></div>
       <div class="row" data-adm="limits"><span class="ms">tune</span><span class="nm">制限値</span></div>
       <div class="row" data-adm="apps"><span class="ms">public</span><span class="nm">アプリ</span></div>
@@ -116,8 +116,9 @@
     <section class="lp" id="sm11"><h2>履歴</h2><div class="sync" hidden></div>
       <div class="field"><input id="hi-msg" maxlength="200" placeholder="コミットメッセージ（1〜200文字）"></div>
       <div class="pnote" id="hi-count">追加 0・変更 0・削除 0</div>
+      <div id="hi-files" class="hi-files" aria-label="変更ファイル"></div>
       <div class="field"><button class="primary" id="hi-save" disabled>コミット</button></div>
-      <div class="body sk-list" id="hi-list"></div><div id="hi-un"></div></section>
+      <div class="body sk-list" id="hi-list"></div></section>
   </aside>
   <div id="split-v" title="ドラッグで幅を変更"></div>
 
@@ -154,7 +155,7 @@
       <button id="fb-prev" title="前へ"><span class="ms">keyboard_arrow_up</span></button><button id="fb-next" title="次へ"><span class="ms">keyboard_arrow_down</span></button>
       <button id="fb-case" title="大文字小文字を区別">Aa</button><button id="fb-re" title="正規表現">.*</button>
       <input id="fb-r" class="rep" placeholder="置換"><button id="fb-rep" class="rep" title="置換"><span class="ms">find_replace</span></button><button id="fb-all" class="rep" title="すべて置換"><span class="ms">sync_alt</span></button><button id="fb-min" title="検索バーを小さくして右へよける"><span class="ms">keyboard_double_arrow_right</span></button><button id="fb-x" title="閉じる"><span class="ms">close</span></button></div>
-    <div id="statebar" class="alert" hidden><span class="ms">error</span><div><b class="sb-t"></b><span class="sb-m"></span></div><button class="o" id="sb-act"></button></div>
+    <div id="statebar" class="alert error-page" hidden><span class="ms" aria-hidden="true">error</span><div><b class="sb-t"></b><span class="sb-m"></span></div></div>
     <div class="dz" id="dz-sub" data-z="sub" hidden>サブ画面で開く</div>
     <div id="top">
       <div class="group" id="g1" data-g="g1"><div class="tabs"></div><div class="crumb"></div><div class="pane"></div></div>
@@ -202,7 +203,7 @@
 <dialog id="d-cf"><h3>保存できません</h3><p>他の人が先にこのファイルを保存しました。</p><div class="btns"><button id="cf-diff">差分を見る</button><button id="cf-reload">再読み込み（自分の変更は退避）</button><button class="primary" id="cf-over">上書き</button></div></dialog>
 <dialog id="d-cap"><h3>保存できません</h3><p>容量が上限に達しています。大きいファイルや不要なアプリを整理してください。</p><div class="btns"><button class="primary" data-close>はい</button></div></dialog>
 <!-- CSV一括登録 / 閲覧者管理 -->
-<dialog id="d-csv"><h3>CSV一括登録</h3><p class="dnote">列：部員ID,名前,メール,役職（顧問/部長/副部長/部員）。管理者権限は認証システム（IdP）で設定します。</p>
+<dialog id="d-csv"><h3>CSV一括登録</h3><p class="dnote">列：ユーザーID,名前,メール,役職（顧問/部長/副部長/部員）。管理者権限は認証システム（IdP）で設定します。IdP連携が有効な場合、ユーザーの追加はIdP側で行います。</p>
   <textarea id="csv-in" rows="6" style="width:100%;font-family:var(--mono)"></textarea>
   <div class="btns" style="margin-top:8px"><button id="csv-pv">プレビュー</button></div>
   <div id="csv-out" style="max-height:30vh;max-height:30dvh;overflow:auto"></div>
@@ -211,12 +212,13 @@
   <div style="display:flex;gap:4px"><input id="vw-in" list="vw-dl" placeholder="部員を検索して追加"><datalist id="vw-dl"></datalist><button class="o" id="vw-add">追加</button></div>
   <div id="vw-list" style="margin-top:8px"></div>
   <div class="btns"><button class="primary" data-close>閉じる</button></div></dialog>
-<!-- 部員削除（4ステップ） / 再認証 / 部員追加 -->
-<dialog id="d-md"><h3>部員を削除</h3>
+<!-- ユーザー削除（4ステップ） / 再認証 / ユーザー追加 -->
+<dialog id="d-md"><h3>ユーザーを削除</h3>
+  <p class="dnote" id="md-idp-note" hidden>IdP連携が有効なため、VWCからのユーザー削除はできません。認証システム（IdP）側で管理してください。</p>
   <div data-step="1"><p id="md-imp"></p><div id="md-impact"></div></div>
   <div data-step="2" hidden><p>各プロジェクトの扱いを選んでください。</p><div id="md-proj"></div></div>
   <div data-step="3" hidden><p>アプリごとの公開状態を選んでください。</p><div id="md-apps"></div></div>
-  <div data-step="4" hidden><p>部員IDを入力して再認証し、削除を実行します。</p><input id="md-in"></div>
+  <div data-step="4" hidden><p>ユーザーIDを入力して再認証し、削除を実行します。</p><input id="md-in"></div>
   <div class="btns"><button data-close>キャンセル</button><button class="primary" id="md-next">次へ</button></div></dialog>
 <dialog id="d-re"><h3>再認証が必要です</h3><p>管理の操作は、ログイン（再認証）から10分以内に限られます。もう一度ログインしてください。<br>いまの状態：<b id="re-t">切れています</b></p>
   <div class="btns"><button data-close>キャンセル</button><button type="button" class="primary" id="re-ok">再認証する</button></div></dialog>
@@ -229,7 +231,7 @@
   <div class="btns"><button data-close>キャンセル</button><button class="primary" id="an-save">保存</button></div></dialog>
 <dialog id="d-assign"><h3>再関連付け</h3><p><b id="as-app"></b> の所有者を選んでください。</p><p id="as-proj-info"></p><select id="as-sel" style="width:100%"></select><div class="btns"><button data-close>キャンセル</button><button class="primary" id="as-ok">関連付ける</button></div></dialog>
 <dialog id="d-logout"><h3>ログアウト</h3><p>ログアウトします。</p><label><input id="logout-untrust" type="checkbox" style="width:auto"> この端末の信頼を解除する</label><div class="btns"><button data-close>キャンセル</button><button class="primary" id="logout-ok">ログアウト</button></div></dialog>
-<dialog id="d-mem"><h3 id="mem-h">部員を追加</h3><input id="mem-id" placeholder="部員ID（半角英数字と . _ @ -）" maxlength="64" autocomplete="off"><br><br><span id="mem-name-row" hidden><input id="mem-name" placeholder="名前（空欄なら今のまま）"><br><br></span><input id="mem-mail" type="email" placeholder="メールアドレス"><p class="dnote" id="mem-note">名前は、本人が最初にログインしたときに自動で入る場合があります。</p><p class="dnote">管理者権限は認証システム（IdP）の管理画面で設定します。</p><br><select id="mem-pos"><option>顧問</option><option>部長</option><option>副部長</option><option selected>部員</option></select>
+<dialog id="d-mem"><h3 id="mem-h">ユーザーを追加</h3><p class="dnote" id="mem-idp-note" hidden>IdP連携が有効なため、VWCからのユーザー追加はできません。認証システム（IdP）側で管理してください。</p><input id="mem-id" placeholder="ユーザーID（半角英数字と . _ @ -）" maxlength="64" autocomplete="off"><br><br><span id="mem-name-row" hidden><input id="mem-name" placeholder="名前（空欄なら今のまま）"><br><br></span><input id="mem-mail" type="email" placeholder="メールアドレス"><p class="dnote" id="mem-note">名前は、本人が最初にログインしたときに自動で入る場合があります。</p><p class="dnote">管理者権限は認証システム（IdP）の管理画面で設定します。</p><br><select id="mem-pos"><option>顧問</option><option>部長</option><option>副部長</option><option selected>部員</option></select>
   <div class="btns"><button data-close>キャンセル</button><button class="primary" id="mem-ok">追加</button></div></dialog>
 <!-- エディター内タブとして開く画面（ログイン / 承認 / 端末登録） -->
 <template id="t-login"><div class="box"><h1>ログイン</h1>
@@ -240,7 +242,7 @@
   </div>
   <div class="seg-p" data-p="qr" role="tabpanel"><div class="qrbox" id="qr-login" role="img" aria-label="ログイン用のQRコード"></div><p>ログイン済みの信頼端末で、<b>「QR読み取りでログイン」</b>からこのQRを読み取って承認してください。</p><p>残り <b class="cd">300</b> 秒</p><button class="primary" data-renew>新しいQRを表示</button></div>
   <div class="seg-p" data-p="code" role="tabpanel" hidden><div class="login-code" id="login-code">482 915</div><p>ログイン済みの信頼端末で、<b>「コード入力でログイン」</b>にこの数字を入力して承認してください。</p><p>残り <b class="cd">300</b> 秒</p><button class="primary" data-renew>新しいコードを表示</button></div>
-  <div class="seg-p" data-p="idp" role="tabpanel" hidden><p>部活のアカウント（認証システム）でログインします。</p><button type="button" class="ms-signin" id="idp-login" onclick="location.href=Api.idpUrl('direct')"><span class="ms-label">部活アカウントでログイン</span></button> <button type="button" class="o" id="idp-register" onclick="location.href=Api.idpUrl('register')">初めての端末を登録</button><p class="dnote">初めての端末を登録: この端末をエディターの信頼端末として登録する流れでログインします（ログイン後に端末登録の確認が表示されます）。パスワードはこの画面には入力せず、認証システムの画面で行います。</p></div>
+  <div class="seg-p" data-p="idp" role="tabpanel" hidden><p>部活のアカウント（認証システム）でログインします。ログイン後、必要な場合はこの端末の信頼登録に進みます（登録済みの信頼端末では省略されます）。</p><button type="button" class="primary login-main-btn" id="idp-login" onclick="location.href=Api.idpUrl('direct')"><span class="ms">qr_code_2</span><span>ログイン</span></button><p class="dnote">パスワードはこの画面には入力せず、認証システムの画面で行います。</p></div>
   <p class="msg" id="s01-msg" role="status" aria-live="polite"></p></div></template>
 <template id="t-trust"><div class="box"><h1>この端末を信頼端末にしますか？</h1>
   <input id="dev-name" value="自宅のPC"><p>有効期間：<span id="trust-days">90</span>日</p>
@@ -265,7 +267,7 @@
   <input id="gate-in" placeholder="アクセスコード（8桁の数字）" class="big-in" inputmode="numeric" maxlength="9" autocomplete="off">
   <div class="btns2"><button class="primary" id="gate-ok">開く</button></div><p class="msg" id="gate-msg"></p>
   <p><a href="#" data-go="editor">アプリ以外はログインが必要です（エディターへ）</a></p></div></section>
- <section class="scr" id="s20" hidden><div class="box"><span class="ms big" id="s20-i">info</span><h1 id="s20-t"></h1><p id="s20-m"></p><button class="primary" data-go="editor">戻る</button></div></section>
+ <section class="scr" id="s20" hidden><div class="box error-page" role="alert" aria-live="polite"><span class="ms big" id="s20-i" aria-hidden="true">info</span><h1 id="s20-t"></h1><p id="s20-m"></p><p id="s20-a" class="error-action" hidden></p></div></section>
 </div>
 <!-- アプリ管理（SM05） -->
 <dialog id="d-app"><h3>アプリの管理</h3>
@@ -315,18 +317,9 @@
 <dialog id="d-err"><h3 id="err-t"></h3><div id="err-m"></div><div class="btns"><button class="primary" data-close>閉じる</button></div></dialog>
 <div id="toast" hidden></div>
 
-<!-- 構文強調：highlight.js 11.9.0（vendor/ に同梱）。主要言語は本体に含まれ、追加言語は個別ファイル -->
+<!-- コードエディタ：CodeMirror 6（vendor/codemirror/cm6.bundle.js、FIX 13/14）。構文強調は CM6/Lezer。 -->
 <script src="config.js"></script>
-<script src="vendor/highlight/highlight.min.js"></script>
-<script src="vendor/highlight/languages/dart.min.js"></script>
-<script src="vendor/highlight/languages/scala.min.js"></script>
-<script src="vendor/highlight/languages/haskell.min.js"></script>
-<script src="vendor/highlight/languages/powershell.min.js"></script>
-<script src="vendor/highlight/languages/dockerfile.min.js"></script>
-<script src="vendor/highlight/languages/nginx.min.js"></script>
-<script src="vendor/highlight/languages/elixir.min.js"></script>
-<script src="vendor/highlight/languages/groovy.min.js"></script>
-<script src="vendor/highlight/languages/apache.min.js"></script>
+<script src="vendor/codemirror/cm6.bundle.js"></script>
 <script src="vendor/qr/qrcode.js"></script>
 <script src="js/markdown.js"></script>
 <script src="js/api.js"></script>

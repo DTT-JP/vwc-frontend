@@ -14,10 +14,16 @@ function tipHtml(u) { // 上位5件 + その他（内訳つき）
     (rest.length ? `<div><span>その他（${rest.length}件）</span><span>${fmtMB(rs)}MB</span></div><span class="rest">${rest.map(([n, v]) => n + ' ' + fmtMB(v) + 'MB').join(' / ')}</span>` : '');
 }
 function renderUsage() {
-  const used = usedMB(), pct = used / quotaLimit() * 100, box = $('#u-chart'), warn = pct >= 80, full = pct >= 100;
-  $('#u-sum').innerHTML = `<b>${fmtMB(used)}MB</b> / 上限 ${fmtMB(quotaLimit())}MB（${pct.toFixed(0)}%）<div class="dnote" id="u-note">${UNOTE}</div>` + (warn ? `<div class="warnline">${full ? '容量が上限に達しました。書き込みできません。' : '容量が上限に近づいています。'}</div>` : '');
-  $('#h-usage').innerHTML = `<b>${fmtMB(used)}MB</b> / ${fmtMB(quotaLimit())}MB（${pct.toFixed(0)}%）`; $('#hl-usage').textContent = '使用量 ' + fmtMB(used) + '/' + fmtMB(quotaLimit()) + 'MB';
-  $('#h-meter').style.width = Math.min(100, pct) + '%'; $('#h-meterbox').className = 'meter' + (full ? ' danger' : warn ? ' warn' : ''); $('#h-usage-note').textContent = warn ? '容量が上限に近づいています。' : '';
+  const box = $('#u-chart'), sum = $('#u-sum'), hUsage = $('#h-usage');
+  if (!box || !sum || !hUsage) return;
+  const used = usedMB(), pct = quotaLimit() ? used / quotaLimit() * 100 : 0, warn = pct >= 80, full = pct >= 100;
+  sum.innerHTML = `<b>${fmtMB(used)}MB</b> / 上限 ${fmtMB(quotaLimit())}MB（${pct.toFixed(0)}%）<div class="dnote" id="u-note">${UNOTE}</div>` + (warn ? `<div class="warnline">${full ? '容量が上限に達しました。書き込みできません。' : '容量が上限に近づいています。'}</div>` : '');
+  hUsage.innerHTML = `<b>${fmtMB(used)}MB</b> / ${fmtMB(quotaLimit())}MB（${pct.toFixed(0)}%）`;
+  const hl = $('#hl-usage'); if (hl) hl.textContent = '使用量 ' + fmtMB(used) + '/' + fmtMB(quotaLimit()) + 'MB';
+  const meter = $('#h-meter'), mbox = $('#h-meterbox'), note = $('#h-usage-note');
+  if (meter) meter.style.width = Math.min(100, pct) + '%';
+  if (mbox) mbox.className = 'meter' + (full ? ' danger' : warn ? ' warn' : '');
+  if (note) note.textContent = warn ? '容量が上限に近づいています。' : '';
   const W = Math.max(box.clientWidth || 236, 224), H = 280, top = 26, bw = 44, base = top + H; let cum = 0;
   const segs = stackOf().map(u => { const h = u.mb / quotaLimit() * H, y = base - (cum + u.mb) / quotaLimit() * H; cum += u.mb; return { u, h, y, mid: y + h / 2 }; });
   const lab = [...segs].sort((a, b) => b.mid - a.mid); let lim = base + 4; lab.forEach(s => { s.ly = Math.min(s.mid, lim - 26); lim = s.ly; }); const dy = Math.max(0, top + 8 - Math.min(...lab.map(s => s.ly))); lab.forEach(s => s.ly += dy); // 上にはみ出すときだけ下へずらす
@@ -63,9 +69,9 @@ const findUsageProject = name => allProjects().find(p => p.name === name) || DAT
 async function refreshUsageAfter() {
   if (S.role === 'admin') {
     try { await loadAdminUsage(usageMember || undefined); } catch (e) { showApiError(e); }
-  } else {
-    try { await loadUsage(); } catch (e) { showApiError(e); }
   }
+  try { await loadUsage(); } catch (e) { showApiError(e); }
+  if (typeof renderUsage === 'function') try { renderUsage(); } catch {}
   const t = S.tabs.find(x => x.name === '使用状況の詳細'); if (t) { t.render = rUsage; renderTabs(); }
 }
 document.addEventListener('change', async e => {

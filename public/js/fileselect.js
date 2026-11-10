@@ -45,7 +45,7 @@ async function copySel() {
     } catch (e) { showApiError(e); }
   }
   if (!out.length) return;
-  await reloadTree(); S.msel = new Set(out); S.anchor = out[0]; S.mmode = true; renderTree(); showToast(out.length + '件をコピーしました');
+  await reloadTree(); S.msel = new Set(out); S.anchor = out[0]; S.mmode = true; renderTree(); if (typeof scheduleUsageRefresh === 'function') scheduleUsageRefresh(); showToast(out.length + '件をコピーしました');
 }
 function askDelSel() {
   if (readOnly()) return; const ps = topOnly(S.msel); if (!ps.length) return; const names = ps.map(baseOf);

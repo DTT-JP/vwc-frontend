@@ -21,8 +21,8 @@
     'apps/set_visibility':'公開状態','apps/code_get':'コード表示','apps/code_regen':'コード再生成',
     'apps/viewers_list':'閲覧権一覧','apps/viewers_add':'閲覧権追加','apps/viewers_remove':'閲覧権削除',
     'apps/open':'アプリを開く','apps/gate_verify':'ゲート認証','apps/unpublish':'非公開化',
-    'admin/members_list':'部員一覧','admin/members_add':'部員追加','admin/members_update':'部員更新',
-    'admin/members_import_csv':'CSV取込','admin/members_delete':'部員削除',
+    'admin/members_list':'ユーザー一覧','admin/members_add':'ユーザー追加','admin/members_update':'ユーザー更新',
+    'admin/members_import_csv':'CSV取込','admin/members_delete':'ユーザー削除',
     'admin/devices_list':'端末一覧(管理)','admin/devices_revoke':'端末失効(管理)',
     'admin/settings_get':'設定取得','admin/settings_set':'設定変更',
     'admin/usage':'使用量','admin/projects_list':'プロジェクト一覧(管理)','admin/projects_assign':'孤立割当',
@@ -58,5 +58,38 @@
     Object.keys(USED_APIS).forEach(function(name){ var a=apis[name]; if(a&&a.deprecated) out.push({name:name, remove_in:a.remove_in||'', replaced_by:a.replaced_by||''}); });
     return out;
   }
-  window.VWCCompat = { USED_APIS:USED_APIS, feMajor:feMajor, beMajor:beMajor, missingApis:missingApis, deprecatedUsed:deprecatedUsed };
+  function resolvedTheme(preferred) {
+    var t = preferred;
+    if (!t && typeof DATA !== 'undefined' && DATA && DATA.settings && DATA.settings.theme) t = DATA.settings.theme;
+    if (!t) {
+      try {
+        var anon = JSON.parse(localStorage.getItem('vwc.settings.anon') || 'null');
+        if (anon && anon.theme) t = anon.theme;
+      } catch (e) {}
+    }
+    if (!t) {
+      try {
+        for (var i = 0; i < localStorage.length; i++) {
+          var k = localStorage.key(i);
+          if (!k || k.indexOf('vwc.settings.') !== 0) continue;
+          var v = JSON.parse(localStorage.getItem(k) || 'null');
+          if (v && v.theme) { t = v.theme; break; }
+        }
+      } catch (e) {}
+    }
+    if (t === 'auto' || t === 'light' || t === 'dark') {
+      if (t === 'auto') return window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+      return t;
+    }
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  }
+  function applyErrorTheme(preferred) {
+    var theme = resolvedTheme(preferred);
+    try { document.documentElement.dataset.theme = theme; } catch (e) {}
+    if (document.body) { try { document.body.dataset.errorTheme = theme; } catch (e) {} }
+    return theme;
+  }
+
+  window.VWCCompat = { USED_APIS:USED_APIS, feMajor:feMajor, beMajor:beMajor, missingApis:missingApis, deprecatedUsed:deprecatedUsed, resolvedTheme:resolvedTheme, applyErrorTheme:applyErrorTheme };
+  try { applyErrorTheme(); } catch (e) {}
 })();

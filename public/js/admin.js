@@ -94,7 +94,7 @@ async function reloadAdminAll() {
 }
 
 /* 左領域のメニュー */
-const ADM = { members: ['部員', rMembers], devices: ['端末', rDevices], limits: ['制限値', rLimits], apps: ['アプリ(管理)', rApps], ann: ['お知らせ', rAnn], maint: ['使用状況・保守', rMaint] };
+const ADM = { members: ['ユーザー管理', rMembers], devices: ['端末', rDevices], limits: ['制限値', rLimits], apps: ['アプリ(管理)', rApps], ann: ['お知らせ', rAnn], maint: ['使用状況・保守', rMaint] };
 $('#sm07').onclick = async e => {
   const r = e.target.closest('[data-adm]'); if (!r) return;
   const key = r.dataset.adm;
@@ -104,16 +104,39 @@ $('#sm07').onclick = async e => {
 };
 $('#u-more').onclick = () => openTab('使用状況の詳細', rUsage, 'data_usage');
 
-/* S14 部員 */
+const membersManagedByIdp = () => {
+  if (DATA.membersManagedByIdp === true) return true;
+  if (DATA.membersManagedByIdp === false) return false;
+  /* 初回描画/BE応答前の安全側: ログイン手段にIdPがあればIdP連携ありとして扱う */
+  return (typeof hasIdpLoginProvider === 'function' ? hasIdpLoginProvider()
+    : !!(DATA.meta && Array.isArray(DATA.meta.login_providers) && DATA.meta.login_providers.includes('idp')));
+};
+
+/* S14 ユーザー管理（IdP正本時はVWCから追加・削除・管理者設定不可） */
+function idpAdminButtonHtml() {
+  const hasIdp = typeof hasIdpLoginProvider === 'function' ? hasIdpLoginProvider() : (Array.isArray(DATA.meta && DATA.meta.login_providers) && DATA.meta.login_providers.includes('idp'));
+  const url = typeof idpAdminUrl === 'function' ? idpAdminUrl() : '';
+  if (!hasIdp) return `<button class="o" disabled aria-disabled="true" title="IdPが未設定のため、IdPの管理画面は開けません">${ico('manage_accounts')} IdP管理画面を開く</button>`;
+  if (!url) return `<button class="o" disabled aria-disabled="true" title="IdP管理画面のURLを組み立てられません（設定を確認してください）">${ico('manage_accounts')} IdP管理画面を開く</button>`;
+  return `<button class="o" data-a="idp-admin" title="認証システム（IdP）のユーザー・管理者設定の管理画面を新しいタブで開きます">${ico('manage_accounts')} IdP管理画面を開く</button>`;
+}
 function rMembers() {
+  const managed = membersManagedByIdp();
   const rows = DATA.members.map(m => {
     const pc = memberProjects(m).length, ac = memberApps(m).length;
     const admCell = `<span title="管理者権限は認証システム（IdP）で設定します">${m.isAdmin ? bd('あり', 'b-warn') : 'なし'}</span>`;
+    const togAttr = managed ? 'disabled aria-disabled="true" title="IdP連携時は有効/無効をVWCから変更できません（IdPの状態に同期されます）"' : 'data-a="mem-tog" title="無効化/有効化"';
+    const delAttr = managed ? 'disabled aria-disabled="true" title="IdP連携時はVWCから削除できません（IdP側で管理）"' : 'data-a="mem-del" title="削除"';
     return `<tr><td data-l="ID">${m.id}</td><td data-l="名前">${esc(m.name)}</td><td data-l="メール">${esc(m.mail)}</td><td data-l="役職"><select data-a="mem-pos" data-id="${m.id}">${['顧問', '部長', '副部長', '部員'].map(p => `<option ${m.position === p ? 'selected' : ''}>${p}</option>`).join('')}</select></td><td data-l="管理者">${admCell}</td><td data-l="状態">${bd(m.active ? '有効' : '無効', m.active ? 'b-ok' : 'b-ng')}</td><td data-l="使用量">${fmtMB(m.usedMB)}MB<small class="dnote">（P${pc} / A${ac}）</small></td>` +
-    `<td class="adm-actions"><div class="adm-actions-in"><button data-a="mem-edit" data-id="${m.id}" title="編集">${ico('edit')}</button><button data-a="mem-tog" data-id="${m.id}" title="無効化/有効化">${ico('block')}</button><button data-a="mem-del" data-id="${m.id}" title="削除">${ico('delete')}</button></div></td></tr>`;
+    `<td class="adm-actions"><div class="adm-actions-in"><button data-a="mem-edit" data-id="${m.id}" title="編集">${ico('edit')}</button><button ${togAttr}>${ico('block')}</button><button ${delAttr}>${ico('delete')}</button></div></td></tr>`;
   });
-  return `<h2>部員</h2>${admReauthBar()}<div class="tools"><input placeholder="検索" id="adm-q"><button class="o" data-a="mem-add">${ico('person_add')} 追加</button><button class="o" data-a="csv">${ico('upload_file')} CSV一括登録</button></div>
-  <table class="tbl"><thead><tr><th>ID</th><th>名前</th><th>メール</th><th>役職</th><th>管理者</th><th>状態</th><th>使用量</th><th></th></tr></thead><tbody>` + (rows.join('') || '<tr><td colspan="8">部員はいません</td></tr>') + '</tbody></table>';
+  const idpNote = managed ? `<p class="dnote">IdP連携が有効なため、ユーザーの追加・削除・管理者設定はVWCから変更できません（IdPの登録情報が元）。一覧はIdPと同期されます。</p>` : '';
+  const idpAdminBtn = idpAdminButtonHtml();
+  const addBtns = managed
+    ? `${idpAdminBtn}<button class="o" data-a="idp-sync" title="認証システム(IdP)から登録済み全ユーザーのユーザーID・管理者権限を同期">${ico('sync')} IdPから同期</button>`
+    : `${idpAdminBtn}<button class="o" data-a="idp-sync" title="認証システム(IdP)から登録済み全ユーザーのユーザーID・管理者権限を同期">${ico('sync')} IdPから同期</button><button class="o" data-a="mem-add">${ico('person_add')} 追加</button><button class="o" data-a="csv">${ico('upload_file')} CSV一括登録</button>`;
+  return `<h2>ユーザー管理</h2>${admReauthBar()}${idpNote}<div class="tools"><input placeholder="検索" id="adm-q">${addBtns}</div>
+  <table class="tbl"><thead><tr><th>ID</th><th>名前</th><th>メール</th><th>役職</th><th>管理者</th><th>状態</th><th>使用量</th><th></th></tr></thead><tbody>` + (rows.join('') || '<tr><td colspan="8">ユーザーはいません</td></tr>') + '</tbody></table>';
 }
 let delM = null, step = 1;
 function mdStep(n) {
@@ -243,9 +266,27 @@ $('#an-save').onclick = () => {
 /* 共通アクション。管理の「更新」操作は、すべて reauth() を通す */
 $('#bench').addEventListener('click', e => { const b = e.target.closest('[data-a]'); if (!b || ['SELECT', 'INPUT'].includes(b.tagName)) return; const a = b.dataset.a, id = b.dataset.id, nm = b.dataset.n;
   if (a === 're-now') { if (reauthLeft() > 0) showToast('再認証はまだ有効です'); else { reauthCb = null; $('#re-t').textContent = '切れています'; $('#d-re').showModal(); } return; }
+  if (a === 'idp-admin') {
+    const url = typeof idpAdminUrl === 'function' ? idpAdminUrl() : '';
+    const hasIdp = typeof hasIdpLoginProvider === 'function' ? hasIdpLoginProvider() : (Array.isArray(DATA.meta && DATA.meta.login_providers) && DATA.meta.login_providers.includes('idp'));
+    if (!hasIdp) return showToast('IdPが未設定のため、管理画面を開けません');
+    if (!url) return showToast('IdP管理画面のURLを組み立てられません（設定を確認してください）');
+    const w = window.open(url, '_blank', 'noopener,noreferrer');
+    if (!w) showToast('ポップアップがブロックされました。ブラウザの設定で許可してください');
+    return;
+  }
+  if (a === 'idp-sync') { reauth(async () => {
+    try {
+      const res = await Task.run({ title: 'IdPと連携中', icon: 'sync' }, () => Api.admin.idpMembersSync());
+      await loadMembers({ idpTask: false }); redo();
+      showToast(res && res.ok ? `IdPから同期しました（${res.synced ?? 0}件・新規${res.created ?? 0}・更新${res.updated ?? 0}）` : 'IdPから同期しました');
+    } catch (err) { showApiError(err); }
+  }); return; }
   if (a === 'mem-add') {
+    if (membersManagedByIdp()) return showApiError({ code: 'managed_by_idp' });
     editM = null;
-    $('#mem-h').textContent = '部員を追加'; $('#mem-ok').textContent = '追加';
+    $('#mem-h').textContent = 'ユーザーを追加'; $('#mem-ok').textContent = '追加';
+    $('#mem-idp-note').hidden = true;
     $('#mem-id').value = ''; $('#mem-id').disabled = false;
     $('#mem-name-row').hidden = true; $('#mem-note').hidden = false;
     $('#mem-name').value = ''; $('#mem-mail').value = ''; $('#mem-pos').value = '部員';
@@ -255,22 +296,30 @@ $('#bench').addEventListener('click', e => { const b = e.target.closest('[data-a
   }
   if (a === 'mem-edit') {
     const m = DATA.members.find(x => x.id === id); editM = m;
-    $('#mem-h').textContent = '部員を編集'; $('#mem-ok').textContent = '保存';
+    $('#mem-h').textContent = 'ユーザーを編集'; $('#mem-ok').textContent = '保存';
+    $('#mem-idp-note').hidden = true;
     $('#mem-id').value = m.id; $('#mem-id').disabled = true;
     $('#mem-name-row').hidden = false; $('#mem-note').hidden = true;
     $('#mem-name').value = m.named === false ? '' : m.name; $('#mem-mail').value = m.mail; $('#mem-pos').value = m.position;
     $('#mem-mail').required = true; $('#mem-mail').placeholder = 'メールアドレス';
     $('#d-mem').showModal();
   }
-  if (a === 'csv') { $('#csv-in').value = CSV_SAMPLE; $('#csv-out').innerHTML = ''; $('#csv-ok').disabled = true; $('#d-csv').showModal(); }
-  if (a === 'mem-tog') { const m = DATA.members.find(x => x.id === id); if (!m) return; reauth(async () => {
-    try { await Api.admin.membersUpdate({ member: m.id, name: m.name, mail: m.mail, position: m.position, active: !m.active }); await loadMembers(); redo(); showToast(m.active ? '部員を有効化しました' : '部員を無効化しました'); }
+  if (a === 'csv') {
+    if (membersManagedByIdp()) return showApiError({ code: 'managed_by_idp' });
+    $('#csv-in').value = CSV_SAMPLE; $('#csv-out').innerHTML = ''; $('#csv-ok').disabled = true; $('#d-csv').showModal();
+  }
+  if (a === 'mem-tog') {
+    if (membersManagedByIdp()) return showToast('IdP連携時は有効/無効をVWCから変更できません（IdPの状態に同期されます）');
+    const m = DATA.members.find(x => x.id === id); if (!m) return; reauth(async () => {
+    try { await Api.admin.membersUpdate({ member: m.id, name: m.name, mail: m.mail, position: m.position, active: !m.active }); await loadMembers(); redo(); showToast(m.active ? 'ユーザーを有効化しました' : 'ユーザーを無効化しました'); }
     catch (err) { showApiError(err); } }); }
   if (a === 'mem-del') {
+    if (membersManagedByIdp()) return showApiError({ code: 'managed_by_idp' });
     delM = DATA.members.find(x => x.id === id);
     const ps = memberProjects(delM), as = memberApps(delM);
     $('#md-imp').textContent = `削除対象：${delM.name}（${delM.id}）。プロジェクト ${ps.length}件 / アプリ ${as.length}件 / 使用量 ${fmtMB(delM.usedMB)}MB`;
     $('#md-impact').innerHTML = `<h4>プロジェクト</h4><ul>${ps.map(p => `<li>${esc(p.name)}</li>`).join('') || '<li>なし</li>'}</ul><h4>アプリ</h4><ul>${as.map(n => `<li>${esc(n)}</li>`).join('') || '<li>なし</li>'}</ul>`;
+    const note = $('#md-idp-note'); if (note) note.hidden = true;
     mdStep(1); $('#d-md').showModal();
   }
   if (a === 'dev-rev') { const d = DATA.adminDevices[+b.dataset.i]; if (!d) return; reauth(async () => {
@@ -328,7 +377,7 @@ let editM = null;
 $('#mem-ok').onclick = () => {
   const n = $('#mem-name').value.trim(), mail = $('#mem-mail').value.trim(), position = $('#mem-pos').value;
   const mid = $('#mem-id').value.trim();
-  if (!editM && (!mid || mid.length > 64 || !/^[A-Za-z0-9._@-]+$/.test(mid))) return showToast('部員IDは、半角の英数字と . _ @ - だけで入力してください');
+  if (!editM && (!mid || mid.length > 64 || !/^[A-Za-z0-9._@-]+$/.test(mid))) return showToast('ユーザーIDは、半角の英数字と . _ @ - だけで入力してください');
   if (editM && (!mail || !$('#mem-mail').checkValidity())) return showToast('有効なメールアドレスを入力してください');
   if (!editM && mail && !$('#mem-mail').checkValidity()) return showToast('メールアドレスの形式を確認してください');
   const current = editM;
@@ -340,9 +389,9 @@ $('#mem-ok').onclick = () => {
         if (mail) payload.mail = mail;
         await Api.admin.membersAdd(payload);
       }
-      $('#d-mem').close(); await loadMembers(); redo(); showToast(current ? '部員を更新しました' : '部員を追加しました');
+      $('#d-mem').close(); await loadMembers(); redo(); showToast(current ? 'ユーザーを更新しました' : 'ユーザーを追加しました');
     } catch (e) {
-      if (e instanceof ApiError && e.code === 'conflict' && !current) showToast('その部員ID、またはメールアドレスは、すでに登録されています');
+      if (e instanceof ApiError && e.code === 'conflict' && !current) showToast('そのユーザーID、またはメールアドレスは、すでに登録されています');
       else showApiError(e);
     }
   });
@@ -368,20 +417,22 @@ $('#as-ok').onclick = () => reauth(async () => {
   } catch (e) { showApiError(e); }
 });
 
-/* CSV一括登録：プレビュー（エラー行つき）。列：部員ID,名前,メール,役職（BE 2.0: 管理者権限列廃止） */
+/* CSV一括登録：プレビュー（エラー行つき）。列：ユーザーID,名前,メール,役職。IdP正本時はVWCからの追加不可。 */
 const POS = ['顧問', '部長', '副部長', '部員'];
-const CSV_SAMPLE = '部員ID,名前,メール,役職\nU101,新人 一郎,ichiro@example.invalid,部員\nU102,新人 二郎,not-an-email,部員\nU001,重複 太郎,dup@example.invalid,部員\nU103,新人 三郎,saburo@example.invalid,副部長\nU104,新人 四郎,shiro@example.invalid,会計';
+const CSV_SAMPLE = 'ユーザーID,名前,メール,役職\nU101,新人 一郎,ichiro@example.invalid,部員\nU102,新人 二郎,not-an-email,部員\nU001,重複 太郎,dup@example.invalid,部員\nU103,新人 三郎,saburo@example.invalid,副部長\nU104,新人 四郎,shiro@example.invalid,会計';
 let csvOk = [];
 $('#csv-pv').onclick = () => {
+  if (membersManagedByIdp()) return showApiError({ code: 'managed_by_idp' });
   const rows = $('#csv-in').value.trim().split('\n').slice(1).map(l => l.split(',').map(s => s.trim())), seen = new Set(DATA.members.map(m => m.id)); csvOk = [];
   const res = rows.map((r, i) => { const [id, name, mail, role] = r; let err = '';
     if (r.length < 4 || !id || !name) err = '列が足りません'; else if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) err = 'メールアドレスの形式が正しくありません';
-    else if (!POS.includes(role)) err = '役職は 顧問/部長/副部長/部員 のいずれかです'; else if (seen.has(id)) err = '部員IDが重複しています';
+    else if (!POS.includes(role)) err = '役職は 顧問/部長/副部長/部員 のいずれかです'; else if (seen.has(id)) err = 'ユーザーIDが重複しています';
     if (!err) { seen.add(id); csvOk.push({ id, name, mail, role }); } return `<tr style="${err ? 'color:var(--danger)' : ''}"><td>${i + 2}</td><td>${esc(id || '')}</td><td>${esc(name || '')}</td><td>${err ? bd('エラー', 'b-ng') + ' ' + err : bd('OK', 'b-ok')}</td></tr>`; });
   $('#csv-out').innerHTML = `<table class="tbl"><thead><tr><th>行</th><th>ID</th><th>名前</th><th>結果</th></tr></thead><tbody>${res.join('')}</tbody></table><p class="anote">登録できる行：${csvOk.length}件 / エラー行：${rows.length - csvOk.length}件</p>`;
   $('#csv-ok').disabled = !csvOk.length; };
 $('#csv-ok').onclick = () => {
-  const csv = '部員ID,名前,メール,役職\n' + csvOk.map(m => [m.id, m.name, m.mail, m.role].join(',')).join('\n');
+  if (membersManagedByIdp()) return showApiError({ code: 'managed_by_idp' });
+  const csv = 'ユーザーID,名前,メール,役職\n' + csvOk.map(m => [m.id, m.name, m.mail, m.role].join(',')).join('\n');
   const count = csvOk.length;
   reauth(async () => {
     try {

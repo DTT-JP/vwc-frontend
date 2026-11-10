@@ -8,11 +8,14 @@ const fmtT = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2
 const baseName = n => n.replace(/\.[^.]+$/, '');
 /* システム（プロジェクト）へ保存：最大アップロードサイズの判定 → 進捗・キャンセルつきで保存（M08・M15） */
 async function uploadToProject(blob, name) {
+  if (!(typeof hasProject === 'function' ? hasProject() : !!(S.proj && S.proj.id))) {
+    return showToast(typeof NO_PROJECT_MSG === 'string' ? NO_PROJECT_MSG : 'プロジェクトを作成するか、開いてください');
+  }
   if (S.role === 'shared-view' || S.proj.perm === 'view') return showToast('閲覧のみのプロジェクトには保存できません');
   const node = S.sel ? findFile(S.sel) : null, list = node && node.t === 'dir' ? node.c : files(), dir = node && node.t === 'dir' ? S.sel : '';
   let n = uniqName(list, name);
   const r = await Upl.start([{ name: n, size: blob.size, file: blob, dir }]);
-  if (r.done.length) { await reloadTree(); notify('save', `${n} をプロジェクトに保存しました（${kb(blob.size)}）`); }
+  if (r.done.length) { await reloadTree(); refreshStatus(); notify('save', `${n} をプロジェクトに保存しました（${kb(blob.size)}）`); }
   return r;
 }
 
@@ -122,7 +125,8 @@ async function setAud(k, f) {
 const outOpts = a => outFormats().map(f => `<option value="${f}" ${a.fmt === f ? 'selected' : ''} ${fidelityInfo(a) && AOUT[f].lossy ? 'disabled' : ''}>${AOUT[f].n}</option>`).join('');
 const WARNT = 'この形式は非圧縮ではありません。原音を保つには wav か flac を選んでください。';
 const fidelityInfo = a => a.preset === '原音忠実';
-const warnOf = (p, a) => `<div class="tnote" id="${p}-warn" ${fidelityInfo(a) ? '' : 'hidden'}>${WARNT}</div>`;
+const fidelityWarn = a => fidelityInfo(a) && AOUT[a.fmt].lossy;
+const warnOf = (p, a) => `<div class="tnote" id="${p}-warn" ${fidelityWarn(a) ? '' : 'hidden'}>${WARNT}</div>`;
 const estOf = (a, s, e) => { const o = AOUT[a.fmt], d = e - s; if (!o.lossy) { const w = (a.sr || 44100) * (a.ch || 2) * (presetBits(a) / 8) * d; return a.fmt === 'wav' ? w : w * .6; } return a.br * 125 * d; };
 const presetBits = a => a.preset === '原音忠実' ? (a.fmt === 'flac' ? Math.min(a.srcBits || 16, 24) : a.srcBits || 16) : a.bits || 16;
 const closestRate = (rate, choices) => choices.reduce((best, n) => Math.abs(n - rate) < Math.abs(best - rate) ? n : best, choices[0]);
@@ -282,7 +286,7 @@ function audCtl(op) {
   showPlayhead(); layoutWave(); if (was && a.ph < a.dur - .02) playStart();
 }
 function refreshOut(p, a) { /* 出力設定の変更を画面に反映（作り直さず、必要な部分だけ） */
-  const w = $('#' + p + '-warn'); if (w) w.hidden = !fidelityInfo(a); const pi = $('#' + p + '-preinfo'); if (pi) pi.textContent = preInfo(a);
+  const w = $('#' + p + '-warn'); if (w) w.hidden = !fidelityWarn(a); const pi = $('#' + p + '-preinfo'); if (pi) pi.textContent = preInfo(a);
   const fmt = $('#' + p + '-fmt'); if (fmt) { fmt.innerHTML = outOpts(a); fmt.value = a.fmt; }
   const details = fmt?.closest('.adm')?.querySelector('.dsc'); if (details) details.hidden = a.preset !== 'カスタム';
   const br = $('#' + p + '-br'); if (br) br.value = a.br;

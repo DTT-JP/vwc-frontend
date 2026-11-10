@@ -1,5 +1,22 @@
+## FE 2.1.0 (2026-11-10)
+- 変更(エディタ): 独自textarea/ハイライト/HTML補完実装を **CodeMirror 6** に置換（`public/vendor/codemirror/cm6.bundle.js`, `js/editor.js` をEditorCore化）。補完はON/OFF設定（`htmlComplete` 旧値 `tab/auto→on` 移行）、標準CM6言語/拡張を同梱し `EditorCore.langs/EXT` で追加可能。ファイル内検索・プロジェクト検索ジャンプ・タッチ補助キー・タブ再利用(undo/選択保持)・テーマ/wrap/行番号/tab幅反映に対応。
+- 追加(エンコーディング): テキスト読込/表示/保存で差分表示と同等のエンコーディングに対応（UTF-8, UTF-8 BOM, UTF-16 LE/BE［BOM有無］, Shift-JIS, EUC-JP, ANSI）。ステータスバー種別を `形式(エンコーディング)` 表示（例: `HTML(UTF-8 BOM)`）。BEが返す `encoding/charset` を保持し保存時に送信。
+- 追加(ヘルプ): `help/18-errors.md` 追加、`99-writing.md` を特殊MD記法（標準Markdown+VWC拡張: 色/bg/size/icon/コールアウト/タスク/コード・Mermaid・メディア等）へ改訂、`01-start/10-trouble/12-preview/13-usage/14-admin/15-shortcuts/_index` を現行挙動に更新。`help/bundle.js` 再生成。
+- 修正(ログイン/信頼端末): MS面影を除去し部活アカウント(IdP)をハイライト色のログインボタン1つに統一。ログイン/初回区別を廃止し通常ログイン後は信頼端末未登録なら登録レーンへ、登録済み(`me.trusted`)はSKIP。`login_providers`/既存認証契約は維持。
+- 修正(IdP連携UI): `login_providers` にIdPがあればBE応答前からユーザー管理をIdP連携状態として扱い、同期/「IdPから同期」時に右下へ「IdPと連携中」タスク表示。BE `managedByIdp` 明示値を優先して最終確定。
+- 修正(ファイル/状態): ツール保存後に `refreshStatus()` を呼び追跡状態を即時反映。`history/status` 反映時にツリー名色/バッジを即時再描画（スクロール保持）。rename後に `refreshStatus()` 実行、`renamed` 状態表示に対応。
+- 修正(UI): プロジェクト未オープン時の案内表示（SM02/04/05/11、ツール操作、左下ステータス）、起動/エラー/読み込み中画面のテーマ対応・ボタンなし・フェード遷移。新規プロジェクト作成後に上部 `.sync` アニメーションが残る問題を修正。
+- 修正(履歴): 履歴画面の巨大サイズファイル表示を削除し、件数とコミットボタンの間に変更ファイル一覧（追加/変更/削除、3件分+スクロール）を追加。
+- 修正(容量): 保存/作成/削除/移動/rename/アップロード/ツール保存/コミット・復元・履歴削除/アプリ操作後に使用量・プロジェクト容量表示を再取得して反映（デバウンス付き）。
+- 修正(エディタ確認): 大容量テキスト(TEXTX, 5MB以上)の表示前確認、解読不能/文字化け疑いの非メディア警告を表示（既存判定と整合）。
+- 修正(ツール): 動画から音声/音声カットの「原音忠実」時、wav/flac選択で誤警告が出る条件を修正（非可逆形式の不整合時のみ警告）。
+- 修正(公開): 公開成功URL表示を青リンクからテーマ文字色に変更し、URLコピー/URLを開くボタンを追加。`files/raw`・`files/zip` の能力広告整合により「ファイル配信・ZIP取得」誤警告が出ない構成へ（BE側routes反映が必要）。
+- その他: `Api.admin.idpMembersSync` 追加、`me.project`互換フィールド等の契約写し/補助修正、`build-manifest.json` 更新。
+- 備考: 実機ブラウザ・IdP/WebAuthn・実サーバー配備/E2E確認は未実施項目あり。`public/vendor/codemirror/cm6.bundle.js` は `tools/dependencies.json`/`complete.py` 管理外の同梱。
+
 ## FE 2.0.4 (2026-11-09)
 - 修正: 管理画面（SM07）の「認証システム（IdP）の管理を開く」リンク（`<a class="row">`）が周囲のメニュー項目より青いリンク表示で浮いて見える問題を修正。`public/css/layout.css` の `.row` に `color: inherit; text-decoration: none;` を追加し、周囲の `.row` と同じ見た目に統一。
+- 追加(FIX#4): 管理「ユーザー管理」画面に「IdP管理画面を開く」ボタンを設置。URLは `EDITOR_CONFIG.idpAdminUrl`（任意）を優先し、未指定時は `idpBase`/既定 `../auth/` から `index.php?p=admin` を安全に組み立て（ハードコード回避）。IdP未設定時は無効+理由、URL組み立て不可時も無効+理由。左メニューのIdP管理リンクも同じ管理画面URLを参照するよう更新。
 
 ## FE 2.0.3 (2026-11-09)
 - 修正: `dev/fake-api/server.py` を BE/FE 2.0 実態に対応（`meta/version` の MAJOR/`backend.version` 整合、`login_providers=["idp"]`、`backend.apis` の `since`［`admin/admins_status`=1.2］、`me` の `idp_linked`/`adminDesignated`/`limits`、部員・管理APIの v2 形状、`admin/admins_status` 実装、`members/search` の `[{id,name}]` 応答 等）

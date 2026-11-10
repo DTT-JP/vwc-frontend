@@ -87,6 +87,7 @@ async function moveNode(src, t) {
     await reloadTree();
     await refreshStatus();
     renderTabs(); renderTree();
+    if (typeof scheduleUsageRefresh === 'function') scheduleUsageRefresh();
     showToast('移動しました');
   } catch (e) { showApiError(e); await reloadTree(); renderTree(); renderTabs(); }
 }
@@ -107,6 +108,7 @@ async function moveMany(paths, t) {
     } catch (e) { failed++; showApiError(e); }
   }
   await reloadTree(); await refreshStatus(); renderTabs(); renderTree();
+  if (targets.length !== failed && typeof scheduleUsageRefresh === 'function') scheduleUsageRefresh();
   if (failed) showToast(`${failed}件を移動できませんでした`);
   else showToast(targets.length + '件を移動しました');
 }

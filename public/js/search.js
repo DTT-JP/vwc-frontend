@@ -31,11 +31,23 @@ async function runSearch() {
   } catch (e) { sMsg(apiMessage(e)); }
 }
 async function gotoHit(h) {
-  await openFile(h.p); const ta = $('textarea.in', $('#' + S.grp)); if (!ta) return;
-  try { await ensureText(S.tabs.find(t=>t.path===h.p).f, h.p, S.proj.id); } catch { /* noop */ }
-  const text = (S.tabs.find(t=>t.path===h.p) || {}).text || ta.value;
+  await openFile(h.p);
+  const tab = S.tabs.find(t => t.path === h.p);
+  try { if (tab && tab.f) await ensureText(tab.f, h.p, S.proj.id); } catch { /* noop */ }
+  const t = tab || S.act[S.grp], pane = $('.pane', $('#' + S.grp)); if (!t) return;
+  const text = t.text != null ? String(t.text) : (t.f && t.f.text != null ? String(t.f.text) : '');
+  if (t.cm && window.EditorCore) {
+    if (text && text !== EditorCore.getText(t.cm)) EditorCore.setText(t.cm, text);
+    t.text = text;
+    const lines = text.split('\n'), pos = lines.slice(0, h.ln - 1).join('\n').length + (h.ln > 1 ? 1 : 0);
+    EditorCore.scrollToPos(t.cm, pos, pos + (lines[h.ln - 1] || '').length);
+    return;
+  }
+  const ta = $('textarea.in', pane); if (!ta) return;
   const lines = text.split('\n'), pos = lines.slice(0, h.ln - 1).join('\n').length + (h.ln > 1 ? 1 : 0);
-  ta.value = text; ta.focus(); ta.setSelectionRange(pos, pos + (lines[h.ln - 1] || '').length); ta.scrollTop = Math.max(0, (h.ln - 4) * parseFloat(getComputedStyle(ta).lineHeight)); syncScroll($('.pane', $('#' + S.grp)), ta);
+  ta.value = text; ta.focus(); ta.setSelectionRange(pos, pos + (lines[h.ln - 1] || '').length);
+  ta.scrollTop = Math.max(0, (h.ln - 4) * parseFloat(getComputedStyle(ta).lineHeight));
+  if (window.syncScroll) syncScroll(pane, ta);
 }
 async function applyText(p, fn) {
   const f = findFile(p); if (!f) return false;

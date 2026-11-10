@@ -1,4 +1,4 @@
-> 複製元: vwc-backend (workspace/P5 2026-11-08) / 複製日: 2026-11-08
+> 複製元: vwc-backend docs/04_API.md（BE 2.0, ユーザー管理IdP正本・追加/削除/管理者設定をVWCから変更不可）／複製日: 2026-11-09
 > この文書は複製です。直接直さず、複製元を直してから更新してください。
 
 # 04 API定義（BE 2.0.0。**FE と BE の契約**。正は BE リポジトリの `docs/04_API.md`。FE は写しを `docs/api-contract/04_API.md` に置く。規則は `docs/rules/04_API規則.md` が正）
@@ -15,7 +15,7 @@
 | auth/logout | ログイン (login) | untrust? | ok（untrust=true でこの端末の信頼も解除） |
 | auth/devices, device_revoke | ログイン (login) | id | 自分の信頼端末 |
 | auth/trust | ログイン (login) | label | この端末を信頼端末として登録し、端末Cookieを発行 |
-| me | ログイン (login) | — | member(position, isAdmin, reauthUntil, idp_linked), csrf, 画面が使う設定値（quota_mb, max_upload_mb, max_publish_mb, max_projects_per_member, track_limit_mb, code_ttl_sec, device_days, zip_max_mb など。`limits` に全制限値）。`idp_linked` は BE 1.2+（IdP 結び付き） |
+| me | ログイン (login) | — | member(position, isAdmin, reauthUntil, idp_linked), csrf, `project`（常に `null`。サーバーは現在開いているプロジェクトを保持せず、未オープン時は空を表す互換フィールド）, 画面が使う設定値（quota_mb, max_upload_mb, max_publish_mb, max_projects_per_member, track_limit_mb, code_ttl_sec, device_days, zip_max_mb など。`limits` に全制限値）。`idp_linked` は BE 1.2+（IdP 結び付き） |
 | usage/me | ログイン (login) | — | 4区分の合計と全件（プロジェクト・アプリ・履歴・その他） |
 | notices/list | ログイン (login) | — | 「忘れていませんか？」（放置アプリ・容量80%超・端末期限7日前・孤立アプリ［管理者のみ］）。サーバーが生成 |
 | announcements/list | ログイン (login) | — | 表示期間内・対象に合うお知らせ |
@@ -33,10 +33,10 @@
 | files/upload_init, upload_chunk, upload_done | ログイン/編集以上 (login, perm=edit) | upload_id, index, データ | ok |
 | files/preview_token | ログイン/閲覧以上 (login, perm=view) | project, path | `preview.php` 用URL（15分） |
 | files/zip_prepare | ログイン/閲覧以上 (login, perm=view) | project, path? | 合計サイズ、短期トークン。`too_large` |
-
-**別扱い（`index.php` の GET 分岐。`routes.php` には載せない。指示書 B1/C1 整合）**: `files/raw`（GET, ログイン/閲覧以上, `project,path`）、`files/zip`（GET, トークン, `token`）。
+| files/raw (GET) | ログイン/閲覧以上 (login, perm=view) | project, path (query) | ファイル配信。`index.php` の GET 分岐で処理（POST switch には無い）。`routes.php` にも掲載（`backend.apis`/互換判定のため） |
+| files/zip (GET) | トークン (token) | token (query) | ZIP取得。`index.php` の GET 分岐で処理（POST switch には無い）。`routes.php` にも掲載（`backend.apis`/互換判定のため） |
 | files/search | ログイン/閲覧以上 (login, perm=view) | project, query, case, regex | 内容検索（最大200件） |
-| history/status | ログイン/閲覧以上 (login, perm=view) | project | パスごとの状態（new / modified / deleted / unchanged）と件数（追加・変更・削除）。ファイルのハッシュは前回の値をキャッシュして再利用するため、ファイルが多くても速い |
+| history/status | ログイン/閲覧以上 (login, perm=view) | project | パスごとの状態（new / modified / deleted / unchanged / renamed。内容不変の名前変更は renamed）と件数（追加・変更・削除。名前変更は変更に数える）。ファイルのハッシュは前回の値をキャッシュして再利用するため、ファイルが多くても速い |
 | history/commit | ログイン/編集以上 (login, perm=edit) | project, message | 変更なしは `invalid` |
 | history/log | ログイン/閲覧以上 (login, perm=view) | project, cursor?, limit? | 新しい順、親・分岐点・関連（分岐/公開）。既定50件、最大100件。`cursor` は前ページ末尾ハッシュで古いページを取得 |
 | history/diff | ログイン/閲覧以上 (login, perm=view) | project, hash, path（省略可） | `path` なし＝変更の一覧だけ（`added` `modified` `deleted` `renamed` と、ファイルごとの `files[{path,status,kind,before,after,from?}]`。内容は読まない）。`path` あり＝そのファイルの差分を `diffs[path]` に返す（テキストは `type: modified/added/deleted`・`diff`（`eq` `del` `add` と、変更のない行をまとめた `skip`）・`add` `del` 行数・`encoding`。バイナリは `bin`、追跡上限超は `large`、巨大テキストは `toolarge`。名前の変更のみは `renamed`）。計算結果はサーバーが覚えておく |
@@ -53,8 +53,9 @@
 | apps/gate_verify | 不要 (none) | name, code | 限定公開のコードを検証し、アクセストークンの Cookie を発行。誤りは `bad_code`（残り回数）、ロックは `rate`（解除までの秒数） |
 | apps/unpublish | ログイン (login, 公開権限者) | name | 削除 |
 | admin/admins_status | 管理者+再認証 (admin_reauth) | — | 管理者2人要件の状態。`adminCount`（指定管理者数: 有効かつ `idp_admin_designated`、非IdP結び付きの旧`role=admin`も含む）`executableAdminCount`（有効かつ執行可能`role=admin`）`hasMinimumAdmins`（`adminCount>=minimumRequired`）`minimumRequired`(2)。IdPが正（D-09）のためBEミラーに基づく集計。FEが管理者人数を確認する用途 |
-| admin/members_list, add, update, import_csv | 管理者+再認証 (admin_reauth) | add: `id?`(省略時自動採番), `name`, `mail?`, `position`; update: `member`, `name?`, `mail?`, `position?`, `active?`; import_csv: `csv` | 役職・メール・名前・有効/無効の編集。**管理者フラグは IdP が正**（BE API からの `is_admin` 変更は 2.0 で廃止。別名キー `member_id`/`email`/`isAdmin` も廃止）。CSV列は `部員ID,名前,メール,役職`（管理者権限列は廃止）。`members_list` 各部員に `idp_linked`、`isAdmin`（表示用）等。`members_add` の `mail` は任意（空なら NULL、重複検査は値があるときのみ）。 |
-| admin/members_delete | 管理者+再認証 (admin_reauth) | `member`, `projects`[{id, action(keep/transfer/delete), to?}], `apps`[{name, action(keep/private/unlisted/delete)}] | 既定は keep |
+| admin/members_list, add, update, import_csv | 管理者+再認証 (admin_reauth) | add: `id?`(省略時自動採番), `name`, `mail?`, `position`; update: `member`, `name?`, `mail?`, `position?`, `active?`; import_csv: `csv` | ユーザー管理（画面名「ユーザー管理」）。**IdP連携が有効/設定済み（`login_providers` に `idp` かつ `idp_issuer`/`idp_client_id`/`idp_client_secret` 設定）の場合、ユーザーの追加・削除・管理者設定は IdP 登録情報が元のため VWC から変更不可**（`admin/members_add`・`admin/members_import_csv`・`admin/members_delete` は `409 {"error":"managed_by_idp"}`。管理者設定は元から IdP が正で BE API から変更不可）。**IdP連携が無効/未設定の場合**は既存のローカル管理を維持する（`add`/`import_csv`/`delete` は従来どおり動作）。`members_list` は `managedByIdp`（真偽）を返し、IdP有効時は表示前に `state.php mode=all` でベストエフォート同期してから返す（不通時はローカル）。`members_list` 各ユーザーに `idp_linked`、`isAdmin`（表示用）等。`update` は表示用情報（役職・メール・名前・有効/無効）の編集用だが、IdP有効時は `active` 等が同期で上書きされ得る点に注意。CSV列は `部員ID`/`ユーザーID`, `名前`, `メール`, `役職`（管理者権限列廃止）。`is_admin` 変更・別名キー `member_id`/`email`/`isAdmin` は廃止。 |
+| admin/idp_members_sync | 管理者+再認証 (admin_reauth) | — | IdP から登録済み全ユーザー（部員ID=`member_id`、管理者権限=`admin`/`admin_designated`）を取得して VWC の `members` に反映する（作成/結び付き/`role`・`idp_admin_designated`・`active`・`idp_epoch` 更新。IdP一覧に無い `idp_sub` 結び付きユーザーは無効化）。成功時 `{ok,synced,created,updated}`。IdP未設定/不通は `configuration`/`connect`。 |
+| admin/members_delete | 管理者+再認証 (admin_reauth) | `member`, `projects`[{id, action(keep/transfer/delete), to?}], `apps`[{name, action(keep/private/unlisted/delete)}] | IdP連携が有効/設定済みの場合は `409 managed_by_idp`（VWCから削除不可）。IdP無効/未設定時のみ従来どおり実行（既定は keep）。 |
 | admin/devices_list | 管理者+再認証 (admin_reauth) | member? | 端末一覧 |
 | admin/devices_revoke | 管理者+再認証 (admin_reauth) | id | 端末の失効。旧別名 `admin/device_revoke` は 2.0 で削除 |
 | admin/settings_get, set | 管理者+再認証 (admin_reauth) | set: key, value（get は入力なし） | get は全設定値、set は範囲検証 |
@@ -76,6 +77,7 @@
 | `bad_name` | 400 | 名前が不正 |
 | `bad_path` | 400 | パスが不正 |
 | `configuration` | 500 | 設定エラー（必須設定の欠落・不正） |
+| `connect` | 502 | 外部接続エラー（IdP 等への接続・応答の取得に失敗） |
 | `conflict` | 409 | 競合（版・状態） |
 | `csrf` | 403 | CSRF トークン不正 |
 | `expired` | 400/410 | 期限切れ（要求・トークン等） |
@@ -85,7 +87,7 @@
 | `invalid` | 400 | 入力不正・未知の入力キー（未知キーは拒否）・許可されない操作 |
 | `limit` | 409 | 制限超過（件数など） |
 | `locked` | 423 | 占有・ロック中 |
-
+| `managed_by_idp` | 409 | IdP が正本のため VWC から変更不可（ユーザーの追加・削除・管理者設定など。IdP 無効/未設定時は発生しない） |
 | `method_not_allowed` | 405 | メソッド不許可 |
 | `not_admin` | 403 | 管理者権限なし |
 | `not_found` | 404 | 対象なし |

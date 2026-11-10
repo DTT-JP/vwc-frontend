@@ -71,7 +71,7 @@ API_SINCE = {
   "apps/viewers_list":"1.0","apps/viewers_add":"1.0","apps/viewers_remove":"1.0",
   "apps/open":"1.0","apps/gate_verify":"1.0","apps/unpublish":"1.0",
   "admin/admins_status":"1.2",
-  "admin/members_list":"1.0","admin/members_add":"1.0","admin/members_update":"1.0",
+  "admin/members_list":"1.0","admin/idp_members_sync":"2.0","admin/members_add":"1.0","admin/members_update":"1.0",
   "admin/members_import_csv":"1.0","admin/members_delete":"1.0",
   "admin/devices_list":"1.0","admin/devices_revoke":"1.0",
   "admin/settings_get":"1.0","admin/settings_set":"1.0","admin/usage":"1.0",
@@ -391,6 +391,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
             }
         if r == "admin/members_list":
             return {"members": [format_member_for_admin(m) for m in STATE["members"]]}
+        if r == "admin/idp_members_sync":
+            return {"ok": True, "synced": len(STATE["members"]), "created": 0, "updated": 0}
         if r == "admin/members_add":
             mid = body.get("id") or ("U"+str(100+len(STATE["members"])+1))
             mail = body.get("mail")

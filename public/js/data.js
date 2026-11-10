@@ -5,8 +5,10 @@
    ・画面（app.js ほか）は DATA だけを参照する。 */
 const SETTINGS_DEFAULT = {
   theme: 'dark', accent: 'blue', uiFont: 14, edFont: 14, lineH: 1.6, tab: 2, wrap: false, lineNo: true, density: 'standard',
+  htmlComplete: 'on', // コード補完 ON/OFF（旧値 tab/auto は on、off は off に移行）
   notify: { save: true, share: true, publish: true, device: true, usage: true }
 };
+function normalizeCodeComplete(v) { return (v === 'off' || v === false) ? 'off' : 'on'; }
 /* 制限値の表示用の定義（名前・説明・範囲）。値は API（me / admin/settings_get）から受け取る。 */
 const LIMIT_META = [
   { key: 'quota_mb', name: '部員ごとの容量上限', description: '1人あたりの使用量の上限（プロジェクト・アプリ・履歴などの合計）', value: 2048, min: 1, max: 10000, default: 2048, unit: 'MB' },
@@ -160,8 +162,11 @@ function settingsKey() { return 'vwc.settings.' + (DATA.user.id || 'anon'); }
 function loadSettings() {
   try {
     const v = JSON.parse(localStorage.getItem(settingsKey()) || 'null');
-    if (v && typeof v === 'object') DATA.settings = { ...JSON.parse(JSON.stringify(SETTINGS_DEFAULT)), ...v, notify: { ...SETTINGS_DEFAULT.notify, ...(v.notify || {}) } };
+    if (v && typeof v === 'object') {
+      DATA.settings = { ...JSON.parse(JSON.stringify(SETTINGS_DEFAULT)), ...v, notify: { ...SETTINGS_DEFAULT.notify, ...(v.notify || {}) } };
+    }
   } catch { /* 壊れた値は既定に戻す */ }
+  DATA.settings.htmlComplete = normalizeCodeComplete(DATA.settings.htmlComplete);
 }
 function saveSettings() { try { localStorage.setItem(settingsKey(), JSON.stringify(DATA.settings)); } catch { /* 保存できなくても画面は動く */ } }
 
@@ -298,7 +303,18 @@ function applyAdminProjects(d) {
     return o;
   });
 }
+function hasIdpLoginProvider() {
+  return !!(DATA.meta && Array.isArray(DATA.meta.login_providers) && DATA.meta.login_providers.includes('idp'));
+}
 function applyMembers(d) {
+  /* IdP連携あり判定: ログイン手段にIdPがあれば、同期完了前/BE応答前でもIdP管理モード相当に扱う（誤追加防止）。
+     BE が managedByIdp を明示した場合は BE確定値を優先する。
+     - managedByIdp:true  -> IdP正本（VWCから追加・削除・管理者設定不可）
+     - managedByIdp:false -> IdP実質無効/未設定等でBEがローカル管理を許容するため、それに合わせて解放（BEと整合） */
+  const explicit = first(d || {}, ['managedByIdp', 'managed_by_idp'], undefined);
+  if (explicit !== undefined) DATA.membersManagedByIdp = bool(explicit, hasIdpLoginProvider());
+  else if (hasIdpLoginProvider() || !!(typeof S !== 'undefined' && S && S.idpMode)) DATA.membersManagedByIdp = true;
+  else DATA.membersManagedByIdp = false;
   DATA.members = arr(d, 'members').map(m => ({
     ...m, id: String(m.id ?? m.member_id ?? ''), name: m.name || '', mail: m.mail ?? m.email ?? '-',
     position: m.position || '部員', isAdmin: bool(first(m, ['isAdmin', 'is_admin'], m.role === 'admin'), false),
@@ -368,19 +384,27 @@ function applyStatus(projectId, d) {
   const out = { add: num(s.add, 0), mod: num(s.mod, 0), del: num(s.del, 0) };
   if (projectId) {
     DATA.commitStatus[projectId] = out;
-    if (d && d.states && !Array.isArray(d.states)) { (DATA.fileStates = DATA.fileStates || {})[projectId] = d.states; markStates(projectId, d.states); }
+    const hasStates = !!(d && d.states && !Array.isArray(d.states));
+    if (hasStates) { (DATA.fileStates = DATA.fileStates || {})[projectId] = d.states; markStates(projectId, d.states); }
+    if (typeof S !== 'undefined' && S.proj && S.proj.id === projectId) {
+      if (typeof renderTree === 'function') renderTree();
+      if (typeof renderHist === 'function') renderHist();
+      if (typeof updateCommitControl === 'function') updateCommitControl();
+    }
   }
   return out;
 }
-/* states（new / modified / untracked）を、ファイルツリーの印（新・更）に反映する。 */
+/* states（new / modified / renamed / deleted / unchanged / untracked）を、ファイルツリーの印（新・更）に反映する。 */
 function markStates(projectId, states) {
   const walk = (list, prefix) => (list || []).forEach(n => {
     const path = prefix ? prefix + '/' + n.n : n.n;
     if (n.t === 'dir') { walk(n.c, path); return; }
     const st = states[path];
     delete n.untracked;
+    delete n.renamed;
     if (st === 'new') { n.inBase = false; n.mod = false; }
     else if (st === 'modified') { n.inBase = true; n.mod = true; }
+    else if (st === 'renamed') { n.inBase = true; n.mod = true; n.renamed = true; } // 名前変更・移動（内容不変）= オレンジ「更」
     else if (st === 'untracked') { n.untracked = true; }
     else if (st === 'unchanged') { n.inBase = true; n.mod = false; }
   });
@@ -392,11 +416,53 @@ function markStates(projectId, states) {
 let projectsSeq = 0;
 async function loadProjects() { const seq = ++projectsSeq, d = await Api.projects.list(); if (seq === projectsSeq) applyProjects(d); }
 async function loadUsage() { applyUsage(await Api.call('usage/me', {})); }
+/* ファイル変更後の使用量表示更新。連続操作（自動保存・一括処理）ではまとめて1回にする。 */
+let _usageRefreshTimer = 0, _usageRefreshSeq = 0;
+function scheduleUsageRefresh(delay = 900) {
+  clearTimeout(_usageRefreshTimer);
+  _usageRefreshTimer = setTimeout(() => { refreshUsageDisplay().catch(() => {}); }, delay);
+}
+async function refreshUsageDisplay() {
+  const seq = ++_usageRefreshSeq;
+  const tasks = [loadUsage().catch(() => {})];
+  if (typeof S !== 'undefined' && S.role === 'admin' && typeof loadAdminUsage === 'function') {
+    tasks.push(loadAdminUsage(typeof usageMember !== 'undefined' ? (usageMember || undefined) : undefined).catch(() => {}));
+  }
+  if (typeof loadProjects === 'function') tasks.push(loadProjects().catch(() => {}));
+  await Promise.all(tasks);
+  if (seq !== _usageRefreshSeq) return;
+  if (typeof renderProjects === 'function') { try { renderProjects(); } catch {} }
+  if (typeof renderUsage === 'function') { try { renderUsage(); } catch {} }
+  if (typeof S !== 'undefined' && S.tabs) {
+    const t = S.tabs.find(x => x.name === '使用状況の詳細');
+    if (t && typeof rUsage === 'function') { t.render = rUsage; if (typeof renderTabs === 'function') renderTabs(); }
+  }
+}
+async function refreshUsageAndProjects(delay = 0) {
+  if (delay > 0) { scheduleUsageRefresh(delay); return; }
+  clearTimeout(_usageRefreshTimer);
+  await refreshUsageDisplay().catch(() => {});
+  if (typeof loadProjects === 'function') {
+    await loadProjects().catch(() => {});
+    if (typeof renderProjects === 'function') { try { renderProjects(); } catch {} }
+  }
+}
 async function loadAnnouncements() { applyAnnouncements(await Api.call('announcements/list', {})); }
 async function loadAdminAnnouncements() { applyAnnouncements(await Api.admin.announcementsList()); }
 async function loadNotices() { applyNotices(await Api.call('notices/list', {})); }
 async function loadApps(scope) { applyApps(await Api.apps.list(scope)); }
-async function loadMembers() { applyMembers(await Api.admin.membersList()); }
+let _idpSyncTask = 0;
+async function loadMembers(opts = {}) {
+  const show = opts.idpTask !== false && hasIdpLoginProvider();
+  if (show && !_idpSyncTask) {
+    _idpSyncTask++;
+    try {
+      await Task.run({ title: 'IdPと連携中', icon: 'sync' }, async () => { applyMembers(await Api.admin.membersList()); });
+    } finally { _idpSyncTask--; }
+    return;
+  }
+  applyMembers(await Api.admin.membersList());
+}
 async function loadAdminDevices(member) { applyAdminDevices(await Api.admin.devicesList(member)); }
 async function loadAdminProjects(member) { applyAdminProjects(await Api.admin.projectsList(member)); }
 async function loadAdminUsage(member) { return applyAdminUsage(await Api.admin.usage(member)); }
@@ -439,8 +505,15 @@ async function ensureText(node, path, projectId) {
   /* 1MB以上は、すぐに右下の通知を出す。それ未満・サイズ不明でも、0.35秒以上かかったら通知を出す（通信が遅いとき） */
   const label = node.size ? `${name} を読み込み中（${kb(node.size)}）` : `${name} を読み込み中`;
   const d = await Task.run({ title: label, icon: 'description', ...(big ? { delay: 0 } : {}) }, read);
-  node.text = d.content ?? d.text ?? '';
+  if (d.text === false || d.encoding === 'base64') {
+    node.encoding = 'base64'; node.charset = null;
+    if (d.content) try { node.blob = new Blob([Uint8Array.from(atob(d.content), c => c.charCodeAt(0))]); } catch {}
+    return node;
+  }
+  node.text = typeof d.content === 'string' ? d.content : '';
   if (d.version !== undefined) node.version = d.version;
+  if (d.encoding) node.encoding = d.encoding;
+  if (d.charset) node.charset = d.charset;
   if (node.bt === undefined) node.bt = node.text;
   return node;
 }

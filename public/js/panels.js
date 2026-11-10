@@ -19,9 +19,13 @@ function openInfo(name, html) { // 右エリアにタブで表示（詳細・差
 const av = n => `<span class="avatar">${esc(String(n || '?').trim()[0] || '?')}</span>`;
 let shareCandidates = [], shareTimer = 0;
 function renderShare() {
-  if (!$('#sh-state') || !S.proj) return;
+  if (!$('#sh-state')) return;
+  if (!(typeof hasProject === 'function' ? hasProject() : !!(S.proj && S.proj.id))) {
+    $('#sh-state').innerHTML = typeof noProjectPanel === 'function' ? noProjectPanel() : `<div class="pnote" style="padding:16px">プロジェクトを作成するか、開いてください</div>`;
+    $('#sh-owner').hidden = true; $('#sh-transfer').hidden = true; $('#sh-list').innerHTML = '';
+    return;
+  }
   const o = owner(), n = DATA.collab.length, st = S.proj.perm ? `共有されています（${S.proj.perm === 'edit' ? '編集可' : '閲覧のみ'}）` : n ? `${n}人に共有中` : '共有していません';
-  if (!S.proj) return;
   $('#sh-state').innerHTML = `<span class="ms">${S.proj.perm || n ? 'group' : 'lock'}</span><div><b>${esc(S.proj.name)}</b><small>${st}</small></div>${o ? `<button data-sh-bulk title="共有を一括で ON / OFF" aria-label="共有を一括で ON / OFF">${ico('edit')}</button>` : ''}`;
   $('#sh-owner').hidden = !o; $('#sh-transfer').hidden = !o;
   const known = [...shareCandidates, ...DATA.members].filter((m, i, a) => m.active !== false && a.findIndex(x => x.id === m.id) === i && !DATA.collab.some(c => c.id === m.id));

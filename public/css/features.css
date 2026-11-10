@@ -30,7 +30,13 @@ dl.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:8px 0}dl.k
 /* 履歴：親・分岐点・未追跡 */
 .cm .hbr{position:absolute;top:16px;height:2px;width:14px;background:var(--warn)}.cm-out .hbr{left:14px}.cm-in .hbr{left:0;width:12px;background:var(--ok)}
 .cm-out .hdot{background:var(--warn)}.cm-in .hdot{background:var(--ok)}
-.un-h{display:flex;align-items:center;gap:8px;padding:12px 12px 0}.un-r{display:flex;align-items:center;gap:8px;padding:6px 12px}.un-r .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+/* コミット対象の変更ファイル一覧（#8）：件数とコミットボタンの間。3件分を表示し、それ以上はスクロール */
+.hi-files{margin:0 12px 8px;max-height:96px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;background:var(--bar)}
+.hi-files[hidden]{display:none}
+.hi-file{display:flex;align-items:center;gap:8px;padding:5px 10px;font-size:13px;min-height:32px;box-sizing:border-box}.hi-file+.hi-file{border-top:1px solid var(--border)}
+.hi-file .ms{font-size:18px;flex:none;color:var(--fg-dim)}.hi-file .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hi-k{flex:none;font-size:11px;border-radius:8px;padding:0 6px;border:1px solid currentColor;line-height:1.7}
+.hi-add .hi-k{color:var(--ok)}.hi-mod .hi-k{color:var(--warn)}.hi-del .hi-k{color:var(--danger)}
 .stm.ut{font-size:11px;border:1px solid var(--warn);color:var(--warn);border-radius:8px;padding:0 6px}
 /* 差分 */
 .diffv{padding:12px;display:grid;gap:12px}.dtools{display:flex;gap:8px;align-items:center}.dtools .sp{flex:1}.dtools .on{background:var(--accent);color:#fff}
@@ -70,18 +76,9 @@ dl.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:8px 0}dl.k
 /* ---- ライセンス文書タブ ---- */
 .mdx .seg.lic-tabbar{margin:0 0 24px}.mdx .seg.lic-tabbar button{min-width:0}.mdx .seg.lic-tabbar button>span:last-child{overflow-wrap:anywhere;text-align:center;font-size:13px;line-height:1.3}
 #app.w-phone .mdx[data-ctx=license] pre{white-space:pre-wrap;overflow-wrap:anywhere}
-/* ---- Microsoft でサインイン：Microsoft のブランドガイドライン準拠（ロゴは改変しない。明るい画面＝濃い色調、暗い画面＝薄い色調）
-   寸法・色は公式の「サインイン」画像に合わせた値（高さ41px・ロゴ21px・余白12px）。公式画像との照合は要確認。 ---- */
-.ms-hint{margin:8px 0 16px}
-.ms-signin{display:inline-flex;align-items:center;justify-content:flex-start;gap:12px;box-sizing:border-box;min-width:215px;height:41px;min-height:41px;padding:0 12px;border-radius:0;
-  font:600 15px/1 "Segoe UI","Segoe UI Variable Text","Yu Gothic UI","Hiragino Sans",Meiryo,system-ui,sans-serif;letter-spacing:0;cursor:pointer;
-  background:#fff;color:#5e5e5e;border:1px solid #8c8c8c}
-.ms-signin:hover{background:#f2f2f2}
-[data-theme=light] .ms-signin{background:#2f2f2f;color:#fff;border-color:#2f2f2f}
-[data-theme=light] .ms-signin:hover{background:#3c3c3c}
-.ms-signin:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.ms-signin .ms-logo{flex:none;display:block;width:21px;height:21px}
-.ms-signin .ms-label{white-space:nowrap}
+/* ---- ログイン画面の主ボタン（QRのようなハイライト色・1つに統一） ---- */
+.login-main-btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-width:220px;min-height:48px;padding:0 20px;font-size:16px;font-weight:700;border-radius:14px}
+.login-main-btn .ms{font-size:22px}
 /* ---- 音声ツールのチャンネル選択：ほかの選択欄（出力形式・品質）と高さ・角丸・枠をそろえる ---- */
 .aud-ch{display:inline-flex;align-items:center;gap:6px}
 .aud-seg{display:inline-flex;box-sizing:border-box;min-height:calc(var(--row,42px) - 4px);border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--bg)}
@@ -98,6 +95,7 @@ dl.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:8px 0}dl.k
 .app-row .commit-hash,.commit-hash{font:12px/1.4 var(--mono);color:var(--fg-dim);overflow-wrap:anywhere}
 .app-row .url-actions,.app-row .app-row-tools{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
 .app-row .url-actions button,.app-row .app-row-tools button{min-width:40px}
+.pub-url-text{color:var(--fg);overflow-wrap:anywhere;text-decoration:none}
 
 .tr-m,.activity-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .timeout-overlay,.adm-timeout-overlay{position:absolute;inset:0;z-index:10;display:grid;place-items:center;padding:24px;background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filter:blur(2px)}

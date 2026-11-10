@@ -36,7 +36,7 @@ const ERROR_CATALOG = {
   network: ['E-P19', '通信できませんでした。ネットワークを確認して、もう一度操作してください。'],
   internal: ['E-P20', 'サーバーでエラーが起きました。少し待って再実行し、直らなければ管理者にこのコードを伝えてください。'],
   not_admin: ['E-P21', 'この操作は管理者だけができます。管理者に依頼してください。'],
-  managed_by_idp: ['E-P22', 'この部員の管理者の設定は、認証システム（IdP）の管理画面で行います。'],
+  managed_by_idp: ['E-P22', 'ユーザーの追加・削除・管理者設定は、認証システム（IdP）の登録情報が元のため、VWC からは変更できません。IdP の管理画面で行ってください。'],
   /* ログイン/再認証（E-A…）。サーバーが ?code= で渡す。FE 2.0: Microsoft固有 E-A03,04,05,10,12,14 削除 */
   'E-A01': ['E-A01', 'ログインが中止されました。もう一度ログインしてください。'],
   'E-A02': ['E-A02', 'ログインの手続きが無効になりました（10分以上経過、または別のタブで操作）。最初からやり直してください。'],
@@ -109,7 +109,7 @@ const ICONS = { html: 'html', css: 'css', js: 'javascript', php: 'php', sql: 'da
   py: 'code', c: 'code', rb: 'code', java: 'code', go: 'code', rs: 'code', ts: 'code', cpp: 'code', sh: 'code' };
 const ext = n => (n.split('.').pop() || '').toLowerCase();
 const fileIcon = n => ICONS[ext(n)] || 'article';
-const isText = f => f.t !== 'dir' && (f.text !== undefined || (typeof textPath === 'function' && textPath(f.n)));
+const isText = f => f.t !== 'dir' && (f.text !== undefined || (f.encoding !== 'base64' && !f.blob && (typeof textPath === 'function' && textPath(f.n))));
 
 /* ---- 左サイドバー / 左領域 ---- */
 let prevPanel = 'sm02', curPanel = 'sm02', leftHidden = false;
@@ -175,6 +175,7 @@ async function openProject(id) {
   if (!S.proj) return showToast('プロジェクトが見つかりません');
   /* 読み込みを待つ間、前に開いていたプロジェクトの権限（共有・閲覧）が残らないよう、権限はいますぐ切り替える */
   if (window.applyRoleForProject) applyRoleForProject();
+  (S.tabs || []).forEach(t => { if (t.cm && window.EditorCore) EditorCore.destroy(t.cm); });
   S.tabs = []; S.msel = new Set(); S.mmode = false; S.hov = null; S.anchor = null;
   S.loading++;
   renderTabs(); renderTree(); updateStatus(); showPanel('sm02');
@@ -192,6 +193,7 @@ function closeUnsavedSequential(tabs, done) {
 function closeTabsSequential(tabs) {
   const closing = [...new Set(tabs)];
   closeUnsavedSequential(closing, () => {
+    closing.forEach(t => { if (t && t.cm && window.EditorCore) EditorCore.destroy(t.cm); });
     S.tabs = S.tabs.filter(t => !closing.includes(t));
     G.forEach(g => { if (!S.tabs.includes(S.act[g])) S.act[g] = S.tabs.filter(t => t.g === g).at(-1) || null; });
     renderTabs(); navPush();
@@ -200,6 +202,9 @@ function closeTabsSequential(tabs) {
 
 /* SM02 ファイルツリー */
 const files = () => (S.proj && DATA.files[S.proj.id]) || [];
+const hasProject = () => !!(S.proj && S.proj.id);
+const NO_PROJECT_MSG = 'プロジェクトを作成するか、開いてください';
+const noProjectPanel = () => `<div class="pnote" style="padding:16px">${esc(NO_PROJECT_MSG)}</div>`;
 /* 追跡上限を超えるファイル（行の差分ではなく、ハッシュ・名前・サイズで追跡する） */
 const isLargeNode = f => f.t !== 'dir' && (f.size ?? (f.blob ? f.blob.size : 0)) > limitVal('track_limit_mb') * 1048576;
 /* ファイルの状態：青=システム未保存（ページを閉じると失われる）/ 灰=隠しファイル / 緑 / オレンジ。優先順位は 青 > 灰 > 緑 > オレンジ */
@@ -246,7 +251,20 @@ const openPath = () => { const t = S.act[S.grp]; return t && !t.render && !t.pre
 const actRow = () => (S.mmode || S.msel.size > 1) ? null : (S.hov || [...S.msel][0] || openPath()); /* 優先：ホバー ＞ 選択 ＞ 開いている。複数選択中は出さない */
 function updActs() { const x = actRow(); $$('#tree .row').forEach(r => r.classList.toggle('ax', (r.dataset.file || r.dataset.dir) === x)); }
 function renderTree() {
-  if (!S.proj || !S.proj.id) { $('#proj-root').textContent = '-/'; $('#tree').innerHTML = ''; return; }
+  const sm02 = $('#sm02'), tree = $('#tree');
+  if (!hasProject()) {
+    $('#proj-root').textContent = '';
+    if (tree) tree.innerHTML = noProjectPanel();
+    if (sm02) {
+      sm02.classList.remove('multi');
+      sm02.querySelectorAll('.tree-h .acts, .legend, #find-open, #pal-open, #cmd-open, .sync, .tree-h > span:not(.acts)').forEach(el => { el.dataset.npp = '1'; el.hidden = true; });
+    }
+    const bar = $('#msel-bar'); if (bar) bar.hidden = true;
+    if (typeof updateCommitControl === 'function') updateCommitControl();
+    return;
+  }
+  const scrollTop = tree ? tree.scrollTop : 0; /* 再描画でスクロール位置が失われないようにする（状態の即時反映時） */
+  if (sm02) sm02.querySelectorAll('[data-npp]').forEach(el => { if (el.classList && el.classList.contains('sync')) { delete el.dataset.npp; return; } el.hidden = false; delete el.dataset.npp; });
   $('#proj-root').textContent = S.proj.name + '/'; const ax = actRow();
   const walk = (list, path, depth) => list.map(f => {
     const p = path + f.n, pad = `style="padding-left:${12 + depth * 16}px"`, s = nodeState(f), m = MARK[s.c], on = S.msel.has(p), cls = [s.c ? 'st-' + s.c : '', on ? 'pk' : '', p === ax ? 'ax' : ''].join(' '), stm = m && m[0] ? `<span class="stm" title="${m[1]}">${m[0]}</span>` : '';
@@ -256,7 +274,7 @@ function renderTree() {
       return `<div class="row ${cls} ${S.sel === p ? 'sel' : ''}" ${pad} data-dir="${esc(p)}">${ico('folder', 'ft-folder')}<span class="nm">${esc(f.n)}</span>${stm}${acts}<button class="tg" title="${closed ? '開く' : '閉じる'}">${ico(closed ? 'keyboard_arrow_down' : 'keyboard_arrow_up')}</button>${ck}</div>` + (closed ? '' : walk(f.c, p + '/', depth + 1)); }
     return `<div class="row ${cls}" ${pad} data-file="${esc(p)}">${fico(f.n)}<span class="nm">${esc(f.n)}</span>${isLargeNode(f) ? `<span class="stm lg" title="追跡上限（${limitVal('track_limit_mb')}MB）を超えるため、行の差分ではなく、ハッシュ・名前・サイズで追跡します">大</span>` : ''}${stm}${acts}${ck}</div>`;
   }).join('');
-  $('#tree').innerHTML = walk(files(), '', 0);
+  if (tree) { tree.innerHTML = walk(files(), '', 0); tree.scrollTop = scrollTop; }
   $('#sm02').classList.toggle('multi', S.mmode); $('#msb-n').textContent = S.msel.size + '件選択中';
   if (typeof updateCommitControl === 'function') updateCommitControl();
 }
@@ -281,7 +299,10 @@ $('#tree').addEventListener('click', e => {
 });
 /* 新規・名前変更・アップロード（キーボード不要。入力はダイアログ） */
 const newTarget = () => { const n = S.sel ? findFile(S.sel) : null; return n && n.t === 'dir' ? { list: n.c, dir: S.sel } : { list: files(), dir: '' }; };
-const readOnly = () => (S.role === 'shared-view' || S.proj.perm === 'view') && (showToast('閲覧のみのため変更できません'), true);
+const readOnly = () => {
+  if (!hasProject()) return (showToast(NO_PROJECT_MSG), true);
+  return (S.role === 'shared-view' || S.proj.perm === 'view') && (showToast('閲覧のみのため変更できません'), true);
+};
 function badName(v, list, self) {
   if (!v) return '名前を入力してください';
   if (v === '.' || v === '..' || /[\/\\]/.test(v)) return '/、\\、.、.. は使えません';
@@ -296,21 +317,21 @@ $('#in-ok').onclick = () => { const err = inCb($('#in-v').value.trim()); if (err
 $('#in-v').onkeydown = e => { if (e.key === 'Enter') $('#in-ok').click(); }; // ※ falseを返すとBackSpace等が効かなくなるため式にしない
 const dotHint = v => { if (v.startsWith('.') && !S.dotHint) { S.dotHint = true; showToast('ドットファイルは表示されますが、Webでは見えません'); } };
 $$('[data-act]').forEach(b => b.onclick = () => { if (readOnly()) return; const k = b.dataset.act;
-  if (k === 'mkdir') askName('新しいフォルダ', '', v => { const t = newTarget(); const e = badName(v, t.list); if (e) return e; const path = (t.dir ? t.dir + '/' : '') + v; must(async () => { await Api.files.mkdir(S.proj.id, path); if (t.dir) S.closed.delete(t.dir); dotHint(v); await reloadTree(); showToast('フォルダを作成しました'); }); return ''; });
-  if (k === 'mkfile') askName('新しいファイル', '', v => { const t = newTarget(); const e = badName(v, t.list); if (e) return e; const path = (t.dir ? t.dir + '/' : '') + v; must(async () => { await Api.files.create(S.proj.id, path); if (t.dir) S.closed.delete(t.dir); dotHint(v); await reloadTree(); await openFile(path); }); return ''; });
+  if (k === 'mkdir') askName('新しいフォルダ', '', v => { const t = newTarget(); const e = badName(v, t.list); if (e) return e; const path = (t.dir ? t.dir + '/' : '') + v; must(async () => { await Api.files.mkdir(S.proj.id, path); if (t.dir) S.closed.delete(t.dir); dotHint(v); await reloadTree(); if (typeof scheduleUsageRefresh === 'function') scheduleUsageRefresh(); showToast('フォルダを作成しました'); }); return ''; });
+  if (k === 'mkfile') askName('新しいファイル', '', v => { const t = newTarget(); const e = badName(v, t.list); if (e) return e; const path = (t.dir ? t.dir + '/' : '') + v; must(async () => { await Api.files.create(S.proj.id, path); if (t.dir) S.closed.delete(t.dir); dotHint(v); await reloadTree(); if (typeof scheduleUsageRefresh === 'function') scheduleUsageRefresh(); await openFile(path); }); return ''; });
   if (k === 'up') $('#up-files').click(); if (k === 'upd') $('#up-dir').click(); });
 function must(fn) { fn().catch(e => showApiError(e)); }
 function renameNode(path) {
   if (readOnly()) return; const node = findFile(path), dir = path.split('/').slice(0, -1).join('/'), parent = listOf(dir);
   askName('名前変更', node.n, v => { if (v === node.n) return ''; const e = badName(v, parent, node); if (e) return e; const np = (dir ? dir + '/' : '') + v;
-    must(async () => { await busy(`${node.n} の名前を変更中`, 'drive_file_rename_outline', () => Api.files.rename(S.proj.id, path, np)); retarget(path, np); dotHint(v); await reloadTree(); renderTabs(); showToast('名前を変更しました'); }); return ''; });
+    must(async () => { await busy(`${node.n} の名前を変更中`, 'drive_file_rename_outline', () => Api.files.rename(S.proj.id, path, np)); retarget(path, np); dotHint(v); await reloadTree(); if (typeof refreshStatus === 'function') await refreshStatus(); renderTabs(); if (typeof scheduleUsageRefresh === 'function') scheduleUsageRefresh(); showToast('名前を変更しました'); }); return ''; });
 }
 const readText = f => f.text ? f.text() : new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsText(f); });
 function uniqName(list, name) { const m = name.match(/^(.+?)(\.[^.]*)?$/); /* .env のようなドットファイルは、全体を名前として扱う（.env (1)） */ let n = name, i = 1; while (list.some(f => f.n === n)) n = `${m[1]} (${i++})${m[2] || ''}`; return n; }
 /* アップロード：最大アップロードサイズを超えるものは保存しない。進捗とキャンセルは転送トレイ（transfer.js） */
 async function uploadItems(items, dir) {
   const r = await Upl.start(items);
-  if (r.done.length) { await reloadTree(); refreshStatus(); showToast(r.done.length + '件をアップロードしました' + (dir ? `（${dir}）` : '')); }
+  if (r.done.length) { await reloadTree(); refreshStatus(); if (typeof scheduleUsageRefresh === 'function') scheduleUsageRefresh(); showToast(r.done.length + '件をアップロードしました' + (dir ? `（${dir}）` : '')); }
 }
 async function uploadFiles(fl) {
   if (readOnly()) return; const t = newTarget();
@@ -330,19 +351,83 @@ $('#up-files').onchange = e => { uploadFiles([...e.target.files]); e.target.valu
 /* ---- ワークベンチ：タブ / 3グループ ---- */
 const G = ['g1', 'g2']; // g1=メイン、g2=サブ
 const isPhone = () => $('#app').classList.contains('w-phone');
+const LARGE_TEXT_OPEN_BYTES = 5 * 1024 * 1024; // 大容量テキスト表示前に確認（項目11）
+const isTextExtName = name => { const e = String(name || '').split('.').pop().toLowerCase(); return typeof TEXTX !== 'undefined' && TEXTX.has(e); };
+// 項目12: テキストとして読めない疑い（NULバイト、またはUTF-8不正由来の置換文字が多い）
+const hasUnreadableText = text => {
+  if (text == null) return false;
+  const s = String(text);
+  if (s.indexOf('\0') !== -1) return true;
+  const bad = (s.match(/\uFFFD/g) || []).length;
+  return bad >= 4 && bad / Math.max(s.length, 1) > 0.01;
+};
+function confirmLargeTextOpen(name, size) {
+  const mb = typeof fmtMB === 'function' ? fmtMB((size || 0) / 1048576) : ((size || 0) / 1048576).toFixed(2);
+  const dlg = $('#d-conf');
+  return new Promise(resolve => {
+    let settled = false;
+    const finish = ok => { if (settled) return; settled = true; dlg.removeEventListener('close', onClose); resolve(ok); };
+    const onClose = () => finish(false);
+    $('#conf-t').textContent = 'ファイルを開く';
+    $('#conf-m').innerHTML = `このファイルは大きいです。表示しますか？<br>サイズ：${mb} MB`;
+    $('#conf-ok').textContent = '表示する';
+    $('#conf-ok').onclick = () => { finish(true); dlg.close(); };
+    dlg.addEventListener('close', onClose, { once: true });
+    dlg.showModal();
+  });
+}
+function confirmUnreadableTextOpen(name) {
+  const dlg = $('#d-conf');
+  return new Promise(resolve => {
+    let settled = false;
+    const finish = ok => { if (settled) return; settled = true; dlg.removeEventListener('close', onClose); resolve(ok); };
+    const onClose = () => finish(false);
+    $('#conf-t').textContent = 'ファイルを開く';
+    $('#conf-m').textContent = 'このファイルはテキスト形式で解読できません。文字化けしますが表示しますか？';
+    $('#conf-ok').textContent = '表示する';
+    $('#conf-ok').onclick = () => { finish(true); dlg.close(); };
+    dlg.addEventListener('close', onClose, { once: true });
+    dlg.showModal();
+  });
+}
 async function openFile(path) {
   hideHome();
   let t = S.tabs.find(t => t.path === path);
+  const openTab = tab => {
+    if (!S.msel.has(path)) { S.msel = new Set([path]); S.anchor = path; S.mmode = false; } /* 開いたファイルは選択状態にもなる */
+    S.grp = tab.g; S.act[tab.g] = tab; renderTabs(); $('#app').dataset.view = 'right'; navPush();
+  };
+  const nameOf = (f, tab) => (f && f.n) || (tab && tab.name) || String(path).split('/').pop();
+  const unreadableOk = async (node, name) => !hasUnreadableText(node && node.text) || await confirmUnreadableTextOpen(name);
   if (!t) {
     const f = findFile(path); if (!f) return showToast('ファイルが見つかりません');
-    const node = f.t === 'dir' ? f : (isText(f) ? await ensureText(f, path, S.proj.id) : await ensureBlob(f, path, S.proj.id));
-    t = { path, name: path.split('/').pop(), g: S.grp, f: node }; t.text = node.text;
-    S.tabs.push(t);
+    if (f.t !== 'dir' && isText(f)) {
+      // 項目11: TEXTX拡張子かつ大容量テキストのみ、表示前にサイズ確認
+      if (isTextExtName(f.n) && (f.size || 0) >= LARGE_TEXT_OPEN_BYTES && !await confirmLargeTextOpen(f.n, f.size)) return;
+      try { await ensureText(f, path, S.proj.id); } catch (e) { return showApiError(e); }
+      // 中身の判定でバイナリと分かった場合は、メディア/バイナリ表示に切り替える
+      if (f.text === undefined && f.blob) { await ensureBlob(f, path, S.proj.id).catch(() => {}); }
+      else {
+        // 項目12: テキスト表示経路の非メディアファイルで解読不能の疑いがある場合に警告（了承時のみ表示）
+        if (!await unreadableOk(f, nameOf(f))) return;
+      }
+      const node = f.text === undefined && f.blob ? f : f;
+      t = { path, name: path.split('/').pop(), g: S.grp, f: node };
+      t.text = node.text; t.encoding = node.encoding; t.charset = node.charset;
+      S.tabs.push(t);
+    } else {
+      const node = f.t === 'dir' ? f : await ensureBlob(f, path, S.proj.id);
+      t = { path, name: path.split('/').pop(), g: S.grp, f: node }; t.text = node.text;
+      t.encoding = node.encoding; t.charset = node.charset;
+      S.tabs.push(t);
+    }
   } else if (t.f && t.f.text === undefined && isText(t.f)) {
+    if (isTextExtName(nameOf(t.f, t)) && (t.f.size || 0) >= LARGE_TEXT_OPEN_BYTES && !await confirmLargeTextOpen(nameOf(t.f, t), t.f.size)) return;
     try { await ensureText(t.f, path, S.proj.id); t.text = t.f.text; } catch (e) { return showApiError(e); }
+    if (t.f.text !== undefined && !await unreadableOk(t.f, nameOf(t.f, t))) return;
+    t.encoding = t.f.encoding; t.charset = t.f.charset;
   }
-  if (!S.msel.has(path)) { S.msel = new Set([path]); S.anchor = path; S.mmode = false; } /* 開いたファイルは選択状態にもなる */
-  S.grp = t.g; S.act[t.g] = t; renderTabs(); $('#app').dataset.view = 'right'; navPush();
+  openTab(t);
 }
 function tabBar(g) {
   const el = $('#' + g), ts = S.tabs.filter(t => t.g === g), act = S.act[g], sl = $('.ts', el) ? $('.ts', el).scrollLeft : 0; /* 作り直しても、タブ欄の横スクロール位置は保つ */
@@ -391,6 +476,14 @@ function renderTabs() {
 }
 function markDirty(t) { if (!t.dirty) { t.dirty = true; G.forEach(g => { tabBar(g); if (S.act[g]?.prev?.srcPath === t.path) paneFor($('#' + g), S.act[g], g); }); renderTree(); updateStatus(); phoneDot(); } } // 入力中は表示を作り直さない
 const phoneDot = () => { const r = $('#bn-ed .red'); if (r) r.hidden = !S.tabs.some(unsaved); };
+window.updateEdPos = view => {
+  const pos = $('#s-pos'); if (!pos) return;
+  const t = view && view._tab ? view._tab : (S.act && S.act[S.grp]);
+  const v = view || (t && t.cm);
+  if (!v || !t || t.render || t.prev) return;
+  try { const head = v.state.selection.main.head; const line = v.state.doc.lineAt(head); pos.textContent = `行 ${line.number}, 列 ${head - line.from + 1}`; }
+  catch { pos.textContent = ''; }
+};
 function paneFor(el, t, g) {
   const pane = $('.pane', el);
   if (!t) return pane.innerHTML = '<div class="empty">開いているタブはありません</div>';
@@ -409,12 +502,23 @@ function paneFor(el, t, g) {
   }
   if (!isText(t.f)) return pane.innerHTML = mediaPane(t);
   const ro = S.role === 'shared-view' || S.proj.perm === 'view';
-  pane.innerHTML = (ro ? '<div class="banner">閲覧のみ：編集できません</div>' : '') + '<div class="ed"><div class="gut"></div><div class="ov"><pre class="fm"></pre><pre class="hl"><code class="hljs"></code></pre><textarea class="in" spellcheck="false" wrap="off"></textarea></div></div>';
-  const ta = $('textarea', pane); ta.value = t.text; ta.readOnly = ro;
-  ta.oninput = () => { t.text = ta.value; markDirty(t); paintEditor(pane, ta, t); };
-  ta.onscroll = () => syncScroll(pane, ta); paintEditor(pane, ta, t);
-  ta.onkeyup = ta.onclick = () => { const l = ta.value.slice(0, ta.selectionStart).split('\n'); $('#s-pos').textContent = `行 ${l.length}, 列 ${l.at(-1).length + 1}`; };
-  ta.onkeydown = e => { if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); save(t); } else if (e.key === 'Tab' && !e.ctrlKey && !e.metaKey && !e.altKey && !ta.readOnly) { e.preventDefault(); insertText(ta, ' '.repeat(DATA.settings.tab)); } };
+  pane.innerHTML = (ro ? '<div class="banner">閲覧のみ：編集できません</div>' : '') + '<div class="ed cm-ed"></div>';
+  const host = $('.ed', pane);
+  if (window.EditorCore && window.CM) {
+    if (t.cm) {
+      if (t.text != null) EditorCore.setText(t.cm, t.text);
+      // readonly 状態が変わることは通常ないが、念のため再生成しない（軽量化優先）
+      EditorCore.mount(host, t.cm); pane._cmView = t.cm;
+    } else {
+      const view = EditorCore.create(host, t, ro); pane._cmView = view;
+    }
+    if (window.updateEdPos) window.updateEdPos(t.cm);
+  } else {
+    // フォールバック（CM6未読込時）
+    host.innerHTML = '<textarea class="in" style="width:100%;height:100%;box-sizing:border-box;font:inherit"></textarea>';
+    const ta = $('textarea', host); ta.value = t.text || ''; ta.readOnly = ro;
+    ta.oninput = () => { t.text = ta.value; markDirty(t); };
+  }
 }
 let conflictSave = null;
 async function save(t, opts = {}) {
@@ -425,10 +529,11 @@ async function save(t, opts = {}) {
   try {
     let base = t.f.version;
     if (opts.force) { const latest = await Api.files.read(projectId, path); base = latest.version; }
-    const d = await Task.run({ title: `${t.name} を保存中`, icon: 'save' }, () => Api.files.write(projectId, path, t.text ?? '', base));
+    const charset = t.charset || (t.f && t.f.charset) || null;
+    const d = await Task.run({ title: `${t.name} を保存中`, icon: 'save' }, () => Api.files.write(projectId, path, t.text ?? '', base, charset));
     t.f.text = t.text; t.f.saved = true; t.f.version = d.version ?? t.f.version; t.dirty = false;
     refreshStatus();
-    renderTabs(); notify('save', '保存しました'); return true;
+    renderTabs(); if (typeof scheduleUsageRefresh === 'function') scheduleUsageRefresh(); notify('save', '保存しました'); return true;
   } catch (e) {
     if (e instanceof ApiError && e.code === 'conflict') { conflictSave = { t, opts }; $('#d-cf').showModal(); return false; }
     if (e instanceof ApiError && e.code === 'locked') { showStatebar('lock'); showApiError(e); return false; }
@@ -461,7 +566,7 @@ $('#bench').addEventListener('click', e => {
     return renderTabs(); }
   if (!tab) return;
   const t = S.tabs.find(t => t.path === tab.dataset.p);
-  if (e.target.closest('.x')) { if (unsaved(t)) return askUnsaved(t); S.tabs = S.tabs.filter(x => x !== t); }
+  if (e.target.closest('.x')) { if (unsaved(t)) return askUnsaved(t); if (t && t.cm && window.EditorCore) EditorCore.destroy(t.cm); S.tabs = S.tabs.filter(x => x !== t); }
   else { S.act[t.g] = t; S.grp = t.g; if (S.msel.size <= 1 && !S.mmode) S.msel = new Set(); }
   renderTabs(); navPush();
 });
@@ -537,6 +642,7 @@ async function preview() {
     }
   } catch (e) { return showApiError(e); }
   const pv = { name: t.name, icon: 'play_arrow', path: path + '#preview', g: 'g2', f: { text: '' }, prev };
+  S.tabs.filter(x => x.path === pv.path).forEach(x => { if (x.cm && window.EditorCore) EditorCore.destroy(x.cm); });
   S.tabs = S.tabs.filter(x => x.path !== pv.path); S.tabs.push(pv); $('#g2').dataset.keep = 1; S.act[pv.g] = pv; S.grp = pv.g; renderTabs(); $('#app').dataset.view = 'right';
 }
 $('#s-prev').onclick = preview;
@@ -544,12 +650,23 @@ $('#s-prev').onclick = preview;
 /* ---- ステータスバー ---- */
 function updateStatus() {
   const t = S.act[S.grp], used = usedMB();
-  if (!S.proj || !S.proj.id) { $('#s-proj').innerHTML = ''; }
-  else { $('#s-proj').innerHTML = `${ico('inbox')} ${esc(S.proj.name)}` + (S.proj.parent ? ` (${esc(S.proj.parent)} から分岐)` : ''); }
-  $('#s-lang').textContent = t && !t.render && !t.prev ? ext(t.name).toUpperCase() : '';
+  const sSave = $('#s-save');
+  if (!hasProject()) {
+    /* プロジェクト未オープン時: アイコンのみ表示、プロジェクト名なし、保存済み表示削除、容量は表示 */
+    $('#s-proj').innerHTML = `${ico('inbox')}`;
+    if (sSave) { sSave.textContent = ''; sSave.hidden = true; }
+  } else {
+    $('#s-proj').innerHTML = `${ico('inbox')} ${esc(S.proj.name)}` + (S.proj.parent ? ` (${esc(S.proj.parent)} から分岐)` : '');
+    if (sSave) { sSave.hidden = false; sSave.textContent = S.tabs.some(unsaved) ? '未保存' : '保存済み'; }
+  }
+  if (t && !t.render && !t.prev) {
+    const fmt = ext(t.name).toUpperCase() || 'FILE';
+    const enc = t.encoding || (t.f && t.f.encoding) || (isText(t.f) ? 'UTF-8' : '');
+    $('#s-lang').textContent = enc ? `${fmt}(${enc})` : fmt;
+  } else $('#s-lang').textContent = '';
+  if (t && t.cm && window.updateEdPos) window.updateEdPos(t.cm); else if (!t || t.render || t.prev) { const sp = $('#s-pos'); if (sp) sp.textContent = ''; }
   $('#s-cap').textContent = `容量 ${fmtMB(used)}/${fmtMB(quotaLimit())}MB`;
-  $('#s-prev').hidden = !(t && !t.prev && ['html', 'md'].includes(ext(t.name))); $('#bn-prev').disabled = $('#s-prev').hidden || S.auth === false;
-  $('#s-save').textContent = S.tabs.some(unsaved) ? '未保存' : '保存済み';
+  $('#s-prev').hidden = !(t && !t.prev && hasProject() && ['html', 'md'].includes(ext(t.name))); $('#bn-prev').disabled = $('#s-prev').hidden || S.auth === false;
 }
 
 /* ---- SM06 / SM08 / ホーム / アカウント ---- */
@@ -630,7 +747,7 @@ $('#del-ok').onclick = () => {
       if (S.proj && S.proj.id === p.id) {
         DATA.collab = [];
         const next = DATA.projects.mine[0] || DATA.projects.shared[0];
-        if (next) await openProject(next.id); else { S.tabs = []; renderTabs(); showPanel('home'); }
+        if (next) await openProject(next.id); else { (S.tabs||[]).forEach(t=>{ if(t.cm && window.EditorCore) EditorCore.destroy(t.cm); }); S.tabs = []; renderTabs(); showPanel('home'); }
       }
       renderProjects(); renderPub(); renderHist(); renderUsage(); $('#d-del').close(); showToast('プロジェクトを削除しました');
     } catch (e) { showApiError(e); }
@@ -646,10 +763,12 @@ async function deletePaths(paths) {
     await Task.run({ title: paths.length === 1 ? `${baseNameOf(paths[0])} を削除中` : `${paths.length}件を削除中`, icon: 'delete' }, async t => {
       let i = 0; for (const path of paths) { await Api.files.remove(S.proj.id, path); t.set({ pct: ++i / paths.length, msg: `${i}/${paths.length}件` }); }
     });
-    S.tabs = S.tabs.filter(t => !paths.some(p => t.path === p || t.path.startsWith(p + '/')));
+    const removed = S.tabs.filter(t => paths.some(p => t.path === p || t.path.startsWith(p + '/')));
+    removed.forEach(t => { if (t.cm && window.EditorCore) EditorCore.destroy(t.cm); });
+    S.tabs = S.tabs.filter(t => !removed.includes(t));
     S.msel = new Set(); S.mmode = false; S.anchor = null;
     await Promise.all([reloadTree(), refreshStatus()]);
-    renderTabs(); showToast(`${paths.length}件を削除しました`);
+    renderTabs(); if (typeof scheduleUsageRefresh === 'function') scheduleUsageRefresh(); showToast(`${paths.length}件を削除しました`);
   } catch (e) { showApiError(e); }
 }
 $('#delf-ok').onclick = () => { $('#d-delf').close(); if (delDone) { const done = delDone; delDone = null; done(); } else deletePaths([delF]); };
@@ -696,7 +815,11 @@ $('#q-new').onclick = () => $('#btn-new').click(); $('#q-help').onclick = () => 
 window.mdTask = (n, on, ctx) => {
   if (ctx !== 'project') return; const pv = S.act[S.grp]; if (!pv || !pv.prev) return; const path = pv.path.split('#')[0], src = S.tabs.find(x => x.path === path), node = src ? src.f : findFile(path); if (!node || node.text === undefined) return;
   let k = 0; const txt = (src ? src.text : node.text).replace(/^(\s*(?:[-*+]|\d+[.)])\s+\[)( |x|X)(\]\s)/gm, (m, a, b, c) => k++ === n ? a + (on ? 'x' : ' ') + c : m);
-  if (src) { src.text = txt; markDirty(src); const ta = $('textarea.in', $('#' + src.g)); if (ta && S.act[src.g] === src) { ta.value = txt; paintEditor($('.pane', $('#' + src.g)), ta, src); } } else { node.text = txt; renderTree(); }
+  if (src) {
+    src.text = txt; if (src.f) src.f.text = txt;
+    if (src.cm && window.EditorCore) { EditorCore.setText(src.cm, txt); src.text = txt; }
+    markDirty(src);
+  } else { node.text = txt; renderTree(); }
   showToast('チェックを反映しました（未保存）');
 };
 

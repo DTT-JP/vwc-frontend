@@ -27,7 +27,7 @@ $('#cf-over').onclick = async () => {
     const latest = await Api.files.read(S.proj.id, c.t.path);
     const d = await Api.files.write(S.proj.id, c.t.path, c.t.text ?? '', latest.version);
     c.t.f.text = c.t.text; c.t.f.saved = true; c.t.f.version = d.version ?? c.t.f.version; c.t.dirty = false;
-    refreshStatus(); renderTabs(); notify('save', '保存しました'); showToast('上書きしました');
+    refreshStatus(); renderTabs(); if (typeof scheduleUsageRefresh === 'function') scheduleUsageRefresh(); notify('save', '保存しました'); showToast('上書きしました');
   } catch (e) { showApiError(e); }
 };
 $('#cf-reload').onclick = async () => {

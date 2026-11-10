@@ -103,8 +103,14 @@ dialog .btns button{min-height:40px;padding:0 16px;border-radius:20px}
 #app.w-phone button,#app.w-phone .row{min-height:44px}
 
 /* 迢ｬ遶狗判髱｢ */
-#screens{position:fixed;inset:0;z-index:40;background:var(--bg);overflow:auto}
+#screens{position:fixed;inset:0;z-index:40;background:var(--bg);color:var(--fg);overflow:auto;opacity:1}
+#screens.loading-fade{opacity:0;transition:opacity .28s ease;pointer-events:none}
 .scr{min-height:100%;display:grid;place-items:center;padding:56px 16px 16px}.scr[hidden]{display:none}
+.scr .box{width:min(680px,100%);color:var(--fg)}
+.error-page h1{margin:8px 0 12px;color:var(--fg);font-size:24px;line-height:1.35}
+.error-page p{margin:0 0 10px;color:var(--fg);line-height:1.7;white-space:pre-line}
+.error-page .ms.big{font-size:40px;color:var(--fg);opacity:.9}
+.error-page .dnote,.error-page .error-action{color:var(--fg)}
 .box{width:min(420px,100%);background:var(--side);border:1px solid var(--border);border-radius:24px;padding:24px;text-align:center}
 .box h1{font-size:20px;margin:0 0 12px}.big{font-size:120px!important}.login-code{font:600 40px var(--mono);letter-spacing:.1em;margin:16px 0}
 .seg{display:flex;flex-wrap:wrap;gap:4px;justify-content:center;margin-bottom:12px}.seg button{border:1px solid var(--border);border-radius:16px;padding:0 12px;min-height:36px}.seg button.on{background:var(--pill)}
@@ -126,13 +132,11 @@ dialog .btns button{min-height:40px;padding:0 16px;border-radius:20px}
 #app.w-phone .tbl td{display:flex;justify-content:space-between;border:0}#app.w-phone .tbl td::before{content:attr(data-l);color:var(--fg-dim)}
 
 
-.ed{flex:1;display:flex;min-height:0;font:14px/1.6 var(--mono)}
+.ed{flex:1;display:flex;min-height:0;overflow:hidden;font:var(--ed-font,14px)/var(--ed-lh,1.6) var(--mono);background:var(--editor)}
+.ed .cm-editor,.ed .cm-host{height:100%;width:100%}
+/* 旧オーバーレイ互換（残存要素があっても崩れないよう最小限） */
 .gut{width:48px;flex:none;overflow:hidden;text-align:right;color:var(--fg-dim);padding:8px 8px 8px 0;white-space:pre;user-select:none;background:var(--editor)}
-.ov{position:relative;flex:1;min-width:0}
-.ed pre.fm,.ed pre.hl,.ed textarea.in{position:absolute;inset:0;margin:0;padding:8px 12px 8px 4px;font:inherit;line-height:inherit;white-space:pre;tab-size:2;letter-spacing:0;border:0;border-radius:0;overflow:auto;width:100%;height:100%}
-.ed pre.hl{overflow:hidden;pointer-events:none;color:var(--fg)}.ed pre.hl code{background:none;padding:0;font:inherit;display:block}
-.ed textarea.in{background:transparent;color:transparent;caret-color:var(--fg);resize:none;outline:0;z-index:1}
-.ed textarea.in::selection{background:color-mix(in srgb,var(--accent) 38%,transparent);color:transparent} 
+.ov{position:relative;flex:1;min-width:0} 
 
 
 [hidden]{display:none!important}
@@ -172,9 +176,7 @@ dialog .btns button{min-height:44px}
 .setrow{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)}
 .setrow small{display:block;color:var(--fg-dim)}
 
-.ed{font:var(--ed-font,14px)/var(--ed-lh,1.6) var(--mono)}
-.ed pre.fm,.ed pre.hl,.ed textarea.in{tab-size:var(--tab,2)}
-#app.wrap .ed pre.fm,#app.wrap .ed pre.hl,#app.wrap .ed textarea.in{white-space:pre-wrap;word-break:break-all}#app.wrap .gut,#app.nogut .gut{display:none}
+#app.nogut .gut{display:none}
 
 #app.w-phone #status{display:none}
 #bnav .sep{width:1px;height:24px;background:var(--border);flex:none}
@@ -391,6 +393,9 @@ dialog{max-width:calc(100% - 24px);min-width:min(440px,calc(100% - 24px))}
 
 .alert{display:flex;align-items:center;gap:12px;margin:8px 12px 0;padding:10px 14px;border-radius:14px;background:color-mix(in srgb,var(--cl,var(--danger)) 14%,var(--bg));border:1px solid color-mix(in srgb,var(--cl,var(--danger)) 40%,transparent);position:relative;z-index:6}
 .alert>.ms{color:var(--cl,var(--danger));font-size:24px;flex:none}.alert>div{flex:1;min-width:0;line-height:1.55}.alert b{display:block}.alert>div>span{color:var(--fg-dim)}.alert.lock{--cl:var(--warn)}.alert button{flex:none}
+.alert.error-page{background:var(--side);border-color:var(--border);color:var(--fg)}
+.alert.error-page>.ms{color:var(--fg)}
+.alert.error-page>div>span,.alert.error-page .sb-m{color:var(--fg);white-space:pre-line}
 /* 蟄ｦ鄙偵・譯亥・ */
 .dot-badge{position:absolute;top:7px;right:7px;width:10px;height:10px;border-radius:50%;background:var(--danger);border:2px solid var(--bar)}
 #welcome{position:absolute;right:12px;bottom:calc(var(--bar-h,26px) + env(safe-area-inset-bottom,0px) + 12px);z-index:30;width:min(350px,calc(100% - 24px));padding:16px 18px;background:var(--side);border:1px solid var(--border);border-radius:18px;box-shadow:var(--elev);animation:dlg .2s ease-out}
@@ -403,9 +408,7 @@ dialog{max-width:calc(100% - 24px);min-width:min(440px,calc(100% - 24px))}
 .urow>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ubar{height:8px;border-radius:4px;background:var(--active);overflow:hidden}.ubar i{display:block;height:100%;border-radius:4px;min-width:2px}.urow b{text-align:right;font-weight:600}.u-actions{display:flex;align-items:center;gap:4px}.u-actions button.o{width:44px;min-width:44px;padding:0;justify-content:center}
 
 
-.ed pre.fm{overflow:hidden;pointer-events:none;color:transparent}
-.ed pre.fm mark{background:color-mix(in srgb,var(--mc-yellow) 42%,transparent);color:transparent;border-radius:3px}
-.ed pre.fm mark.cur{background:color-mix(in srgb,var(--mc-orange) 75%,transparent);box-shadow:0 0 0 1px var(--mc-orange)}
+/* CM6 ファイル内検索のハイライト色は editor.js の theme で指定（CSS変数追従） */
 mark.fm{background:color-mix(in srgb,var(--mc-yellow) 45%,transparent);color:inherit;border-radius:3px;padding:0}
 mark.fm.cur{background:var(--mc-orange);color:#111;box-shadow:0 0 0 2px color-mix(in srgb,var(--mc-orange) 50%,transparent)}
 #findbar[data-kind=dom] .rep,#findbar[data-kind=frame] .rep{display:none}

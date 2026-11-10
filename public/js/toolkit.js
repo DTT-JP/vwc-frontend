@@ -35,11 +35,11 @@ const Tk = (() => {
   /* 入力選択（システムのプロジェクトのファイル / 端末のファイル / ドロップ） */
   function input(id, o = {}) {
     const T = Tools.get(id), ex = [...Tools.exts(T)], acc = T.accepts.includes('image') && T.accepts.length === 1 ? 'image/*' : ex.map(e => '.' + e).concat(T.accepts.includes('video') ? ['video/*'] : [], T.accepts.includes('audio') ? ['audio/*'] : []).join(',');
-    return `<div class="tools"><button class="o" data-pick="${id}">${ico('cloud_download')} システム（プロジェクト）のファイルから選ぶ</button></div>` +
+    return `<div class="tools"><button class="o" data-pick="${id}">${ico('cloud_download')} システムから開く</button></div>` +
       `<label class="drop"><span class="ms">upload_file</span><b>${o.label || 'この端末から選ぶ / ここにドロップ'}</b><span class="tnote">${o.note || '入力：' + ex.slice(0, 14).join('・') + (ex.length > 14 ? ' ほか' : '')}</span><span class="tnote">ファイルはこの端末の中だけで処理され、サーバーには送られません。</span><input type="file" id="tk-file-${id}" accept="${acc}" hidden></label>`;
   }
   /* 出力（システムへ保存 / ダウンロード） */
-  const output = id => `<div class="tools"><button class="primary" data-tk="${id}:save" title="システム（プロジェクト）にアップロード">${ico('cloud_upload')} 保存</button><button class="o" data-tk="${id}:dl" title="端末に保存">${ico('download')} ダウンロード</button></div>`;
+  const output = id => `<div class="tools"><button class="primary" data-tk="${id}:save" title="システムに上げる">${ico('cloud_upload')} システムに上げる</button><button class="o" data-tk="${id}:dl" title="端末に保存">${ico('download')} ダウンロード</button></div>`;
   /* 実行状態（進捗・中止・結果・エラー）。Tk.set(id, {kind, msg, pct}) で更新すると、開いている画面も更新される */
   const status = id => { const s = Tools.ST[id] || { kind: 'idle' }; return `<div class="tk-st ${s.kind}" id="tk-st-${id}" role="status">${statusInner(s)}</div>`; };
   const statusInner = s => s.kind === 'run' ? `<div class="tk-r"><span class="ms">sync</span><span>${esc(s.msg || '処理中…')}</span><span class="sp"></span><button class="o" data-mcancel>中止</button></div><div class="pgb"><i style="width:${Math.round((s.pct || 0) * 100)}%"></i></div>` :
@@ -61,6 +61,9 @@ const Tk = (() => {
   async function deliver(op, blob, name) {
     if (!blob) return;
     if (op === 'dl') return dl(blob, name);
+    if (!(typeof hasProject === 'function' ? hasProject() : !!(S.proj && S.proj.id))) {
+      return showToast(typeof NO_PROJECT_MSG === 'string' ? NO_PROJECT_MSG : 'プロジェクトを作成するか、開いてください');
+    }
     return uploadToProject(blob, name);
   }
   return { guide, input, output, status, set, runMedia, deliver };
@@ -81,6 +84,9 @@ document.addEventListener('click', async e => {
 /* 入力元：システム（プロジェクト）のファイルから選ぶ */
 let pickRows = [], pickTool = '';
 function pickFromSystem(id) {
+  if (!(typeof hasProject === 'function' ? hasProject() : !!(S.proj && S.proj.id))) {
+    return showToast(typeof NO_PROJECT_MSG === 'string' ? NO_PROJECT_MSG : 'プロジェクトを作成するか、開いてください');
+  }
   const T = Tools.get(id); if (!T) return; const ok = Tools.exts(T); pickRows = []; pickTool = id;
   (function w(l, p) { l.forEach(f => f.t === 'dir' ? w(f.c, p + f.n + '/') : ok.has(ext(f.n)) && pickRows.push([p + f.n, f])); })(files(), '');
   $('#pick-l').innerHTML = pickRows.map(([p, f], i) => `<div class="row ${f.blob ? '' : 'dim'}" data-pi="${i}">${ico(fileIcon(f.n))}<span class="nm">${esc(p)}</span><span class="dnote">${f.blob ? kb(f.blob.size) : 'サンプル（データなし）'}</span></div>`).join('')

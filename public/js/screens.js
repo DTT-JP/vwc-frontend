@@ -16,14 +16,19 @@ function setAuth(v) { // 未ログインでも常にエディター画面を出�
     S.tabs = S.tabs.filter(t => !['#ログイン', '#端末の登録'].includes(t.path));
     setPanel(prevPanel); renderTabs();
   }
-  VWC.set('screen', v ? 'editor' : 'out', 'app'); $('#screens').hidden = true; renderHome();
+  VWC.set('screen', v ? 'editor' : 'out', 'app');
+  const scr = $('#screens'); if (scr && !scr.classList.contains('loading-fade')) scr.hidden = true;
+  renderHome();
   $$('#bnav button:not(#bn-home)').forEach(b => b.disabled = !v); updateStatus();
   if (window.maybeWelcome) { if (v) maybeWelcome(); else { $('#welcome').hidden = true; if (window.renderGuide) renderGuide(); } }
 }
 const show = id => {
   if (VWC.get('state') === 'version' && id !== 's20') id = 's20';
   const full = id === 's19' || id === 's20';
-  $('#screens').hidden = !full; $$('.scr').forEach(s => s.hidden = s.id !== id);
+  const scr = $('#screens');
+  if (scr) { if (typeof cancelBootLoadingFade === 'function') cancelBootLoadingFade(); if (!scr.dataset.loading || id !== 's20') scr.dataset.loading = ''; }
+  if (scr) scr.hidden = !full;
+  $$('.scr').forEach(s => s.hidden = s.id !== id);
   if (id === 'editor') setAuth(true); if (id === 'out') setAuth(false);
   VWC.set('screen', id, 'app');
 };
@@ -49,11 +54,38 @@ function idpBaseUrl() {
   const base = (cfg.idpBase != null && String(cfg.idpBase).trim() !== '') ? String(cfg.idpBase).trim() : '../auth/';
   try { return new URL(base, location.href).href; } catch { return base; }
 }
-function applyLoginProvidersUi() {
+function idpAdminUrl() {
+  const cfg = window.EDITOR_CONFIG || {};
+  const direct = cfg.idpAdminUrl != null ? String(cfg.idpAdminUrl).trim() : '';
+  if (direct) {
+    try { return new URL(direct, location.href).href; } catch { return direct; }
+  }
+  const base = idpBaseUrl();
+  if (!base) return '';
+  try {
+    const u = new URL(base, location.href);
+    u.pathname = u.pathname.replace(/\/?$/, '/') + 'index.php';
+    u.search = '?p=admin';
+    u.hash = '';
+    return u.href;
+  } catch {
+    const b = String(base).replace(/\/?$/, '/');
+    return b + 'index.php?p=admin';
+  }
+}
+function hasIdpProvider() {
   const providers = loginProviders();
-  const hasIdp = providers.includes('idp');
+  return Array.isArray(providers) && providers.includes('idp');
+}
+function applyLoginProvidersUi() {
+  const hasIdp = hasIdpProvider();
   $$('[data-login-provider="idp"]').forEach(el => el.hidden = !hasIdp);
-  const a = $('#adm-idp-link'); if (a) { a.hidden = !hasIdp; a.href = idpBaseUrl(); }
+  const a = $('#adm-idp-link');
+  if (a) {
+    a.hidden = !hasIdp;
+    const url = idpAdminUrl();
+    if (url) a.href = url; else a.removeAttribute('href');
+  }
 }
 
 function applyLogin() {
@@ -137,7 +169,17 @@ function openLogin(m) {
     else { loginCountdown(); startPoll(); }
   }
 }
-function loginDone() { setAuth(true); showToast('ログインしました'); if (window.VWC_RETURN_TO) location.href = window.VWC_RETURN_TO; }
+function loginDone() {
+  setAuth(true);
+  /* 信頼端末登録レーン: 未登録なら登録確認を優先し、return先への遷移でSKIPしない */
+  if ((DATA.user && DATA.user.trusted) || (typeof isTrusted === 'function' && isTrusted())) {
+    showToast('ログインしました');
+    if (window.VWC_RETURN_TO) location.href = window.VWC_RETURN_TO;
+  } else {
+    showToast('ログインしました');
+    if (typeof openTrustTab === 'function' && !(S.tabs || []).some(t => t.path === '#端末の登録')) openTrustTab();
+  }
+}
 document.addEventListener('click', e => { const r = e.target.closest('[data-login]'); if (r) { e.preventDefault(); openLogin(r.dataset.login); } });
 
 $('#bench').addEventListener('click', e => {
@@ -145,7 +187,6 @@ $('#bench').addEventListener('click', e => {
   if (t) { loginMethod = t.dataset.t; applyLogin(); if ((loginMethod === 'qr' || loginMethod === 'code') && (!loginReq || loginReq.kind !== loginMethod || loginSecLeft <= 0)) startLogin(loginMethod); return; }
   if (e.target.closest('[data-renew]')) { if (!loginPending) startLogin((loginMethod === 'ms' || loginMethod === 'idp') ? 'qr' : loginMethod); return; }
   if (e.target.closest('#idp-login')) { location.href = Api.idpUrl('direct'); return; }
-  if (e.target.closest('#idp-register')) { location.href = Api.idpUrl('register'); return; }
   if (e.target.closest('[data-lg]')) { acceptTrust(e.target.closest('[data-lg]').dataset.lg); }
 });
 
@@ -220,39 +261,100 @@ $('#gate-ok').onclick = async () => {
 };
 
 /* ---- S20：共通状態 ---- */
+function applyErrorTheme() {
+  if (window.VWCCompat && VWCCompat.applyErrorTheme) return VWCCompat.applyErrorTheme();
+  const prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+  const theme = (DATA && DATA.settings && DATA.settings.theme === 'light') ? 'light'
+    : (DATA && DATA.settings && DATA.settings.theme === 'dark') ? 'dark'
+    : (prefersLight ? 'light' : 'dark');
+  document.documentElement.dataset.theme = theme;
+  return theme;
+}
+let bootLoading = false, bootLoadingFade = 0;
+function cancelBootLoadingFade() {
+  clearTimeout(bootLoadingFade); bootLoadingFade = 0;
+  const scr = document.getElementById('screens'); if (scr) scr.classList.remove('loading-fade');
+}
+function showBootLoading() {
+  applyErrorTheme();
+  bootLoading = true; cancelBootLoadingFade();
+  const scr = document.getElementById('screens');
+  if (scr) { scr.dataset.error = ''; scr.dataset.loading = '1'; }
+  const i = document.getElementById('s20-i'), t = document.getElementById('s20-t'), m = document.getElementById('s20-m'), a = document.getElementById('s20-a');
+  if (i) i.textContent = 'hourglass_top';
+  if (t) t.textContent = '読み込み中';
+  if (m) m.textContent = '時間がかかる場合はインターネット接続を確認してください。';
+  if (a) { a.hidden = true; a.textContent = ''; }
+  show('s20');
+}
+function hideBootLoading() {
+  const scr = document.getElementById('screens');
+  if (!bootLoading) { if (scr) scr.dataset.loading = ''; return; }
+  bootLoading = false;
+  if (!scr || scr.hidden || scr.dataset.error || scr.dataset.loading !== '1') { if (scr) scr.dataset.loading = ''; return; }
+  scr.classList.add('loading-fade');
+  clearTimeout(bootLoadingFade);
+  const done = () => {
+    clearTimeout(bootLoadingFade); bootLoadingFade = 0;
+    scr.removeEventListener('transitionend', te);
+    scr.classList.remove('loading-fade');
+    if (scr.dataset.error) { scr.dataset.loading = ''; return; }
+    scr.dataset.loading = '';
+    if (!scr.dataset.keep) { scr.hidden = true; $$('.scr').forEach(s => s.hidden = true); }
+  };
+  const te = e => { if (e.propertyName === 'opacity') done(); };
+  scr.addEventListener('transitionend', te);
+  bootLoadingFade = setTimeout(done, 340);
+}
+window.showBootLoading = showBootLoading;
+window.hideBootLoading = hideBootLoading;
 const ST = {
-  session: ['lock_clock', 'セッションが切れました', 'もう一度ログインしてください。'],
-  net: ['cloud_off', '通信エラー', 'ネットワークを確認して、再読み込みしてください。'],
-  mnt: ['construction', 'メンテナンス中', '終了までしばらくお待ちください。保存・公開はできません。お知らせで終了予定をご確認ください。'],
-  nf: ['search_off', '見つかりません（404）', 'URLを確認してください。'],
-  deny: ['block', '権限がありません', '管理者に権限を依頼してください。'],
-  reauth: ['verified_user', '管理の再認証が切れました', '管理の操作には、10分以内の再ログインが必要です。もう一度ログインしてください。'],
-  size: ['upload_file', 'ファイルが大きすぎます', '最大アップロードサイズを超えているため、保存できません。ダウンロードには上限がありません。'],
-  zip: ['folder_zip', 'ZIPを作成できませんでした', '大きすぎるか、サーバーで失敗しました。フォルダを分けるか、ファイルを個別にダウンロードしてください。'],
-  version: ['sync_problem', 'サーバーとエディターの版が合いません', '利用できる機能を確認できません。エディターとサーバーの API 版を合わせてください。']
+  session: ['lock_clock', 'セッションが切れました', '内容: ログイン状態を確認できませんでした。', '対処方法: もう一度ログインしてください。ログイン画面から操作をやり直してください。'],
+  net: ['cloud_off', '通信エラー', '内容: サーバーと通信できませんでした。', '対処方法: ネットワーク接続（オフラインになっていないか）を確認し、ブラウザの再読み込みを行ってください。'],
+  offline: ['cloud_off', 'オフラインです', '内容: インターネットまたはネットワークに接続されていません。', '対処方法: 接続を確認してから、ブラウザの再読み込みを行ってください。'],
+  mnt: ['construction', 'メンテナンス中', '内容: メンテナンスのため、保存や公開などの操作はできません。', '対処方法: 終了まで待ってから、ブラウザの再読み込みを行ってください。終了予定はお知らせで確認してください。'],
+  nf: ['search_off', '見つかりません（404）', '内容: 指定されたページや対象が見つかりませんでした。', '対処方法: URLを確認してください。必要ならトップページから開き直してください。'],
+  deny: ['block', '権限がありません', '内容: この操作を行う権限がありません。', '対処方法: 権限が必要な場合は、管理者または権限のある部員に依頼してください。'],
+  reauth: ['verified_user', '管理の再認証が切れました', '内容: 管理操作に必要な再認証の有効時間が切れました。', '対処方法: もう一度ログインしてから、管理操作をやり直してください。'],
+  size: ['upload_file', 'ファイルが大きすぎます', '内容: ファイルが上限サイズを超えているため処理できません。', '対処方法: ファイルサイズを小さくするか、分割してから操作してください。'],
+  zip: ['folder_zip', 'ZIPを作成できませんでした', '内容: ZIPの作成に失敗しました。', '対処方法: 対象を小さく分けるか、ファイルを個別にダウンロードしてください。必要なら時間をおいて再度試してください。'],
+  version: ['sync_problem', '版の不一致', '内容: エディターとサーバーの版が合っていないため、利用できる機能を安全に確認できません。', '対処方法: ブラウザの再読み込みを行ってください。改善しない場合は、エディターとサーバーの更新状態を管理者に確認してください。'],
+  boot: ['error', '起動エラー', '内容: エディターの起動に必要な情報を読み込めませんでした。', '対処方法: ネットワーク接続を確認し、ブラウザの再読み込みを行ってください。改善しない場合は管理者に連絡してください。']
 };
-const st20 = k => { const u = ST[k] || ST.net; $('#s20-i').textContent = u[0]; $('#s20-t').textContent = u[1]; $('#s20-m').textContent = u[2]; };
+const st20 = k => {
+  applyErrorTheme();
+  bootLoading = false;
+  if (typeof cancelBootLoadingFade === 'function') cancelBootLoadingFade();
+  let key = k;
+  if ((key === 'net' || key === 'boot') && typeof navigator !== 'undefined' && navigator && navigator.onLine === false) key = 'offline';
+  const u = ST[key] || ST.net;
+  $('#s20-i').textContent = u[0];
+  $('#s20-t').textContent = u[1];
+  $('#s20-m').textContent = (u[2] || '') + (u[3] ? '\n' + u[3] : '');
+  const a = $('#s20-a'); if (a) { a.hidden = true; a.textContent = ''; }
+  const scr = document.getElementById('screens'); if (scr) { scr.dataset.error = '1'; scr.dataset.loading = ''; }
+};
 st20('session');
 let versionStateActive = false;
 VWC.on('state', v => {
   if (v === 'version') { versionStateActive = true; st20('version'); show('s20'); }
-  else if (versionStateActive) { versionStateActive = false; show('editor'); }
+  else if (versionStateActive) { versionStateActive = false; show('editor'); const scr = document.getElementById('screens'); if (scr) scr.dataset.error = ''; }
 });
 
 /* ---- 状態バー（読み込み・ロック・メンテナンス） ---- */
 const STATE_UI = {
-  error: ['error', '読み込みに失敗しました', '通信の状態を確認して、もう一度お試しください。', '再読み込み'],
-  lock: ['lock_clock', 'ロック中です', '他の操作が終わるまで保存できません。しばらくお待ちください。', ''],
-  maint: ['construction', 'メンテナンス中のお知らせ', 'メンテナンスのため、保存・公開ができません。ホームのお知らせをご確認ください。', '']
+  error: ['error', '読み込みに失敗しました', '内容: 必要な情報を読み込めませんでした。', '対処方法: 通信状態を確認し、ブラウザの再読み込みを行ってください。'],
+  lock: ['lock_clock', 'ロック中です', '内容: 他の操作が実行中のため保存できません。', '対処方法: しばらく待ってから、もう一度操作してください。'],
+  maint: ['construction', 'メンテナンス中のお知らせ', '内容: メンテナンスのため、保存や公開ができません。', '対処方法: ホームのお知らせで状況を確認し、終了後にブラウザの再読み込みを行ってください。']
 };
 function showStatebar(v) {
   const b = $('#statebar'), u = STATE_UI[v]; b.hidden = !u; if (!u) { $('#home').style.top = ''; return; }
-  b.className = 'alert' + (v === 'lock' || v === 'maint' ? ' lock' : '');
-  $('.ms', b).textContent = u[0]; $('.sb-t', b).textContent = u[1]; $('.sb-m', b).textContent = u[2];
-  $('#sb-act').hidden = !u[3]; $('#sb-act').textContent = u[3];
+  applyErrorTheme();
+  b.className = 'alert error-page' + (v === 'lock' || v === 'maint' ? ' lock' : '');
+  $('.ms', b).textContent = u[0]; $('.sb-t', b).textContent = u[1]; $('.sb-m', b).textContent = (u[2] || '') + (u[3] ? '\n' + u[3] : '');
+  const act = $('#sb-act'); if (act) { act.hidden = true; act.textContent = ''; }
   const cs = getComputedStyle(b); $('#home').style.top = (b.offsetHeight + parseFloat(cs.marginTop) + parseFloat(cs.marginBottom)) + 'px';
 }
-$('#sb-act').onclick = () => location.reload();
 
 /* 読み込み中の骨組み：一覧ごとに決めた個数だけ、実データの数とは無関係に出す */
 [['list-mine', 2], ['list-shared', 2], ['tree', 3, 'tree'], ['sh-list', 2], ['pub-list', 2], ['hi-list', 3], ['help-l', 3], ['u-rank', 3], ['acct', 1]].forEach(([id, n, cls]) => {
