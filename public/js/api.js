@@ -67,14 +67,20 @@ const Api = (() => {
     const headers = { Accept: 'application/json', 'X-Requested-With': 'fetch' };
     if (csrf) headers['X-CSRF-Token'] = csrf;
     const init = { method: 'POST', credentials: 'same-origin', headers };
-    if (body instanceof FormData) init.body = body;
-    else {
+    const query = opts && opts.query ? { ...opts.query } : null;
+    if (body instanceof FormData || body instanceof Blob || body instanceof ArrayBuffer || ArrayBuffer.isView(body)) {
+      init.body = body instanceof ArrayBuffer ? new Blob([body]) : body;
+      if (opts && opts.contentType) headers['Content-Type'] = opts.contentType;
+      else if (!(body instanceof FormData)) headers['Content-Type'] = 'application/octet-stream';
+    } else {
       headers['Content-Type'] = 'application/json';
       init.body = JSON.stringify(body || {});
     }
     const t = withTimeout(opts, DEFAULT_TIMEOUT_MS);
     if (t.signal) init.signal = t.signal;
-    const url = base() + '?r=' + encodeURIComponent(name);
+    const q = new URLSearchParams({ r: name });
+    if (query) Object.entries(query).forEach(([k, v]) => { if (v !== undefined && v !== null) q.set(k, String(v)); });
+    const url = base() + '?' + q.toString();
     try {
       const res = await fetch(url, init);
       return await readResponse(res);
@@ -220,7 +226,11 @@ const Api = (() => {
     rename: (project, path, to) => call('files/rename', { project, path, to }),
     remove: (project, path) => call('files/delete', { project, path }),
     uploadInit: (project, dir, name, size, chunks) => call('files/upload_init', { project, path: dir || '', name, size, chunks }),
-    uploadChunk: (uploadId, index, data) => call('files/upload_chunk', { upload_id: uploadId, index, data }),
+    uploadChunk: (uploadId, index, data, project) => {
+      const query = { upload_id: uploadId, index };
+      if (project) query.project = project;
+      return call('files/upload_chunk', data, { query, contentType: 'application/octet-stream' });
+    },
     uploadDone: uploadId => call('files/upload_done', { upload_id: uploadId }),
     raw: (project, path, opts) => getBlob('files/raw', { project, path }, opts),
     rawUrl: (project, path) => query('files/raw', { project, path }),
