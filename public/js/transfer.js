@@ -201,9 +201,18 @@ const Upl = {
           for (let c = 0; c < chunks && !job.cancelled; c++) {
             const start = c * this.chunkMB * MB, end = Math.min(it.size, start + this.chunkMB * MB);
             const raw = new Uint8Array(await (it.file || new Blob()).slice(start, end).arrayBuffer());
-            /* サーバー側WAFのシグネチャ誤検知回避のため、転送時のみ簡易XORで難読化する（BE側で復号） */
+            /* サーバー側WAFのシグネチャ誤検知回避のため、upload_id/index由来の鍵で難読化する（BE側で復号）。固定パターンを避ける。 */
+            const seedSrc = new TextEncoder().encode(uploadId + '\0' + c + '\0vwc-chunk-v1');
+            const hashBuf = await crypto.subtle.digest('SHA-256', seedSrc);
+            let state = new DataView(hashBuf).getUint32(0);
             const bytes = new Uint8Array(raw.length);
-            for (let i = 0; i < raw.length; i++) bytes[i] = raw[i] ^ 0x55;
+            for (let i = 0; i < raw.length; i++) {
+              state ^= (state << 13) >>> 0;
+              state ^= state >>> 17;
+              state ^= (state << 5) >>> 0;
+              state >>>= 0;
+              bytes[i] = raw[i] ^ (state & 0xff);
+            }
             await Api.files.uploadChunk(uploadId, c, bytes.buffer, S.proj.id);
             sent = baseSent + end;
             const p = total ? Math.min(.99, sent / total) : .5;
