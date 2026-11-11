@@ -265,8 +265,8 @@
 <div id="screens" hidden>
  <section class="scr" id="s19" hidden><div class="box"><h1>アクセスコードを入力</h1>
   <input id="gate-in" placeholder="アクセスコード（8桁の数字）" class="big-in" inputmode="numeric" maxlength="9" autocomplete="off">
-  <div class="btns2"><button class="primary" id="gate-ok">開く</button></div><p class="msg" id="gate-msg"></p>
-  <p><a href="#" data-go="editor">アプリ以外はログインが必要です（エディターへ）</a></p></div></section>
+  <div class="btns2"><button class="primary" id="gate-ok">開く</button><button class="primary" id="gate-login" type="button" hidden>ログインする</button></div><p class="msg" id="gate-msg"></p>
+  <p><a href="#" id="gate-editor">エディターへ</a></p></div></section>
  <section class="scr" id="s20" hidden><div class="box error-page" role="alert" aria-live="polite"><span class="ms big" id="s20-i" aria-hidden="true">info</span><h1 id="s20-t"></h1><p id="s20-m"></p><p id="s20-a" class="error-action" hidden></p></div></section>
 </div>
 <!-- アプリ管理（SM05） -->
@@ -278,7 +278,7 @@
     <button id="ap-show" title="表示/隠す"><span class="ms">visibility</span></button><button id="ap-copy" title="コピー"><span class="ms">content_copy</span></button><button id="ap-regen">再生成</button><div class="dnote" id="ap-codemsg"></div></div>
   <h4>更新・ロールバック</h4><select id="ap-commit" style="width:100%"></select>
   <div class="dnote" id="ap-sum"></div><div class="dnote" id="ap-pres"></div>
-  <div class="btns"><button id="ap-view">閲覧者</button><button id="ap-del" style="color:var(--danger)">削除</button><button id="ap-upd">更新</button><button id="ap-rb">ロールバック</button><button data-close>閉じる</button></div></dialog>
+  <div class="btns"><button id="ap-view">閲覧者</button><button id="ap-del" style="color:var(--danger)">削除</button><button id="ap-move">更新/ロールバック</button><button data-close>閉じる</button></div></dialog>
 <dialog id="d-pal"><input id="pal-in" placeholder="ファイル名を検索" style="width:100%"><div id="pal-l" style="margin-top:8px;max-height:50vh;max-height:50dvh;overflow:auto"></div><div class="btns"><button data-close>閉じる</button></div></dialog>
 <dialog id="d-cmd"><input id="cmd-in" placeholder="コマンドを検索" aria-label="コマンドを検索" style="width:100%"><div id="cmd-list" style="margin-top:8px;max-height:50vh;max-height:50dvh;overflow:auto"></div><div class="btns"><button data-close>閉じる</button></div></dialog>
 <div id="tab-menu" hidden role="menu">

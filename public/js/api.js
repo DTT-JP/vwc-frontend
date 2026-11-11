@@ -293,6 +293,7 @@ const Api = (() => {
     announcementSave: a => call('admin/announcements_save', a),
     announcementDelete: id => call('admin/announcements_delete', { id }),
     gc: (execute) => call('admin/gc', execute ? { execute: true } : {}),
+    cacheClear: () => call('admin/cache_clear'),
     auditList: filter => call('admin/audit_list', filter || {})
   };
 

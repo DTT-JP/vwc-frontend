@@ -171,22 +171,24 @@ $('#left').addEventListener('click', e => {
   }
   if (d) askDelProject(DATA.projects.mine.find(p => p.id === d.dataset.del));
 });
-async function openProject(id) {
-  if (S.tabs.some(unsaved) && S.proj && S.proj.id !== id) return closeUnsavedSequential([...S.tabs], () => openProject(id));
+async function openProject(id, opts = {}) {
+  if (S.tabs.some(unsaved) && S.proj && S.proj.id !== id) return closeUnsavedSequential([...S.tabs], () => openProject(id, opts));
   /* 「自分の」を先に探す（同じ id が両方にあっても、所有者として開く） */
   S.proj = DATA.projects.mine.find(p => p.id === id) || DATA.projects.shared.find(p => p.id === id);
-  if (!S.proj) return showToast('プロジェクトが見つかりません');
+  if (!S.proj) { if (opts.restored) forgetLastProject(id); else showToast('プロジェクトが見つかりません'); return; }
   /* 読み込みを待つ間、前に開いていたプロジェクトの権限（共有・閲覧）が残らないよう、権限はいますぐ切り替える */
   if (window.applyRoleForProject) applyRoleForProject();
   (S.tabs || []).forEach(t => { if (t.cm && window.EditorCore) EditorCore.destroy(t.cm); });
   S.tabs = []; S.msel = new Set(); S.mmode = false; S.hov = null; S.anchor = null;
   S.loading++;
   renderTabs(); renderTree(); updateStatus(); showPanel('sm02');
-  try { await Task.run({ title: `「${S.proj.name}」を読み込み中`, icon: 'inbox' }, t => { t.set({ msg: 'ファイル・履歴を取得しています' }); return loadProject(id); }); }
-  catch (e) { showApiError(e, { silent: true }); showToast('プロジェクトを読み込めませんでした'); }
+  let ok = false;
+  try { await Task.run({ title: `「${S.proj.name}」を読み込み中`, icon: 'inbox' }, t => { t.set({ msg: 'ファイル・履歴を取得しています' }); return loadProject(id); }); ok = true; }
+  catch (e) { showApiError(e, { silent: true }); showToast('プロジェクトを読み込めませんでした'); if (opts.restored) forgetLastProject(id); }
   finally { S.loading--; }
   if (window.applyRoleForProject) applyRoleForProject();
   initBase(); renderTabs(); renderTree(); updateStatus(); renderShare(); renderPub(); renderHist(); renderUsage(); renderHome();
+  if (ok) rememberLastProject(id);
 }
 function closeUnsavedSequential(tabs, done) {
   const pending = tabs.find(t => S.tabs.includes(t) && unsaved(t));
@@ -208,6 +210,25 @@ const files = () => (S.proj && DATA.files[S.proj.id]) || [];
 const hasProject = () => !!(S.proj && S.proj.id);
 const NO_PROJECT_MSG = 'プロジェクトを作成するか、開いてください';
 const noProjectPanel = () => `<div class="pnote" style="padding:16px">${esc(NO_PROJECT_MSG)}</div>`;
+const lastProjectKey = () => DATA.user && DATA.user.id ? `vwc:lastProject:${DATA.user.id}` : 'vwc:lastProject';
+function rememberLastProject(id) {
+  try { if (id) localStorage.setItem(lastProjectKey(), String(id)); } catch {}
+}
+function forgetLastProject(id) {
+  try {
+    const key = lastProjectKey(), cur = localStorage.getItem(key);
+    if (!id || cur === String(id)) localStorage.removeItem(key);
+  } catch {}
+}
+async function restoreLastProject(opts = {}) {
+  let id = '';
+  try { id = localStorage.getItem(lastProjectKey()) || ''; } catch {}
+  if (!id) return false;
+  const p = allProjects().find(x => String(x.id) === String(id));
+  if (!p) { forgetLastProject(id); return false; }
+  try { await openProject(p.id, Object.assign({ restored: true }, opts)); return S.proj && String(S.proj.id) === String(p.id); }
+  catch { forgetLastProject(id); return false; }
+}
 /* 追跡上限を超えるファイル（行の差分ではなく、ハッシュ・名前・サイズで追跡する） */
 const isLargeNode = f => f.t !== 'dir' && (f.size ?? (f.blob ? f.blob.size : 0)) > limitVal('track_limit_mb') * 1048576;
 /* ファイルの状態：青=システム未保存（ページを閉じると失われる）/ 灰=隠しファイル / 緑 / オレンジ。優先順位は 青 > 灰 > 緑 > オレンジ */
@@ -859,6 +880,7 @@ $('#del-ok').onclick = () => {
     try {
       await busy(`「${p.name}」を削除中`, 'delete', () => Api.projects.remove(p.id, $('#del-apps').checked));
       await Promise.allSettled([loadProjects(), loadUsage(), loadApps()]);
+      if (typeof forgetLastProject === 'function') forgetLastProject(p.id);
       DATA.members.forEach(m => { m.projects = (m.projects || []).filter(x => x.id !== p.id); m.projectCount = m.projects.length; m.apps = (m.apps || []).filter(name => DATA.apps.some(a => a.name === name)); });
       if (S.proj && S.proj.id === p.id) {
         DATA.collab = [];

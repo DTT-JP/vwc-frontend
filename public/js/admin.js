@@ -213,6 +213,7 @@ $('#bench').addEventListener('change', e => { if (e.target.id === 'ox-m') fillOx
 const AUD = { m: '', op: '', ip: '' };
 let maintMember = '', auditOps = [];
 const GC_RESULT_KEY = 'vwc_gc_result';
+const CACHE_CLEAR_RESULT_KEY = 'vwc_cache_clear_result';
 function loadGcResult() {
   try { return JSON.parse(sessionStorage.getItem(GC_RESULT_KEY) || 'null'); } catch { return null; }
 }
@@ -242,6 +243,28 @@ function gcResultHtml() {
   }
   return `<div class="anote" id="gc-r">${lines.join('<br>')}</div>`;
 }
+function loadCacheClearResult() {
+  try { return JSON.parse(sessionStorage.getItem(CACHE_CLEAR_RESULT_KEY) || 'null'); } catch { return null; }
+}
+function saveCacheClearResult(r) { try { sessionStorage.setItem(CACHE_CLEAR_RESULT_KEY, JSON.stringify(r)); } catch { /* 保存できなくても実行自体は継続 */ } }
+let cacheClearResult = loadCacheClearResult();
+function cacheClearResultHtml() {
+  if (!cacheClearResult) return '';
+  const at = cacheClearResult.at ? new Date(cacheClearResult.at).toLocaleString('ja-JP') : '';
+  const freed = num(cacheClearResult.freed_mb ?? cacheClearResult.freedMB, 0);
+  const items = num(cacheClearResult.items, 0);
+  const lines = [`<b>キャッシュクリア：</b>${esc(cacheClearResult.message || '完了しました。')}`];
+  if (items > 0 || freed > 0) lines.push(`<b>回収量：</b>${fmtMB(freed)}MB${items ? `（対象 ${items} 件）` : ''}`);
+  if (at) lines.push(`<b>実行日時：</b>${esc(at)}`);
+  const br = Array.isArray(cacheClearResult.breakdown) ? cacheClearResult.breakdown.filter(x => x && (num(x.count, 0) > 0 || num(x.mb ?? x.bytes / 1048576, 0) > 0)) : [];
+  if (br.length) {
+    lines.push('<b>内訳：</b><ul class="exl" style="margin:4px 0 0 18px">' + br.map(x => {
+      const c = num(x.count, 0), mb = num(x.mb, num(x.bytes, 0) / 1048576);
+      return `<li>${esc(x.label || x.key || '')}：${c} 件${mb > 0 ? `（${fmtMB(mb)}MB）` : ''}</li>`;
+    }).join('') + '</ul>');
+  }
+  return `<div class="anote" id="cache-clear-r">${lines.join('<br>')}</div>`;
+}
 function auditRows() { return DATA.audit.filter(l => (!AUD.m || l.member === AUD.m) && (!AUD.op || String(l.op).includes(AUD.op)) && (!AUD.ip || String(l.ip).includes(AUD.ip))); }
 function rMaint() {
   const mx = Math.max(1, ...DATA.members.map(m => m.usedMB || 0)), ops = auditOps.length ? auditOps : [...new Set(DATA.audit.map(l => l.op))];
@@ -250,7 +273,7 @@ function rMaint() {
   const memberAppNames = selected ? new Set(memberApps(selected)) : null;
   const cats = DATA.adminUsage.categories || [];
   const usageRows = cats.flatMap(c => (c.items || []).filter(([name]) => !selected || c.name === 'その他' || (c.name === 'プロジェクト' && memberNames.has(name)) || (c.name === 'アプリ' && memberAppNames.has(name)) || (c.name === '履歴' && [...memberNames].some(p => name.startsWith(p + ' の履歴')))).map(([name, mb]) => ({ c: c.name, name, mb })));
-  return `<h2>使用状況・保守</h2>${admReauthBar()}<h3>GC（不要データの回収）</h3><div class="tools" style="margin:4px 0 8px"><button class="o" data-a="gc">${ico('cleaning_services')} GCを実行</button></div>${gcResultHtml()}` +
+  return `<h2>使用状況・保守</h2>${admReauthBar()}<h3>GC（不要データの回収）</h3><div class="tools" style="margin:4px 0 8px"><button class="o" data-a="gc">${ico('cleaning_services')} GCを実行</button></div><div class="tools" style="margin:4px 0 8px"><button class="o" data-a="cache-clear">${ico('cached')} キャッシュをクリア</button></div>${gcResultHtml()}${cacheClearResultHtml()}` +
     `<h3>使用量ランキング</h3><table class="tbl"><tbody>` + [...DATA.members].sort((a, b) => (b.usedMB || 0) - (a.usedMB || 0)).map(m => `<tr><td data-l="部員">${esc(m.name)}</td><td data-l="使用量" style="width:50%"><div class="bar" style="width:${(m.usedMB || 0) / mx * 100}%"></div></td><td>${fmtMB(m.usedMB || 0)}MB</td></tr>`).join('') +
     `</tbody></table><h3>容量の内訳と操作</h3><div class="tools"><label>部員<select data-maint-member><option value="">全体</option>${DATA.members.map(m => `<option value="${m.id}" ${maintMember === m.id ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}</select></label></div><table class="tbl"><thead><tr><th>区分</th><th>項目</th><th>容量</th><th>操作</th></tr></thead><tbody>${usageRows.map(x => `<tr><td>${esc(x.c)}</td><td>${esc(x.name)}</td><td>${fmtMB(x.mb)}MB</td><td>${x.c === 'プロジェクト' ? `<button class="o" data-usage-open="${esc(x.name)}">開く</button>` : ''}${x.c === '履歴' ? `<button class="o" data-usage-history="${esc(x.name)}">履歴を削除</button>` : ''}${x.c === 'アプリ' ? `<button class="o" data-usage-open-app="${esc(x.name)}">開く</button><button class="o" data-usage-delete-app="${esc(x.name)}">削除</button>` : ''}</td></tr>`).join('')}</tbody></table>
   <h3>監査ログ</h3><p class="dnote">${limitOf('audit_retention_days').value}日より古いものは削除されます。IPアドレスは、操作した端末の接続元です。</p>
@@ -397,6 +420,17 @@ $('#bench').addEventListener('click', e => { const b = e.target.closest('[data-a
       redo();
       showToast(gcResult.message);
     } catch (e) { if (btn) { btn.disabled = false; btn.textContent = 'GCを実行'; } showApiError(e); } });
+  if (a === 'cache-clear') reauth(async () => {
+    const btn = document.querySelector('[data-a="cache-clear"]');
+    if (btn) { btn.disabled = true; btn.textContent = 'キャッシュをクリア中...'; }
+    try {
+      const d = await Api.admin.cacheClear();
+      cacheClearResult = { ...d, at: Date.now() };
+      saveCacheClearResult(cacheClearResult);
+      await Promise.allSettled([loadAdminUsage(maintMember || undefined), loadAudit()]);
+      redo();
+      showToast(cacheClearResult.message || 'キャッシュを削除しました。');
+    } catch (e) { if (btn) { btn.disabled = false; btn.textContent = 'キャッシュをクリア'; } showApiError(e); } });
   if (a === 'ann-new') openAnn(); if (a === 'ann-edit') openAnn(DATA.announcements.find(x => x.id === id));
   if (a === 'ann-del') confirmDlg('お知らせを削除', '削除すると、ホームの表示から消えます。', () => reauth(async () => {
     try { await Api.admin.announcementDelete(id); await loadAdminAnnouncements(); redo(); refreshNotices(); showToast('削除しました'); }

@@ -33,7 +33,12 @@ const show = id => {
   VWC.set('screen', id, 'app');
 };
 VWC.on('screen', (id, src) => { if (src !== 'app') show(id); });
-$$('[data-go]').forEach(a => a.onclick = e => { e.preventDefault(); show(a.dataset.go); });
+$$('[data-go]').forEach(a => a.onclick = e => {
+  e.preventDefault();
+  const id = a.dataset.go;
+  if (id === 'editor' && !S.auth) { setAuth(false); return; }
+  show(id);
+});
 $('#btn-logout').onclick = requestLogout;
 
 /* ---- ログイン（タブ）：QR / 数字コード / 部活アカウント(IdP)。FE 2.0: MS廃止 ---- */
@@ -235,14 +240,18 @@ $('#gate-in').oninput = e => { e.target.value = fmtCode(e.target.value); };
 function showGate(name, need, ret) {
   gateCtx = { name: name || '', return: ret || '' };
   show('s19');
-  const box = document.querySelector('#s19 .box'), input = $('#gate-in'), ok = $('#gate-ok'), msg = $('#gate-msg');
+  const box = document.querySelector('#s19 .box'), input = $('#gate-in'), ok = $('#gate-ok'), login = $('#gate-login'), msg = $('#gate-msg');
   const title = box.querySelector('h1');
   if (!name) title.textContent = '見つかりません';
   else if (need === 'login') title.textContent = 'ログインが必要です';
   else if (need === 'denied') title.textContent = 'アクセスできません';
   else if (need === 'code') title.textContent = 'アクセスコードを入力';
   else title.textContent = 'アクセスを確認できません';
-  if (!name || need !== 'code') { input.hidden = true; ok.hidden = true; } else { input.hidden = false; ok.hidden = false; }
+  const showCode = !!name && need === 'code';
+  const showLogin = !!name && need === 'login';
+  input.hidden = !showCode;
+  ok.hidden = !showCode;
+  if (login) login.hidden = !showLogin;
   msg.textContent = !name ? 'アプリが見つかりません。URLを確認してください。'
     : need === 'login' ? 'このアプリを見るにはログインしてください。' : need === 'denied' ? 'このアプリを閲覧する権限がありません。' : '';
   if (need === 'login' && DATA.user.id && ret) { location.href = ret; return; }
@@ -266,6 +275,18 @@ $('#gate-ok').onclick = async () => {
     } else m.textContent = apiMessage(e);
     m.className = 'msg err';
   }
+};
+if ($('#gate-login')) $('#gate-login').onclick = () => {
+  const scr = $('#screens');
+  if (scr) { scr.hidden = true; $$('.scr').forEach(s => s.hidden = true); }
+  setAuth(false);
+  openLogin(defaultLoginTab());
+};
+if ($('#gate-editor')) $('#gate-editor').onclick = e => {
+  e.preventDefault();
+  const scr = $('#screens');
+  if (scr) { scr.hidden = true; $$('.scr').forEach(s => s.hidden = true); }
+  if (S.auth) { show('editor'); } else { setAuth(false); }
 };
 
 /* ---- S20：共通状態 ---- */

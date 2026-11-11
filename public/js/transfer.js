@@ -43,6 +43,7 @@ const Proc = (() => {
 /* ---- 通知トレイ（進捗・通知・履歴を統合） ---- */
 const Tray = (() => {
   let el = null, seq = 0; const rows = [], history = []; let panelVisible = true, showHistory = false;
+  const expanded = new Set();
   const mount = () => {
     if (el) return el;
     el = document.createElement('div'); el.id = 'tray'; el.hidden = false;
@@ -56,6 +57,16 @@ const Tray = (() => {
       if (close) { Tray.dismiss(+close.dataset.tx); e.stopPropagation(); return; }
       if (cancel) { const r = rows.find(r => r.id === +cancel.dataset.tc) || history.find(r => r.id === +cancel.dataset.tc); r && r.onCancel && r.onCancel(); e.stopPropagation(); return; }
       if (clearHist) { Tray.clearHistory(); e.stopPropagation(); return; }
+      const row = e.target.closest('.tr-row[data-id]');
+      if (row && !e.target.closest('button,a,input,select,textarea')) {
+        const id = +row.dataset.id;
+        if (id) {
+          if (expanded.has(id)) expanded.delete(id); else expanded.add(id);
+          paint();
+        }
+        e.stopPropagation();
+        return;
+      }
       if (!e.target.closest('button,a,input,select,textarea')) Tray.toggle();
     });
     paint();
@@ -71,7 +82,8 @@ const Tray = (() => {
         ? `<button data-td="${r.id}" title="履歴から消す"><span class="ms">close</span></button>`
         : `<button data-tx="${r.id}" title="閉じる"><span class="ms">close</span></button>`;
     const msg = r.msg || (run ? '' : r.state === 'ok' ? '完了' : r.state === 'err' ? '失敗' : r.state === 'cancel' ? 'キャンセル' : '');
-    return `<div class="tr-row ${esc(r.kind || '')} ${run ? 'run' : esc(r.state || '')}" data-id="${r.id}"><div class="tr-h"><span class="ms${run && r.spin ? ' spin' : ''}">${esc(r.icon || 'notifications')}</span><b title="${esc(r.title)}">${esc(r.title)}</b>` +
+    const isExpanded = expanded.has(r.id);
+    return `<div class="tr-row ${esc(r.kind || '')} ${run ? 'run' : esc(r.state || '')}${isExpanded ? ' expanded' : ''}" data-id="${r.id}" aria-expanded="${isExpanded ? 'true' : 'false'}"><div class="tr-h"><span class="ms${run && r.spin ? ' spin' : ''}">${esc(r.icon || 'notifications')}</span><b title="${esc(r.title)}">${esc(r.title)}</b>` +
       (showPct ? `<span class="tr-pct">${pct}%</span>` : '') + action + `</div>` +
       (showBar ? `<div class="pgb${known ? '' : ' ind'}" role="progressbar"${known ? ` aria-valuenow="${pct}"` : ''}><i style="width:${known ? pct : 38}%"></i></div>` : '') +
       `<div class="tr-m" title="${esc(msg)}">${esc(msg)}</div></div>`;
@@ -121,6 +133,7 @@ const Tray = (() => {
     remove(id) { Tray.dismiss(id); },
     /* 履歴から完全削除（メモリ解放） */
     forget(id) {
+      expanded.delete(id);
       let i = history.findIndex(x => x.id === id);
       if (i >= 0) { history.splice(i, 1); paint(); return; }
       i = rows.findIndex(x => x.id === id);
@@ -128,6 +141,7 @@ const Tray = (() => {
     },
     /* 通知履歴をすべて削除（メモリ解放） */
     clearHistory() {
+      history.forEach(r => expanded.delete(r.id));
       while (history.length) {
         const r = history.pop();
         if (r) { clearTimeout(r._t); r.msg = r.title = r.onCancel = null; }

@@ -95,15 +95,17 @@ function pickFromSystem(id) {
 }
 $('#pick-l').onclick = async e => {
   const r = e.target.closest('[data-pi]'); if (!r) return;
-  const [path, f] = pickRows[+r.dataset.pi];
-  if (!f.blob) {
-    if (!(typeof hasProject === 'function' ? hasProject() : !!(S.proj && S.proj.id))) {
-      return showToast(typeof NO_PROJECT_MSG === 'string' ? NO_PROJECT_MSG : 'プロジェクトを作成するか、開いてください');
-    }
-    if (typeof ensureBlob !== 'function') return showToast('このファイルはサンプルのため、実データがありません');
-    try { await ensureBlob(f, path, S.proj.id); }
-    catch (err) { return showApiError ? showApiError(err) : showToast('ファイルを読み込めませんでした'); }
-    if (!f.blob) return showToast('このファイルはサンプルのため、実データがありません');
+  const [path, f] = pickRows[+r.dataset.pi], T = Tools.get(pickTool);
+  if (!T) return;
+  const deliver = () => { if (f.blob) T.onFile && T.onFile(new File([f.blob], f.n, { type: f.blob.type || '' })); };
+  $('#d-pick').close();
+  if (f.blob) return deliver();
+  if (!(typeof hasProject === 'function' ? hasProject() : !!(S.proj && S.proj.id))) {
+    return showToast(typeof NO_PROJECT_MSG === 'string' ? NO_PROJECT_MSG : 'プロジェクトを作成するか、開いてください');
   }
-  $('#d-pick').close(); const T = Tools.get(pickTool); T && T.onFile && T.onFile(new File([f.blob], f.n, { type: f.blob.type || '' }));
+  if (typeof ensureBlob !== 'function') return showToast('このファイルはサンプルのため、実データがありません');
+  try { await ensureBlob(f, path, S.proj.id); }
+  catch (err) { return showApiError ? showApiError(err) : showToast('ファイルを読み込めませんでした'); }
+  if (!f.blob) return showToast('このファイルはサンプルのため、実データがありません');
+  deliver();
 };

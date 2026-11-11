@@ -25,10 +25,10 @@ const appsOfProj = () => DATA.apps.filter(a => a.proj === S.proj.id);
 const appByName = name => (DATA.apps.find(a => a.name === name) || DATA.adminApps.find(a => a.name === name));
 const projectRecords = () => [...DATA.projects.mine, ...DATA.projects.shared, ...DATA.adminProjects, ...DATA.members.flatMap(m => m.projects || [])];
 const cachedCommits = projectId => DATA.commitsByProject[projectId] || (S.proj && projectId === S.proj.id ? DATA.commits : []);
-async function loadCommits(projectId) {
+async function loadCommits(projectId, opts = {}) {
   if (!projectId) return [];
   let list = cachedCommits(projectId);
-  if (!list.length) {
+  if (!list.length || opts.force) {
     try { applyCommits(projectId, await Api.history.log(projectId)); list = cachedCommits(projectId); }
     catch (e) { if (!(e instanceof ApiError) || e.status !== 404) throw e; }
   }
@@ -148,7 +148,7 @@ function fillPubCommits(preferredHash) {
   const projectId = $('#pub-proj').value;
   const select = $('#pub-commit');
   select.innerHTML = '<option value="">読み込み中…</option>'; $('#pub-next').disabled = true;
-  loadCommits(projectId).then(() => {
+  loadCommits(projectId, { force: true }).then(() => {
     if ($('#pub-proj').value !== projectId) return;
     const commits = commitsForProject(projectId, preferredHash);
     select.innerHTML = commits.length ? commits.map(c => `<option value="${c.hash}">${esc(c.message)} (${String(c.hash).slice(0, 7)})</option>`).join('') : '<option value="">コミットがありません</option>';
@@ -244,30 +244,39 @@ function changeSummary(projectId, from, to) {
    管理者は、さらに他人のアプリも選べる（管理の一覧は再認証が必要なので、取れたときだけ足す。取れなくても、自分のアプリの操作は止めない）。 */
 async function openApp(name) {
   if (DATA.user.isAdmin && reauthLeft() > 0) { try { await loadAdminApps(); } catch { /* 自分のアプリだけで続ける */ } }
+  try { await loadProjects(); } catch { /* 手元の一覧で続行 */ }
   const mine = DATA.apps.slice(), others = DATA.user.isAdmin ? DATA.adminApps.filter(a => !mine.some(m => m.name === a.name)) : [];
   const l = [...mine, ...others]; if (!l.length) return showToast('公開しているアプリはありません');
   $('#ap-sel').innerHTML = l.map(a => `<option value="${esc(a.name)}">${esc(a.name)}</option>`).join(''); $('#ap-sel').value = name && l.some(a => a.name === name) ? name : (l.find(a => S.proj && a.proj === S.proj.id) || l[0]).name;
-  await fillApp(); $('#d-app').showModal();
+  await fillApp({ force: true }); $('#d-app').showModal();
 }
-async function fillApp() {
+async function fillApp(opts = {}) {
   const a = curApp(); if (!a) return;
-  try { await loadCommits(a.proj); } catch (e) { showApiError(e); }
+  const keep = opts.keepSelection ? $('#ap-commit').value : '';
+  try { await loadCommits(a.proj, { force: !!opts.force }); } catch (e) { showApiError(e); }
   const commits = commitsForProject(a.proj, a.commit);
-  $('#ap-commit').innerHTML = commits.map(c => `<option value="${c.hash}">${esc(c.message)} (${String(c.hash).slice(0, 7)})</option>`).join('');
+  $('#ap-commit').innerHTML = commits.length ? commits.map(c => `<option value="${c.hash}">${esc(c.message)} (${String(c.hash).slice(0, 7)})</option>`).join('') : '<option value="">コミットがありません</option>';
   $$('input[name=as]').forEach(r => r.checked = r.value === a.state); $('#ap-codebox').hidden = a.state !== '限定公開';
+  const viewBtn = $('#ap-view');
+  if (viewBtn) viewBtn.hidden = a.state !== '非公開';
   $('#ap-code').value = ''; $('#ap-code').type = 'password'; $('#ap-codemsg').textContent = '';
   if (a.state === '限定公開') {
     try { const d = await Api.apps.codeGet(a.name); a.code = d.code || d.access_code || a.code || ''; } catch (e) { if (!(e instanceof ApiError) || e.status !== 404) showApiError(e); }
     $('#ap-code').value = fmtCode(a.code);
   }
-  $('#ap-commit').value = commits[0]?.hash || ''; await fillUpdInfo();
+  const preferred = keep && commits.some(c => c.hash === keep) ? keep : (commits.some(c => c.hash === a.commit) ? a.commit : (commits[0]?.hash || ''));
+  $('#ap-commit').value = preferred; await fillUpdInfo();
 }
 async function fillUpdInfo() {
   const a = curApp(); if (!a) return;
   const to = $('#ap-commit').value, target = commitsForProject(a.proj).find(c => c.hash === to), s = target && changeSummary(a.proj, a.commit, to), pr = await appJson(a.proj);
   $('#ap-sum').innerHTML = (s ? `現在 ${commitCode(a.commit, a.proj, a.commitMessage)} → ${commitCode(to, a.proj)}：${s.newer ? '新しい版へ' : '古い版へ'}（${s.n}件のコミット分。追加 ${s.add}・変更 ${s.mod}・削除 ${s.del} ファイル）` : `現在と同じ版です（${commitCode(a.commit, a.proj, a.commitMessage)}）`);
   $('#ap-pres').innerHTML = '更新で引き継ぐファイル（app.json の preserve）：' + (pr.err ? `<span class="err">${esc(pr.err)}</span>` : pr.list.length ? pr.list.map(x => `<code>${esc(x)}</code>`).join(' ') : 'なし');
-  $('#ap-upd').disabled = !s || !s.newer; $('#ap-rb').disabled = !s || s.newer;
+  const moveBtn = $('#ap-move');
+  if (moveBtn) {
+    moveBtn.disabled = !s;
+    moveBtn.textContent = s ? (s.newer ? '更新/ロールバック（更新）' : '更新/ロールバック（ロールバック）') : '更新/ロールバック';
+  }
 }
 $('#ap-sel').onchange = () => fillApp(); $('#ap-commit').onchange = () => fillUpdInfo();
 $$('input[name=as]').forEach(r => r.onchange = async () => {
@@ -292,31 +301,25 @@ $('#ap-regen').onclick = () => confirmDlg('アクセスコードを再生成', '
     $('#ap-code').value = fmtCode(a.code); $('#ap-codemsg').textContent = `新しいコードを発行しました。旧コード（${fmtCode(old)}）は無効になりました。`; $('#ap-code').type = 'text';
   } catch (e) { showApiError(e); }
 });
-$('#ap-upd').onclick = async () => {
+$('#ap-move').onclick = async () => {
   const a = curApp(), to = $('#ap-commit').value, c = commitsForProject(a.proj).find(x => x.hash === to), s = c && changeSummary(a.proj, a.commit, to), pr = await appJson(a.proj); if (!c || !s) return;
-  confirmHtml('アプリを更新', `<b>${esc(a.name)}</b> を ${commitCode(to, a.proj)} に更新します。<br>${s.n}件のコミット分：追加 ${s.add}・変更 ${s.mod}・削除 ${s.del} ファイル。<br>引き継ぐファイル：${pr.err ? pr.err : pr.list.length ? pr.list.join('、') : 'なし'}`, async () => {
+  const newer = s.newer, title = newer ? 'アプリを更新' : 'アプリをロールバック', actionLabel = newer ? '更新する' : '戻す';
+  const body = newer
+    ? `<b>${esc(a.name)}</b> を ${commitCode(to, a.proj)} に更新します。<br>${s.n}件のコミット分：追加 ${s.add}・変更 ${s.mod}・削除 ${s.del} ファイル。<br>引き継ぐファイル：${pr.err ? pr.err : pr.list.length ? pr.list.join('、') : 'なし'}`
+    : `<b>${esc(a.name)}</b> を、次の版に戻します。<dl class="kv"><dt>戻り先</dt><dd>${commitCode(c.hash, a.proj)}</dd><dt>作った人・日時</dt><dd>${esc(c.by)}・${c.at}</dd><dt>いまの版</dt><dd>${commitCode(a.commit, a.proj, a.commitMessage)}</dd></dl>公開中のアプリが、すぐにこの版に変わります。`;
+  confirmHtml(title, body, async () => {
     const was = a.commit;
     try {
-      await busy(`「${a.name}」を更新中`, 'upgrade', () => Api.apps.update(a.name, to));
+      await busy(newer ? `「${a.name}」を更新中` : `「${a.name}」を戻し中`, newer ? 'upgrade' : 'history', () => Api.apps.update(a.name, to));
       await Promise.allSettled([loadApps(), DATA.user.isAdmin && reauthLeft() > 0 ? loadAdminApps() : Promise.resolve()]);
-      const fresh = appByName(a.name); if (fresh) Object.assign(a, fresh); await fillApp();
+      const fresh = appByName(a.name); if (fresh) Object.assign(a, fresh); await fillApp({ force: true, keepSelection: false });
+      renderPub();
       if (typeof refreshUsageDisplay === 'function') refreshUsageDisplay().catch(() => {});
-      resultDlg('更新しました', `<dl class="kv"><dt>アプリ</dt><dd>${esc(a.name)}</dd><dt>版</dt><dd>${commitCode(was, a.proj)} → ${commitCode(to, a.proj)}</dd><dt>URL</dt><dd>${APP_URL(a.name)}</dd><dt>引き継いだファイル</dt><dd>${pr.list ? pr.list.map(x => `<code>${esc(x)}</code>`).join(' ') || 'なし' : pr.err}</dd></dl>`);
+      const resultTitle = newer ? '更新しました' : 'ロールバックしました';
+      const extra = newer ? `<dt>URL</dt><dd>${APP_URL(a.name)}</dd><dt>引き継いだファイル</dt><dd>${pr.list ? pr.list.map(x => `<code>${esc(x)}</code>`).join(' ') || 'なし' : pr.err}</dd>` : '';
+      resultDlg(resultTitle, `<dl class="kv"><dt>アプリ</dt><dd>${esc(a.name)}</dd><dt>版</dt><dd>${commitCode(was, a.proj)} → ${commitCode(to, a.proj)}</dd>${extra}</dl>`);
     } catch (e) { showApiError(e); }
-  }, '更新する');
-};
-$('#ap-rb').onclick = async () => {
-  const a = curApp(), to = $('#ap-commit').value, c = commitsForProject(a.proj).find(x => x.hash === to); if (!c) return;
-  confirmHtml('ロールバック', `<b>${esc(a.name)}</b> を、次の版に戻します。<dl class="kv"><dt>戻り先</dt><dd>${commitCode(c.hash, a.proj)}</dd><dt>作った人・日時</dt><dd>${esc(c.by)}・${c.at}</dd><dt>いまの版</dt><dd>${commitCode(a.commit, a.proj, a.commitMessage)}</dd></dl>公開中のアプリが、すぐにこの版に変わります。`, async () => {
-    const was = a.commit;
-    try {
-      await busy(`「${a.name}」を戻し中`, 'history', () => Api.apps.update(a.name, to));
-      await Promise.allSettled([loadApps(), DATA.user.isAdmin && reauthLeft() > 0 ? loadAdminApps() : Promise.resolve()]);
-      const fresh = appByName(a.name); if (fresh) Object.assign(a, fresh); await fillApp();
-      if (typeof refreshUsageDisplay === 'function') refreshUsageDisplay().catch(() => {});
-      resultDlg('ロールバックしました', `<dl class="kv"><dt>アプリ</dt><dd>${esc(a.name)}</dd><dt>版</dt><dd>${commitCode(was, a.proj)} → ${commitCode(to, a.proj)}</dd></dl>`);
-    } catch (e) { showApiError(e); }
-  }, '戻す');
+  }, actionLabel);
 };
 $('#ap-del').onclick = () => confirmDlg('アプリを削除', `${curApp().name} を削除します。URLは無効になります。`, async () => {
   const a = curApp();
@@ -465,7 +468,7 @@ async function pruneHistory(hash) {
 async function reloadProjectHistory() {
   const pid = S.proj.id;
   await Task.run({ title: '履歴を更新中', icon: 'history' }, async t => {
-    const [log, status] = await Promise.allSettled([Api.history.log(pid), Api.history.status(pid)]);
+    const [log, status, projects] = await Promise.allSettled([Api.history.log(pid), Api.history.status(pid), typeof loadProjects === 'function' ? loadProjects() : Promise.resolve()]);
     t.set({ msg: 'ファイル一覧を更新しています' });
     if (log.status === 'fulfilled') applyCommits(pid, log.value);
     if (status.status === 'fulfilled') applyStatus(pid, status.value);
@@ -473,6 +476,13 @@ async function reloadProjectHistory() {
   });
   Object.keys(DIFFSTORE).forEach(k => delete DIFFSTORE[k]);   // 履歴を変えたら（復元・削除・コミット）、差分の表示も取り直す
   initBase(); renderHist(); renderTree();
+  const appDlg = $('#d-app');
+  if (appDlg && appDlg.open && typeof curApp === 'function') {
+    const a = curApp();
+    if (a && a.proj === pid) await fillApp({ force: true, keepSelection: true }).catch(() => {});
+  }
+  const pubDlg = $('#d-pub');
+  if (pubDlg && pubDlg.open && $('#pub-proj') && $('#pub-proj').value === pid) fillPubCommits($('#pub-commit')?.value);
   if (typeof refreshUsageDisplay === 'function') await refreshUsageDisplay().catch(() => {}); else { await loadUsage().catch(() => {}); renderUsage(); }
 }
 /* ---- 差分の表示 ----

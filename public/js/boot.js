@@ -58,6 +58,7 @@ async function afterLogin(mode) {
   reportLoadFailures(await loadInitial(), 'Initial data load failed');
   S.proj = null;
   initBase(); applyRoleForProject(); renderAll(); setAuth(true);
+  if (typeof restoreLastProject === 'function') await restoreLastProject();
   completeLogin(mode, false);
 }
 
@@ -156,6 +157,7 @@ async function boot() {
 
     try {
       initBase(); applyRoleForProject(); renderAll(); setAuth(loggedIn);
+      if (loggedIn && typeof restoreLastProject === 'function') await restoreLastProject();
       bootOk = true;
     } catch (e) {
       console.error('boot render failed', e);

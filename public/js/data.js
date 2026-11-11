@@ -29,7 +29,7 @@ const LIMIT_META = [
 
 const DATA = {
   meta: { api_version: null, server_version: '', backend: null, login_providers: [] },
-  user: { id: '', name: '', position: '', isAdmin: false, reauthUntil: 0, trusted: false, idpLinked: false },
+  user: { id: '', name: '', position: '', isAdmin: false, reauthUntil: 0, trusted: false, idpLinked: false, can_register_trusted: true },
   quota: { limitMB: 0, usedMB: 0 },
   projects: { mine: [], shared: [] },
   files: {},
@@ -215,7 +215,9 @@ function applyMe(d) {
     isAdmin: bool(first(u, ['isAdmin', 'is_admin'], u.role === 'admin'), false),
     reauthUntil: reauth,
     trusted: bool(first(d, ['trusted'], false), false),
-    idpLinked: bool(first(u, ['idpLinked', 'idp_linked'], false), false)
+    idpLinked: bool(first(u, ['idpLinked', 'idp_linked'], false), false),
+    /* QR/コードでログインしたセッションでは信頼端末登録不可（BE: login_via_qr_code）。未指定時は許可扱い。 */
+    can_register_trusted: bool(first(d, ['can_register_trusted', 'canRegisterTrusted'], first(u, ['can_register_trusted', 'canRegisterTrusted'], true)), true)
   };
   const q = d.quota || {};
   DATA.quota = { limitMB: num(q.limitMB ?? q.limit_mb ?? d.quota_mb ?? (d.limits || {}).quota_mb, 0), usedMB: roundMB(num(q.usedMB ?? q.used_mb, 0)) };

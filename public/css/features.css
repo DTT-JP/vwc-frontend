@@ -19,12 +19,14 @@
 #media-box .pgb,#tray .pgb{display:block;width:100%}.pgb.ind>i{width:38%!important;animation:pgind 1.1s ease-in-out infinite}@keyframes pgind{from{margin-left:-38%}to{margin-left:100%}}/* U1: アイコン回転アニメーション禁止（アップロード中等含む）。既存JSが付与する .ms.spin は回転させない */.ms.spin{animation:none}@media(prefers-reduced-motion:reduce){.pgb.ind>i{animation:none}}.mb-t{display:flex;align-items:center;gap:8px}.mb-p{margin-left:auto;color:var(--fg-dim)}.mb-s{font-size:13px;color:var(--fg-dim);min-height:1em}
 .tr-row{border:1px solid var(--border);border-radius:10px;padding:8px 10px;display:grid;grid-template-columns:minmax(0,1fr);gap:4px;min-width:0}.tr-h{display:flex;align-items:center;gap:8px;min-width:0}.tr-h>.ms{flex:none}.tr-h b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tr-h button{flex:none}
 .tr-m{font-size:13px;color:var(--fg-dim)}.tr-row.ok .tr-h .ms:first-child{color:var(--ok)}.tr-row.err .tr-h .ms:first-child{color:var(--danger)}.tr-row.err .tr-m{color:var(--danger)}
+.tr-row.expanded .tr-h b,.tr-row.expanded .tr-m{min-width:0;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;word-break:break-word}
+.tr-row.expanded .tr-h{align-items:flex-start}
 /* ツール共通：案内・実行状態 */
 .tk-guide{display:flex;gap:12px;align-items:flex-start;border:1px solid var(--warn);background:color-mix(in srgb,var(--warn) 12%,transparent);border-radius:12px;padding:12px 14px;margin:0 0 12px}.tk-guide .ms{color:var(--warn)}.tk-guide p{margin:4px 0 0}
 .tk-st{margin:10px 0}.tk-st.idle{display:none}.tk-r{display:flex;align-items:center;gap:8px}.tk-r .sp{flex:1}.tk-r.ok{color:var(--ok)}.tk-r.err{color:var(--danger)}.tk-st .pgb{display:block;width:100%;margin-top:6px}
 .drop.over{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent)}
 /* QR・カメラ */
-.qrbox{width:min(240px,70vw);aspect-ratio:1;margin:8px auto;background:#fff;border-radius:12px;padding:10px;box-sizing:border-box}.qrbox svg{width:100%;height:100%;display:block}.qrbox.exp,.login-code.exp{opacity:.25;filter:grayscale(1)}
+.qrbox{width:min(240px,70vw);aspect-ratio:1;margin:8px auto;background:#fff;border-radius:12px;padding:10px;box-sizing:border-box;display:flex;align-items:center;justify-content:center}.qrbox svg{width:100%;height:auto;max-height:100%;display:block}.qrbox.exp,.login-code.exp{opacity:.25;filter:grayscale(1)}
 .camview{position:relative;width:min(320px,80vw);aspect-ratio:1;margin:8px auto;background:#000;border-radius:14px;overflow:hidden}.camview video{width:100%;height:100%;object-fit:cover}.camframe{position:absolute;inset:18%;border:3px solid #fff;border-radius:14px;box-shadow:0 0 0 999px #0005;pointer-events:none}.camview[data-state=invalid] .camframe{border-color:var(--danger)}
 #apq-st.err{color:var(--danger)}
 /* アクセスコード（8桁） */
@@ -124,7 +126,7 @@ dl.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:8px 0}dl.k
 .app-row .url-actions button,.app-row .app-row-tools button{min-width:40px}
 .pub-url-text{color:var(--fg);overflow-wrap:anywhere;text-decoration:none}
 
-.tr-m,.activity-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tr-row:not(.expanded) .tr-m,.activity-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .timeout-overlay,.adm-timeout-overlay{position:absolute;inset:0;z-index:10;display:grid;place-items:center;padding:24px;background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filter:blur(2px)}
 .timeout-overlay[hidden],.adm-timeout-overlay[hidden]{display:none}
 
